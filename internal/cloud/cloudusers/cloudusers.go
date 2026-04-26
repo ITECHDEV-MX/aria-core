@@ -17,12 +17,18 @@ const (
 	RoleDev          = "dev"
 	RoleCotizador    = "cotizador"
 	RoleProjectAdmin = "project_admin"
+	// RoleAgent es para asistentes IA (ej. Z.A.R.A., secretaria de JC vía Hermes).
+	// Tiene los mismos permisos de escritura que admin + capacidad de leer
+	// scope=personal de otros usuarios (cross-personal read). Mantiene bloqueo
+	// del redactor para sensitivity=confidential. NO puede crear/borrar usuarios
+	// (eso queda solo en admin para evitar escalada de privilegios).
+	RoleAgent = "agent"
 
 	BcryptCost = 12
 )
 
 // AllRoles lista los roles soportados (orden = orden de aparición en UI).
-var AllRoles = []string{RoleAdmin, RoleDev, RoleCotizador, RoleProjectAdmin}
+var AllRoles = []string{RoleAdmin, RoleDev, RoleCotizador, RoleProjectAdmin, RoleAgent}
 
 // RoleLabel retorna el display name de un role.
 func RoleLabel(role string) string {
@@ -35,6 +41,8 @@ func RoleLabel(role string) string {
 		return "Cotizador (Ventas)"
 	case RoleProjectAdmin:
 		return "Administrador Proyectos"
+	case RoleAgent:
+		return "Agente IA (asistente)"
 	default:
 		return role
 	}
@@ -45,7 +53,7 @@ var (
 	ErrInvalidCredential = errors.New("invalid credentials")
 	ErrInactive          = errors.New("user is inactive")
 	ErrEmailTaken        = errors.New("email already in use")
-	ErrInvalidRole       = errors.New("invalid role (must be one of: admin, dev, cotizador, project_admin)")
+	ErrInvalidRole       = errors.New("invalid role (must be one of: admin, dev, cotizador, project_admin, agent)")
 )
 
 type User struct {

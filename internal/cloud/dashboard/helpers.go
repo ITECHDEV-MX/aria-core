@@ -281,6 +281,7 @@ func AvailableRoles() []RoleOption {
 		{Value: "dev", Label: "Dev"},
 		{Value: "cotizador", Label: "Cotizador (Ventas)"},
 		{Value: "project_admin", Label: "Administrador Proyectos"},
+		{Value: "agent", Label: "Agente IA (asistente)"},
 	}
 }
 

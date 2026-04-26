@@ -459,7 +459,7 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_users_role_check') THEN
 				ALTER TABLE cloud_users DROP CONSTRAINT cloud_users_role_check;
 			END IF;
-			ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev','cotizador','project_admin'));
+			ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev','cotizador','project_admin','agent'));
 		END $$`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_users_email ON cloud_users(lower(email))`,
 		// Multi-role: tabla many-to-many entre usuarios y roles.
@@ -468,8 +468,15 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			role TEXT NOT NULL,
 			granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			PRIMARY KEY (uid, role),
-			CONSTRAINT cloud_user_roles_role_check CHECK (role IN ('admin','dev','cotizador','project_admin'))
+			CONSTRAINT cloud_user_roles_role_check CHECK (role IN ('admin','dev','cotizador','project_admin','agent'))
 		)`,
+		// Si la tabla ya existe con el CHECK viejo, lo replazamos para incluir 'agent'.
+		`DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_user_roles_role_check') THEN
+				ALTER TABLE cloud_user_roles DROP CONSTRAINT cloud_user_roles_role_check;
+				ALTER TABLE cloud_user_roles ADD CONSTRAINT cloud_user_roles_role_check CHECK (role IN ('admin','dev','cotizador','project_admin','agent'));
+			END IF;
+		END $$`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_user_roles_uid ON cloud_user_roles(uid)`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_user_roles_role ON cloud_user_roles(role)`,
 		// Backfill desde la columna role single (legacy) hacia cloud_user_roles.
