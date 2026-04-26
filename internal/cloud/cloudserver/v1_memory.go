@@ -102,12 +102,29 @@ func (s *CloudServer) handleV1MemorySearch(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	tokenBudget, _ := strconv.Atoi(r.URL.Query().Get("token_budget"))
+	strategy := strings.TrimSpace(r.URL.Query().Get("strategy"))
 	in := AriaMemSearchInput{
 		Query:           strings.TrimSpace(r.URL.Query().Get("q")),
 		Project:         strings.TrimSpace(r.URL.Query().Get("project")),
 		Scope:           strings.TrimSpace(r.URL.Query().Get("scope")),
 		ObservationType: strings.TrimSpace(r.URL.Query().Get("type")),
 		Limit:           limit,
+	}
+	if tokenBudget > 0 {
+		results, truncated, tokens, err := s.ariaMem.SearchWithBudget(r.Context(), in, tokenBudget, strategy)
+		if err != nil {
+			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"results":         results,
+			"count":           len(results),
+			"truncated_count": truncated,
+			"tokens_used":     tokens,
+			"strategy":        strategy,
+		})
+		return
 	}
 	rs, err := s.ariaMem.Search(r.Context(), in)
 	if err != nil {
@@ -192,11 +209,13 @@ func (s *CloudServer) handleV1MemoryRecordQuality(w http.ResponseWriter, r *http
 }
 
 type v1SessionStartRequest struct {
-	Project   string `json:"project,omitempty"`
-	Directory string `json:"directory,omitempty"`
-	Goal      string `json:"goal,omitempty"`
-	ClientID  string `json:"client_id,omitempty"`
-	MachineID string `json:"machine_id,omitempty"`
+	Project     string   `json:"project,omitempty"`
+	Directory   string   `json:"directory,omitempty"`
+	Goal        string   `json:"goal,omitempty"`
+	ClientID    string   `json:"client_id,omitempty"`
+	MachineID   string   `json:"machine_id,omitempty"`
+	Stack       []string `json:"stack,omitempty"`
+	TokenBudget int      `json:"token_budget,omitempty"`
 }
 
 func (s *CloudServer) handleV1MemorySessionStart(w http.ResponseWriter, r *http.Request) {
@@ -228,7 +247,27 @@ func (s *CloudServer) handleV1MemorySessionStart(w http.ResponseWriter, r *http.
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
-	jsonResponse(w, http.StatusCreated, sess)
+
+	// Auto-context injection: armar primer mensaje con canon+skills+recipes.
+	autoCtx, _ := s.ariaMem.BuildSessionAutoContext(r.Context(), AriaMemAutoContextInput{
+		Project:      req.Project,
+		Goal:         req.Goal,
+		Stack:        req.Stack,
+		DeveloperUID: devUID,
+		SessionID:    sess.ID,
+		TokenBudget:  req.TokenBudget,
+	})
+	resp := map[string]any{
+		"session": sess,
+	}
+	if autoCtx != nil {
+		resp["auto_context"] = autoCtx.Markdown
+		resp["auto_context_tokens"] = autoCtx.TokensUsed
+		resp["auto_context_truncated"] = autoCtx.TruncatedItems
+	}
+	// session_id top-level para compatibilidad con clientes existentes que esperan {id}
+	resp["session_id"] = sess.ID
+	jsonResponse(w, http.StatusCreated, resp)
 }
 
 type v1SessionSummaryRequest struct {
@@ -294,12 +333,94 @@ func (s *CloudServer) handleV1MemorySkills(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	}
+	taskDesc := strings.TrimSpace(r.URL.Query().Get("task_description"))
+	tokenBudget, _ := strconv.Atoi(r.URL.Query().Get("token_budget"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	strategy := strings.TrimSpace(r.URL.Query().Get("strategy"))
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	project := strings.TrimSpace(r.URL.Query().Get("project"))
+
+	// Si llega task_description o token_budget => usar el path con telemetry.
+	if taskDesc != "" || tokenBudget > 0 || strategy != "" {
+		claims, _ := claimsFromContext(r.Context())
+		devUID := ""
+		if claims != nil {
+			devUID = claims.UID
+		}
+		out, err := s.ariaMem.GetSkillsRanked(r.Context(), AriaMemSkillsRankedInput{
+			TaskDescription: taskDesc,
+			Stack:           stack,
+			Limit:           limit,
+			TokenBudget:     tokenBudget,
+			SessionID:       sessionID,
+			DeveloperUID:    devUID,
+			Project:         project,
+			Strategy:        strategy,
+		})
+		if err != nil {
+			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"skills":          out.Skills,
+			"count":           len(out.Skills),
+			"truncated_count": out.TruncatedCount,
+			"tokens_used":     out.TokensUsed,
+			"strategy":        out.Strategy,
+		})
+		return
+	}
+
 	skills, err := s.ariaMem.ListSkills(r.Context(), stack)
 	if err != nil {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
 	jsonResponse(w, http.StatusOK, map[string]any{"skills": skills, "count": len(skills)})
+}
+
+type v1SkillFeedbackRequest struct {
+	SkillID string `json:"skill_id"`
+	Signal  string `json:"signal"`
+	Helped  *bool  `json:"helped,omitempty"`
+	Notes   string `json:"notes,omitempty"`
+}
+
+func (s *CloudServer) handleV1MemorySkillFeedback(w http.ResponseWriter, r *http.Request) {
+	if s.ariaMem == nil {
+		http.Error(w, `{"error":"memory not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+	var req v1SkillFeedbackRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid json body"}`, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.SkillID) == "" {
+		http.Error(w, `{"error":"skill_id is required"}`, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Signal) == "" {
+		http.Error(w, `{"error":"signal is required"}`, http.StatusBadRequest)
+		return
+	}
+	claims, _ := claimsFromContext(r.Context())
+	devUID := ""
+	if claims != nil {
+		devUID = claims.UID
+	}
+	if err := s.ariaMem.RecordSkillFeedback(r.Context(), AriaMemSkillFeedbackInput{
+		SkillID:      req.SkillID,
+		DeveloperUID: devUID,
+		Signal:       req.Signal,
+		Helped:       req.Helped,
+		Notes:        req.Notes,
+	}); err != nil {
+		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]any{"ok": true, "skill_id": req.SkillID})
 }
 
 func (s *CloudServer) handleV1MemoryRecipes(w http.ResponseWriter, r *http.Request) {

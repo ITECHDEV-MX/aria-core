@@ -896,6 +896,37 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_email ON cloud_invites(lower(email))`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_expires ON cloud_invites(expires_at)`,
+
+		// BEGIN CONTEXT MIGRATIONS
+		// Token budget manager + skill effectiveness telemetry.
+		// Owned by internal/cloud/contextbudget/schema.go (MIRROR).
+		// Si modificás algo acá, actualizá también contextbudget.SchemaSQL.
+		`CREATE TABLE IF NOT EXISTS aria_skill_usage (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			skill_id TEXT NOT NULL REFERENCES aria_skills(id) ON DELETE CASCADE,
+			session_id TEXT,
+			developer_uid UUID,
+			project TEXT,
+			task_description TEXT,
+			position_in_results INT,
+			did_help BOOLEAN,
+			feedback_signal TEXT,
+			feedback_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_usage_skill ON aria_skill_usage(skill_id, did_help)`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_usage_recent ON aria_skill_usage(created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_usage_dev ON aria_skill_usage(developer_uid)`,
+		`CREATE TABLE IF NOT EXISTS aria_mcp_config (
+			tool_name TEXT PRIMARY KEY,
+			default_token_budget INT NOT NULL DEFAULT 4000,
+			max_results INT NOT NULL DEFAULT 20,
+			rerank_strategy TEXT NOT NULL DEFAULT 'canon-first',
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`INSERT INTO aria_mcp_config (tool_name) VALUES ('aria_search'),('aria_get_skills'),('aria_get_recipes')
+		 ON CONFLICT (tool_name) DO NOTHING`,
+		// END CONTEXT MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {

@@ -2,21 +2,30 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/ariamem"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudserver"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/contextbudget"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
 )
 
 // ariaMemAdapter conecta ariamem.Store al contrato cloudserver.AriaMemService.
 type ariaMemAdapter struct {
-	store *ariamem.Store
+	store     *ariamem.Store
+	telemetry *contextbudget.SQLTelemetry
+	counter   contextbudget.Counter
 }
 
 func newAriaMemAdapter(cs *cloudstore.CloudStore) *ariaMemAdapter {
-	return &ariaMemAdapter{store: ariamem.New(cs.DB())}
+	db := cs.DB()
+	return &ariaMemAdapter{
+		store:     ariamem.New(db),
+		telemetry: contextbudget.NewSQLTelemetry(db),
+		counter:   contextbudget.NewHeuristicCounter(),
+	}
 }
 
 func (a *ariaMemAdapter) Save(ctx context.Context, in cloudserver.AriaMemSaveInput) (*cloudserver.AriaMemObservation, error) {
@@ -362,6 +371,249 @@ func toMemoryView(o *ariamem.Observation) dashboard.AriaMemoryView {
 		v.TopicKey = o.TopicKey.String
 	}
 	return v
+}
+
+// === Token budget + telemetry adapters ===
+
+func (a *ariaMemAdapter) SearchWithBudget(ctx context.Context, in cloudserver.AriaMemSearchInput, tokenBudget int, strategy string) ([]*cloudserver.AriaMemObservation, int, int, error) {
+	res, err := a.store.SearchWithBudget(ctx, ariamem.SearchParams{
+		Query: in.Query, Project: in.Project, Scope: in.Scope,
+		ObservationType: in.ObservationType, Limit: in.Limit,
+	}, ariamem.SearchOptions{
+		TokenBudget:  tokenBudget,
+		RankStrategy: strategy,
+	})
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	out := make([]*cloudserver.AriaMemObservation, 0, len(res.Results))
+	for _, o := range res.Results {
+		out = append(out, toMemObs(o))
+	}
+	return out, res.TruncatedCount, res.TokensUsed, nil
+}
+
+func (a *ariaMemAdapter) GetSkillsRanked(ctx context.Context, in cloudserver.AriaMemSkillsRankedInput) (*cloudserver.AriaMemSkillsRankedOutput, error) {
+	skills, err := a.store.SkillsForGoal(ctx, in.TaskDescription, in.Stack, max(in.Limit, 10))
+	if err != nil {
+		// Fallback al ListSkills clásico si falla la query con FTS.
+		skills, err = a.store.ListSkills(ctx, in.Stack)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Bulk effectiveness para calcular Wilson lower bound.
+	ids := make([]string, 0, len(skills))
+	for _, sk := range skills {
+		ids = append(ids, sk.ID)
+	}
+	effMap := map[string]contextbudget.SkillScored{}
+	if a.telemetry != nil {
+		if m, err := a.telemetry.BulkEffectiveness(ctx, ids); err == nil {
+			effMap = m
+		}
+	}
+	// Score + budget.
+	now := time.Now().UTC()
+	strategy := contextbudget.RankStrategy(strategy(in.Strategy))
+	items := make([]contextbudget.ScoredItem, 0, len(skills))
+	for _, sk := range skills {
+		eff := effMap[sk.ID].WilsonLB
+		cbSk := contextbudget.Skill{
+			ID:            sk.ID,
+			Name:          sk.Name,
+			Description:   sk.Description,
+			Content:       sk.Content,
+			Stack:         sk.Stack,
+			FTSRank:       0.5, // se podría persistir; para ahora un constante razonable
+			Effectiveness: eff,
+			UpdatedAtDays: now.Sub(sk.UpdatedAt).Hours() / 24.0,
+		}
+		score := contextbudget.ScoreSkill(cbSk, strategy)
+		items = append(items, contextbudget.ScoredItem{
+			Key:    sk.ID,
+			Score:  score,
+			Tokens: a.counter.CountSkill(cbSk),
+			Ref:    sk,
+		})
+	}
+	limit := in.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+	// Aplicamos primero la selección por budget si se pidió.
+	budget := in.TokenBudget
+	out := &cloudserver.AriaMemSkillsRankedOutput{Strategy: string(strategy)}
+	var selected []contextbudget.ScoredItem
+	var truncated, tokens int
+	if budget > 0 {
+		selected, truncated, tokens = contextbudget.SelectWithinBudget(items, budget)
+	} else {
+		// sin budget: ordenar por score y respetar limit.
+		selected, _, _ = contextbudget.SelectWithinBudget(items, 1<<30)
+	}
+	if len(selected) > limit {
+		// truncar manualmente al limit, contabilizando como truncados.
+		truncated += len(selected) - limit
+		selected = selected[:limit]
+	}
+	out.TruncatedCount = truncated
+	out.TokensUsed = tokens
+	out.Skills = make([]*cloudserver.AriaMemSkill, 0, len(selected))
+
+	for i, it := range selected {
+		sk, ok := it.Ref.(*ariamem.Skill)
+		if !ok {
+			continue
+		}
+		out.Skills = append(out.Skills, &cloudserver.AriaMemSkill{
+			ID: sk.ID, Name: sk.Name, Description: sk.Description, Content: sk.Content,
+			Source: sk.Source, Stack: sk.Stack, Active: sk.Active,
+		})
+		// Telemetry: registrar retrieval. No bloquear el response si falla.
+		if a.telemetry != nil {
+			_ = a.telemetry.RecordRetrieval(ctx, contextbudget.RecordRetrievalParams{
+				SkillID:           sk.ID,
+				SessionID:         in.SessionID,
+				DeveloperUID:      in.DeveloperUID,
+				Project:           in.Project,
+				TaskDescription:   in.TaskDescription,
+				PositionInResults: i + 1,
+			})
+		}
+	}
+	return out, nil
+}
+
+func (a *ariaMemAdapter) BuildSessionAutoContext(ctx context.Context, in cloudserver.AriaMemAutoContextInput) (*cloudserver.AriaMemAutoContextOutput, error) {
+	srcs := contextbudget.InjectorSources{
+		TopCanonObservations: func(project string, limit int) ([]contextbudget.Observation, error) {
+			rows, err := a.store.TopCanonObservations(ctx, project, limit)
+			if err != nil {
+				return nil, err
+			}
+			now := time.Now().UTC()
+			out := make([]contextbudget.Observation, 0, len(rows))
+			for _, o := range rows {
+				out = append(out, contextbudget.Observation{
+					ID: o.ID, Title: o.Title,
+					Subtitle:      ns(o.Subtitle),
+					Narrative:     ns(o.Narrative),
+					Facts:         ns(o.Facts),
+					Concepts:      ns(o.Concepts),
+					Project:       ns(o.Project),
+					Scope:         o.Scope,
+					Canon:         o.Canon,
+					CreatedAtDays: now.Sub(o.CreatedAt).Hours() / 24.0,
+					FTSRank:       0.5,
+				})
+			}
+			return out, nil
+		},
+		SkillsForGoal: func(goal string, stack []string, limit int) ([]contextbudget.Skill, error) {
+			rows, err := a.store.SkillsForGoal(ctx, goal, stack, limit)
+			if err != nil {
+				return nil, err
+			}
+			now := time.Now().UTC()
+			out := make([]contextbudget.Skill, 0, len(rows))
+			for _, sk := range rows {
+				out = append(out, contextbudget.Skill{
+					ID:            sk.ID,
+					Name:          sk.Name,
+					Description:   sk.Description,
+					Content:       sk.Content,
+					Stack:         sk.Stack,
+					FTSRank:       0.5,
+					UpdatedAtDays: now.Sub(sk.UpdatedAt).Hours() / 24.0,
+				})
+			}
+			return out, nil
+		},
+		RecipesForStack: func(taskDescription string, stack []string, limit int) ([]contextbudget.Recipe, error) {
+			rows, err := a.store.GetRecipes(ctx, taskDescription, stack, limit)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]contextbudget.Recipe, 0, len(rows))
+			for _, r := range rows {
+				out = append(out, contextbudget.Recipe{
+					ID:          r.ID,
+					TaskPattern: r.TaskPattern,
+					StepsJSON:   r.StepsJSON,
+					Stack:       r.Stack,
+				})
+			}
+			return out, nil
+		},
+		OpenSessionsForDev: func(devUID, excludeSessionID string, limit int) ([]contextbudget.OpenSessionRef, error) {
+			rows, err := a.store.OpenSessionsForDev(ctx, devUID, excludeSessionID, limit)
+			if err != nil {
+				return nil, err
+			}
+			now := time.Now().UTC()
+			out := make([]contextbudget.OpenSessionRef, 0, len(rows))
+			for _, sess := range rows {
+				out = append(out, contextbudget.OpenSessionRef{
+					ID:         sess.ID,
+					Project:    ns(sess.Project),
+					Goal:       ns(sess.Goal),
+					StartedAgo: contextbudget.HumanAgo(sess.StartedAt, now),
+				})
+			}
+			return out, nil
+		},
+	}
+	res := contextbudget.BuildSessionStartContext(contextbudget.SessionStartParams{
+		Project:      in.Project,
+		Goal:         in.Goal,
+		Stack:        in.Stack,
+		DeveloperUID: in.DeveloperUID,
+		SessionID:    in.SessionID,
+		TokenBudget:  in.TokenBudget,
+	}, a.counter, srcs)
+	return &cloudserver.AriaMemAutoContextOutput{
+		Markdown:       res.Markdown,
+		TokensUsed:     res.TokensUsed,
+		TruncatedItems: res.TruncatedItems,
+	}, nil
+}
+
+func (a *ariaMemAdapter) RecordSkillFeedback(ctx context.Context, in cloudserver.AriaMemSkillFeedbackInput) error {
+	if a.telemetry == nil {
+		return nil
+	}
+	signal := contextbudget.FeedbackSignal(in.Signal)
+	if !contextbudget.ValidFeedbackSignal(in.Signal) {
+		return contextbudget.ErrInvalidSignal
+	}
+	helped := contextbudget.HelpedFromSignal(signal)
+	// Si el caller pasó un explicit Helped, sobrescribe la inferencia.
+	if in.Helped != nil {
+		helped = sql.NullBool{Bool: *in.Helped, Valid: true}
+	}
+	return a.telemetry.RecordFeedback(ctx, in.SkillID, in.DeveloperUID, signal, helped, in.Notes)
+}
+
+func ns(v sql.NullString) string {
+	if v.Valid {
+		return v.String
+	}
+	return ""
+}
+
+func strategy(s string) string {
+	if s == "" {
+		return string(contextbudget.StrategyCanonFirst)
+	}
+	return s
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func toMemSession(sess *ariamem.Session) *cloudserver.AriaMemSession {

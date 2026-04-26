@@ -270,6 +270,10 @@ type AriaMemService interface {
 	Save(ctx context.Context, p AriaMemSaveInput) (*AriaMemObservation, error)
 	GetByID(ctx context.Context, id string) (*AriaMemObservation, error)
 	Search(ctx context.Context, p AriaMemSearchInput) ([]*AriaMemObservation, error)
+	// SearchWithBudget aplica ranking inteligente + token budget. Returns
+	// (results, truncated_count, tokens_used, error). Si tokenBudget<=0,
+	// se comporta como Search (sin truncar).
+	SearchWithBudget(ctx context.Context, p AriaMemSearchInput, tokenBudget int, strategy string) (results []*AriaMemObservation, truncated int, tokens int, err error)
 	Timeline(ctx context.Context, project string, since, until *time.Time, limit int) ([]*AriaMemObservation, error)
 	PromoteCanon(ctx context.Context, id, byUID string) error
 	RecordQuality(ctx context.Context, id, signal string, score float64, notes, byUID string) error
@@ -278,7 +282,14 @@ type AriaMemService interface {
 	SaveSummary(ctx context.Context, p AriaMemSaveSummaryInput) error
 	GetContextStatus(ctx context.Context, project string) (*AriaMemContextStatus, error)
 	ListSkills(ctx context.Context, stack []string) ([]*AriaMemSkill, error)
+	// GetSkillsRanked rankea por effectiveness + FTS sobre task_description, y
+	// registra retrieval por cada skill devuelto.
+	GetSkillsRanked(ctx context.Context, p AriaMemSkillsRankedInput) (*AriaMemSkillsRankedOutput, error)
 	GetRecipes(ctx context.Context, taskDescription string, stack []string, limit int) ([]*AriaMemRecipe, error)
+	// BuildSessionAutoContext arma el primer mensaje markdown con canon+skills+recipes+open sessions.
+	BuildSessionAutoContext(ctx context.Context, p AriaMemAutoContextInput) (*AriaMemAutoContextOutput, error)
+	// RecordSkillFeedback registra feedback explícito sobre un skill.
+	RecordSkillFeedback(ctx context.Context, p AriaMemSkillFeedbackInput) error
 }
 
 type AriaMemSaveInput struct {
@@ -339,6 +350,53 @@ type AriaMemRecipe struct {
 	ID, TaskPattern, StepsJSON, SourceSessionID string
 	Stack                                       []string
 	UsageCount                                  int
+}
+
+// AriaMemSkillsRankedInput son los inputs del aria_get_skills mejorado.
+type AriaMemSkillsRankedInput struct {
+	TaskDescription string
+	Stack           []string
+	Limit           int
+	TokenBudget     int
+	SessionID       string
+	DeveloperUID    string
+	Project         string
+	Strategy        string
+}
+
+// AriaMemSkillsRankedOutput agrega telemetría al output (truncated, tokens).
+type AriaMemSkillsRankedOutput struct {
+	Skills         []*AriaMemSkill
+	TruncatedCount int
+	TokensUsed     int
+	Strategy       string
+}
+
+// AriaMemAutoContextInput se usa al iniciar sesión para inyectar el primer
+// mensaje compuesto.
+type AriaMemAutoContextInput struct {
+	Project      string
+	Goal         string
+	Stack        []string
+	DeveloperUID string
+	SessionID    string
+	TokenBudget  int
+}
+
+// AriaMemAutoContextOutput es el markdown ya rendereado + métricas.
+type AriaMemAutoContextOutput struct {
+	Markdown       string
+	TokensUsed     int
+	TruncatedItems int
+}
+
+// AriaMemSkillFeedbackInput captura la intención del developer sobre un skill.
+type AriaMemSkillFeedbackInput struct {
+	SkillID      string
+	DeveloperUID string
+	Signal       string
+	Helped       *bool
+	Notes        string
 }
 
 func New(store ChunkStore, authSvc Authenticator, port int, opts ...Option) *CloudServer {
@@ -533,6 +591,8 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("GET /v1/memory/context-status", s.withJWTAuth(s.handleV1MemoryContextStatus))
 	s.mux.HandleFunc("GET /v1/memory/skills", s.withJWTAuth(s.handleV1MemorySkills))
 	s.mux.HandleFunc("GET /v1/memory/recipes", s.withJWTAuth(s.handleV1MemoryRecipes))
+	// Token budget + telemetry endpoints.
+	s.mux.HandleFunc("POST /v1/memory/skills/feedback", s.withJWTAuth(s.handleV1MemorySkillFeedback))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {
