@@ -78,8 +78,8 @@ templ CotizadorStatsPage(s *CotizadorDashboardStatsView) {
 		</div>
 	</div>
 
-	<!-- Chart data inyectada como JSON safe -->
-	<script type="application/json" id="aria-charts-data">{ chartsDataJSON(s) }</script>
+	<!-- Chart data inyectada como data-attribute (templ no interpola dentro de <script>) -->
+	<div id="aria-charts-data" data-payload={ chartsDataJSON(s) } style="display:none"></div>
 	<!-- Chart.js CDN -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
 	<script>
@@ -98,7 +98,7 @@ templ CotizadorStatsPage(s *CotizadorDashboardStatsView) {
 			Chart.defaults.borderColor = border;
 			Chart.defaults.font.family = 'Open Sans, sans-serif';
 
-			const data = JSON.parse(document.getElementById('aria-charts-data').textContent);
+			const data = JSON.parse(document.getElementById('aria-charts-data').dataset.payload);
 
 			// Funnel leads
 			new Chart(document.getElementById('chart-funnel'), {
