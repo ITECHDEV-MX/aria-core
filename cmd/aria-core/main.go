@@ -592,6 +592,14 @@ func main() {
 		cmdProjects(cfg)
 	case "setup":
 		cmdSetup()
+	case "hooks":
+		cmdHooks(cfg)
+	case "hooks-helper":
+		cmdHooksHelper(cfg)
+	case "ci":
+		cmdCI(cfg)
+	case "daemon":
+		cmdDaemon(cfg)
 	case "version", "--version", "-v":
 		fmt.Printf("aria-core %s\n", version)
 	case "help", "--help", "-h":
@@ -2209,6 +2217,15 @@ Commands:
                        --all      Scan ALL projects for similar name groups
                        --dry-run  Preview what would be merged (no changes)
   setup [agent]      Install/setup agent integration (opencode, claude-code, gemini-cli, codex)
+  hooks <sub>        Install/uninstall git hooks for passive ARIA capture
+                       install [--repo=PATH] [--global] [--force]
+                       uninstall [--repo=PATH] [--global]
+  hooks-helper <sub> Internal helper invoked from generated hook scripts
+                       prepare-commit-msg|post-commit|post-merge|auto-capture
+  ci capture         Parse CI logs and record errors as ARIA observations
+                       --workflow --run --repo [--branch --commit --log-file]
+  daemon <sub>       Claude Code session watcher (auto-summary on timeout)
+                       start|stop|status [--bind=HOST:PORT] [--timeout=DUR] [--interval=DUR]
   sync               Export new memories as compressed chunk to .aria-core/
                          --import   Import new chunks from .aria-core/ into local DB
                          --status   Show sync status
