@@ -73,6 +73,9 @@ type CloudServer struct {
 	roi              ROIService
 	roiDash          dashboard.ROIService
 	recipes          RecipeRunnerService
+	pageAttachments  PageAttachmentService
+	pageShares       PageShareService
+	pagePublicView   PagePublicViewService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -713,6 +716,33 @@ func (s *CloudServer) routes() {
 	if s.recipes != nil {
 		dashRecipes := newDashboardRecipeAdapter(s.recipes)
 		mountRecipeDashboard(s.mux, dashRecipes, s.authorizeDashboardRequest, s.dashboardRolesFromRequest, s.displayNameFor)
+	}
+
+	// === Page attachments + shares ===
+	if s.pageAttachments != nil {
+		s.mux.HandleFunc("POST /v1/pages/{pageID}/attachments", s.withJWTAuth(s.handleV1AttachmentUpload))
+		s.mux.HandleFunc("GET /v1/pages/{pageID}/attachments", s.withJWTAuth(s.handleV1AttachmentList))
+		s.mux.HandleFunc("GET /v1/attachments/{id}", s.withJWTAuth(s.handleV1AttachmentGet))
+		s.mux.HandleFunc("GET /v1/attachments/{id}/download", s.withJWTAuth(s.handleV1AttachmentDownload))
+		s.mux.HandleFunc("GET /v1/attachments/{id}/thumbnail", s.withJWTAuth(s.handleV1AttachmentThumbnail))
+		s.mux.HandleFunc("DELETE /v1/attachments/{id}", s.withJWTAuth(s.handleV1AttachmentDelete))
+
+		// Dashboard mounts for attachments + shares.
+		if mountFn := newPageAttachmentsDashboard(s); mountFn != nil {
+			mountFn(s.mux, s.authorizeDashboardRequest, s.displayNameFor, s.dashboardRolesFromRequest)
+		}
+	}
+	if s.pageShares != nil {
+		s.mux.HandleFunc("POST /v1/pages/{pageID}/share", s.withJWTAuth(s.handleV1ShareCreate))
+		s.mux.HandleFunc("GET /v1/pages/{pageID}/shares", s.withJWTAuth(s.handleV1SharesList))
+		s.mux.HandleFunc("DELETE /v1/shares/{id}", s.withJWTAuth(s.handleV1ShareRevoke))
+
+		// PUBLIC routes — no auth, no /dashboard prefix. Rate-limited per IP.
+		s.mux.HandleFunc("GET /p/{token}", s.handlePublicPageGet)
+		s.mux.HandleFunc("POST /p/{token}/auth", s.handlePublicPageAuth)
+		if s.pageAttachments != nil {
+			s.mux.HandleFunc("GET /p/{token}/files/{id}", s.handlePublicAttachmentDownload)
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/chunkcodec"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/attachments"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1045,6 +1046,14 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		return fmt.Errorf("cloudstore: vault migrate: %w", err)
 	}
 	// END VAULT MIGRATIONS
+
+	// BEGIN ATTACHMENTS MIGRATIONS
+	// Ships file/image attachments + public share links anchored to aria_pages.
+	// FK to aria_pages is best-effort (PAGES module may run later in parallel).
+	if err := attachments.Migrate(ctx, cs.db); err != nil {
+		return fmt.Errorf("cloudstore: attachments migrate: %w", err)
+	}
+	// END ATTACHMENTS MIGRATIONS
 	return nil
 }
 

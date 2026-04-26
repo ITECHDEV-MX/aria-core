@@ -584,6 +584,8 @@ func main() {
 		cmdROI()
 	case "recipe", "recipes":
 		cmdRecipe()
+	case "pages":
+		cmdPages()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -2248,6 +2250,13 @@ Commands:
                                                      Ejecuta el recipe sincrónicamente
                        history [--key=X] [--days=30] Últimas ejecuciones
                        seed                          Carga 3 recipes builtin (idempotente)
+  pages <subcommand>  Page attachments + public share links (cloud-side)
+                       attach FILE PAGE_ID [--description=...]
+                                                     Sube un archivo a la página
+                       share PAGE_ID [--expires=24h] [--password=...] [--copy-to-clipboard]
+                                                     Crea un link público read-only
+                       shares list --page=ID         Lista links activos
+                       shares revoke SHARE_ID        Revoca un link
   obsidian-export    Export memories to an Obsidian-compatible markdown vault
                        --vault         Path to Obsidian vault root (required)
                        --project       Filter export to a single project (optional)

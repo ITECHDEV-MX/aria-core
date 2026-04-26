@@ -186,6 +186,18 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	recipeRunner := newRecipeRunner(cs, vaultAdpt, ariaMemSvc)
 	log.Printf("[aria-core-cloud] recipe runner ready")
 
+	// Page attachments + share links. The adapter owns filesystem storage,
+	// MIME validation, and async thumbnail generation.
+	pageAttsAdapter, attsErr := newPageAttachmentsAdapter(cs)
+	if attsErr != nil {
+		log.Printf("[aria-core-cloud] page attachments DISABLED: %v", attsErr)
+	}
+	pageSharesAdpt := newPageSharesAdapter(cs)
+	var pagePublicView *pagePublicViewAdapter
+	if pageAttsAdapter != nil {
+		pagePublicView = newPagePublicViewAdapter(cs, pageAttsAdapter)
+	}
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -211,6 +223,9 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithROI(roiRuntimeAdapter),
 			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithRecipeRunner(recipeRunner),
+			cloudserver.WithPageAttachments(pageAttachmentsServiceOrNil(pageAttsAdapter)),
+			cloudserver.WithPageShares(pageSharesAdpt),
+			cloudserver.WithPagePublicView(pagePublicViewServiceOrNil(pagePublicView)),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,
