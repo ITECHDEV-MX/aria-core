@@ -97,17 +97,33 @@ func proposalPDFFilename(folio string) string {
 	if clean == "" {
 		clean = "sin-folio"
 	}
-	// Replace path-unsafe runes; keep ASCII alnum, dash, underscore, dot.
-	var b strings.Builder
+	// Pass 1: keep ASCII alnum, dash, underscore, dot; spaces become dashes;
+	// everything else (slashes, etc) is dropped.
+	var first strings.Builder
 	for _, r := range clean {
 		switch {
 		case r >= 'a' && r <= 'z',
 			r >= 'A' && r <= 'Z',
 			r >= '0' && r <= '9',
 			r == '-', r == '_', r == '.':
-			b.WriteRune(r)
+			first.WriteRune(r)
 		case r == ' ':
-			b.WriteRune('-')
+			first.WriteRune('-')
+		}
+	}
+	// Pass 2: collapse runs of consecutive dots (after dropping slashes)
+	// to max 3 dots, neutralizing path-traversal payloads.
+	var b strings.Builder
+	dotRun := 0
+	for _, r := range first.String() {
+		if r == '.' {
+			dotRun++
+			if dotRun <= 3 {
+				b.WriteRune(r)
+			}
+		} else {
+			dotRun = 0
+			b.WriteRune(r)
 		}
 	}
 	cleaned := b.String()

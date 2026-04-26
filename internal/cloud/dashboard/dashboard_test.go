@@ -1097,8 +1097,8 @@ func TestMountRouteParityAndHTTPFallbacks(t *testing.T) {
 			}
 			return nil
 		},
-		CreateSessionCookie: func(w http.ResponseWriter, _ *http.Request, token string) error {
-			http.SetCookie(w, &http.Cookie{Name: "aria-core_dashboard_token", Value: token, Path: "/dashboard"})
+		CreateSessionCookie: func(w http.ResponseWriter, _ *http.Request, principal *LoginPrincipal) error {
+			http.SetCookie(w, &http.Cookie{Name: "aria-core_dashboard_token", Value: "test-cookie", Path: "/dashboard"})
 			return nil
 		},
 		ClearSessionCookie: func(w http.ResponseWriter, _ *http.Request) {
@@ -2946,8 +2946,8 @@ func TestAdminNavAuditLogLinkInAllFourPages(t *testing.T) {
 			if !strings.Contains(body, `href="/dashboard/admin/audit-log"`) {
 				t.Errorf("expected Audit Log link in %s nav, body=%q", page.name, body)
 			}
-			if !strings.Contains(body, "Audit Log") {
-				t.Errorf("expected 'Audit Log' text in %s nav, body=%q", page.name, body)
+			if !strings.Contains(body, "Bitácora de Auditoría") {
+				t.Errorf("expected 'Bitácora de Auditoría' text in %s nav, body=%q", page.name, body)
 			}
 		})
 	}
