@@ -186,6 +186,11 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	recipeRunner := newRecipeRunner(cs, vaultAdpt, ariaMemSvc)
 	log.Printf("[aria-core-cloud] recipe runner ready")
 
+	// Pages: inline databases + comments + @mentions.
+	pageDBAdapter := newPageDatabaseAdapter(cs)
+	pageCommentsAdapter := newPageCommentsAdapter(cs, emailService, userStoreAdapter)
+	log.Printf("[aria-core-cloud] page databases + comments ready")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -211,6 +216,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithROI(roiRuntimeAdapter),
 			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithRecipeRunner(recipeRunner),
+			cloudserver.WithPageDatabases(pageDBAdapter),
+			cloudserver.WithPageComments(pageCommentsAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

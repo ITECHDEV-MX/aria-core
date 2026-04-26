@@ -584,6 +584,10 @@ func main() {
 		cmdROI()
 	case "recipe", "recipes":
 		cmdRecipe()
+	case "pages":
+		cmdPages()
+	case "comments":
+		cmdComments()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":

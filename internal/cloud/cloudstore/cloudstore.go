@@ -1031,6 +1031,109 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_key ON aria_recipe_executions(recipe_key, started_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_step_results_exec ON aria_recipe_step_results(execution_id, step_index)`,
 		// END RECIPE MIGRATIONS
+
+		// BEGIN PAGES_DB_COMMENTS MIGRATIONS
+		// Inline databases para aria_pages.page_type='database' + comments threading + @mentions.
+		// Diseño: la tabla aria_pages la crea otro agente (PAGES). Los FOREIGN KEY a aria_pages
+		// se aplican condicionalmente vía DO block — si aria_pages no existe aún, el FK queda
+		// pendiente (la columna page_id se mantiene UUID NOT NULL pero sin referencial integrity
+		// hasta que el otro agente cree la tabla). Esto permite que ambos agentes mergeen sin
+		// orden estricto.
+
+		// Database container: 1 entry por aria_pages con page_type='database'.
+		`CREATE TABLE IF NOT EXISTS aria_page_databases (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			page_id UUID NOT NULL UNIQUE,
+			schema_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+			default_view TEXT NOT NULL DEFAULT 'table',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_page_databases_page ON aria_page_databases(page_id)`,
+
+		// Filas de la database (props_json validado contra schema_json en app layer).
+		`CREATE TABLE IF NOT EXISTS aria_page_database_rows (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			database_id UUID NOT NULL REFERENCES aria_page_databases(id) ON DELETE CASCADE,
+			props_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+			sort_order INT NOT NULL DEFAULT 0,
+			created_by_uid UUID NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dbrows_db ON aria_page_database_rows(database_id, sort_order)`,
+		`CREATE INDEX IF NOT EXISTS idx_dbrows_props ON aria_page_database_rows USING GIN (props_json)`,
+
+		// Views guardadas por database (table/kanban/gallery/list/calendar).
+		`CREATE TABLE IF NOT EXISTS aria_page_database_views (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			database_id UUID NOT NULL REFERENCES aria_page_databases(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			view_type TEXT NOT NULL,
+			config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+			sort_order INT NOT NULL DEFAULT 0,
+			created_by_uid UUID NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'aria_page_database_views_view_type_check') THEN
+				ALTER TABLE aria_page_database_views
+				  ADD CONSTRAINT aria_page_database_views_view_type_check
+				  CHECK (view_type IN ('table','kanban','gallery','list','calendar'));
+			END IF;
+		END $$`,
+		`CREATE INDEX IF NOT EXISTS idx_dbviews_db ON aria_page_database_views(database_id, sort_order)`,
+
+		// Comments con threading (parent_comment_id self-FK) y resolve flow.
+		`CREATE TABLE IF NOT EXISTS aria_page_comments (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			page_id UUID NOT NULL,
+			block_anchor TEXT,
+			parent_comment_id UUID REFERENCES aria_page_comments(id) ON DELETE CASCADE,
+			content_md TEXT NOT NULL,
+			author_uid UUID NOT NULL,
+			is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
+			resolved_by_uid UUID,
+			resolved_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_comments_page ON aria_page_comments(page_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_comments_thread ON aria_page_comments(parent_comment_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_comments_unresolved ON aria_page_comments(page_id) WHERE NOT is_resolved`,
+
+		// Mentions extracted, para notificaciones.
+		`CREATE TABLE IF NOT EXISTS aria_page_mentions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			comment_id UUID NOT NULL REFERENCES aria_page_comments(id) ON DELETE CASCADE,
+			mentioned_uid UUID NOT NULL,
+			notified_at TIMESTAMPTZ,
+			read_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mentions_user ON aria_page_mentions(mentioned_uid, read_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_mentions_comment ON aria_page_mentions(comment_id)`,
+
+		// FK condicionales hacia aria_pages — se aplican sólo si la tabla existe (la crea
+		// el agente PAGES). Usamos DEFERRABLE INITIALLY DEFERRED para permitir cascade
+		// cleanup en pruebas/migraciones.
+		`DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'aria_pages') THEN
+				IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_db_page') THEN
+					ALTER TABLE aria_page_databases
+					  ADD CONSTRAINT fk_db_page FOREIGN KEY (page_id)
+					  REFERENCES aria_pages(id) ON DELETE CASCADE
+					  DEFERRABLE INITIALLY DEFERRED;
+				END IF;
+				IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_comment_page') THEN
+					ALTER TABLE aria_page_comments
+					  ADD CONSTRAINT fk_comment_page FOREIGN KEY (page_id)
+					  REFERENCES aria_pages(id) ON DELETE CASCADE
+					  DEFERRABLE INITIALLY DEFERRED;
+				END IF;
+			END IF;
+		END $$`,
+		// END PAGES_DB_COMMENTS MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {
