@@ -1115,8 +1115,36 @@ templ AdminUsersPage() {
 
 	<div class="card">
 		<div class="card-header">
-			<div class="card-title">Crear usuario</div>
-			<p class="card-description">Email + nombre + roles + password inicial.</p>
+			<div class="card-title">Invitar usuario por email</div>
+			<p class="card-description">Envía un magic link al correo del invitado para que fije su propia contraseña. El link expira en 24 horas y solo puede usarse una vez.</p>
+		</div>
+		<form hx-post="/dashboard/admin/users/invite" hx-target="#admin-invite-feedback" hx-swap="innerHTML">
+			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem">
+				<label style="margin:0">
+					Email
+					<input type="email" name="email" placeholder="nuevo@itechdev.com.mx" required/>
+				</label>
+			</div>
+			<fieldset style="margin-top:0.75rem;padding:0.75rem;border:1px solid var(--border);border-radius:var(--radius-md)">
+				<legend style="padding:0 0.4rem;font-size:0.85rem;font-weight:500">Roles (uno o más)</legend>
+				<div style="display:flex;flex-wrap:wrap;gap:0.75rem">
+					for _, r := range AvailableRoles() {
+						<label style="display:inline-flex;align-items:center;gap:0.25rem;margin:0">
+							<input type="checkbox" name="roles" value={ r.Value } style="width:auto;margin:0"/>
+							{ r.Label }
+						</label>
+					}
+				</div>
+			</fieldset>
+			<button type="submit" class="btn btn-primary" style="margin-top:0.75rem">✉ Invitar usuario</button>
+		</form>
+		<div id="admin-invite-feedback" class="muted" style="margin-top:0.5rem"></div>
+	</div>
+
+	<div class="card">
+		<div class="card-header">
+			<div class="card-title">Crear usuario manualmente</div>
+			<p class="card-description">Email + nombre + roles + password inicial. Útil si no querés enviar magic link.</p>
 		</div>
 		<form hx-post="/dashboard/admin/users/create" hx-target="#admin-users-content" hx-swap="innerHTML">
 			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem">

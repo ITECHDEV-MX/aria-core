@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<title>Propuesta enviada</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2433;">
+	<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f6;padding:24px 0;">
+		<tr><td align="center">
+			<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+				<tr><td style="background:#0b1933;padding:24px;color:#ffffff;">
+					<h1 style="margin:0;font-size:20px;font-weight:600;letter-spacing:1px;">iTechDev</h1>
+					<p style="margin:4px 0 0 0;font-size:13px;color:#9aa6c7;">Propuesta comercial</p>
+				</td></tr>
+				<tr><td style="padding:32px 24px 16px 24px;">
+					<h2 style="margin:0 0 12px 0;font-size:18px;color:#1f2433;">Hola {{ .PreparedForContactName }},</h2>
+					<p style="margin:0 0 12px 0;font-size:14px;line-height:1.5;">
+						Te compartimos la propuesta comercial preparada para <strong>{{ .PreparedForCompany }}</strong>.
+					</p>
+					<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;width:100%;background:#f7f9fc;border-radius:6px;">
+						<tr><td style="padding:12px 16px;font-size:13px;color:#465069;">
+							<strong style="color:#0b1933;">Producto:</strong> {{ .ProductName }}<br>
+							{{ if .Folio }}<strong style="color:#0b1933;">Folio:</strong> {{ .Folio }}<br>{{ end }}
+							<strong style="color:#0b1933;">Total:</strong> {{ .Currency }} {{ printf "%.2f" .Total }}<br>
+							{{ if .ValidUntil }}<strong style="color:#0b1933;">Vigencia:</strong> {{ .ValidUntil }}{{ end }}
+						</td></tr>
+					</table>
+					<p style="margin:16px 0 0 0;font-size:14px;line-height:1.5;">
+						Cualquier duda o ajuste, respondé directamente a este correo o escribinos a {{ .PreparedByEmail }}.
+					</p>
+					<p style="margin:24px 0 0 0;font-size:14px;">Saludos,<br><strong>{{ .PreparedByName }}</strong></p>
+				</td></tr>
+				<tr><td style="background:#f7f9fc;padding:16px 24px;font-size:11px;color:#7a8398;border-top:1px solid #e3e8f0;">
+					iTechDev · ARIA Core · {{ .PublicURL }}
+				</td></tr>
+			</table>
+		</td></tr>
+	</table>
+</body>
+</html>

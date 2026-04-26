@@ -1,0 +1,129 @@
+package email
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+)
+
+// Service wraps the low-level Microsoft Graph client and exposes high-level
+// methods for ARIA Core notifications (quote events + magic-link invites).
+//
+// All Send* methods are safe to call when the underlying client is not
+// configured: they simply log a warning and return nil so callers (e.g.
+// async hooks in cotizador) don't have to gate every call.
+type Service struct {
+	client *Client
+}
+
+// NewService builds a Service from a configured Client.
+// If client is nil or not configured, the Service degrades to log-only mode.
+func NewService(c *Client) *Service {
+	return &Service{client: c}
+}
+
+// IsConfigured reports whether the underlying Graph client is fully wired up.
+func (s *Service) IsConfigured() bool {
+	return s != nil && s.client != nil && s.client.IsConfigured()
+}
+
+// PublicURL exposes the configured PublicURL for callers that need to build
+// magic-link URLs even when email is disabled.
+func (s *Service) PublicURL() string {
+	if s == nil || s.client == nil {
+		return ""
+	}
+	return s.client.PublicURL()
+}
+
+// QuoteContext carries the data needed to render quote-event emails.
+type QuoteContext struct {
+	QuoteID                 string
+	Folio                   string
+	ProductName             string
+	PreparedForCompany      string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	Total                   float64
+	Currency                string
+	Status                  string
+	ValidUntil              string
+	PreparedByName          string
+	PreparedByEmail         string
+	Notes                   string
+	PublicURL               string
+}
+
+// InviteContext carries the data for the magic-link invite email.
+type InviteContext struct {
+	Email     string
+	Link      string
+	ExpiresAt string
+	InvitedBy string
+	Roles     []string
+}
+
+// SendQuoteSent dispatches the "propuesta enviada" email to the contact.
+func (s *Service) SendQuoteSent(ctx context.Context, qc QuoteContext) error {
+	return s.send(ctx, qc.PreparedForContactEmail, "[iTechDev] Propuesta enviada", "quote_sent", qc, nil)
+}
+
+// SendQuoteApproved dispatches the "propuesta aprobada" email and BCCs the creator.
+func (s *Service) SendQuoteApproved(ctx context.Context, qc QuoteContext, bccCreator string) error {
+	bcc := []string{}
+	if strings.TrimSpace(bccCreator) != "" {
+		bcc = []string{strings.TrimSpace(bccCreator)}
+	}
+	return s.send(ctx, qc.PreparedForContactEmail, "[iTechDev] Propuesta aprobada", "quote_approved", qc, bcc)
+}
+
+// SendQuoteRejected dispatches the "propuesta rechazada" email to the creator.
+func (s *Service) SendQuoteRejected(ctx context.Context, qc QuoteContext, creatorEmail string) error {
+	return s.send(ctx, creatorEmail, "[iTechDev] Propuesta rechazada", "quote_rejected", qc, nil)
+}
+
+// SendQuoteExpiring dispatches the "vence pronto" warning to the creator.
+func (s *Service) SendQuoteExpiring(ctx context.Context, qc QuoteContext, creatorEmail string) error {
+	return s.send(ctx, creatorEmail, "[iTechDev] Propuesta vence pronto", "quote_expiring", qc, nil)
+}
+
+// SendInvite dispatches the magic-link invite email.
+func (s *Service) SendInvite(ctx context.Context, ic InviteContext) error {
+	return s.send(ctx, ic.Email, "[iTechDev] Invitación a ARIA Core", "magic_link", ic, nil)
+}
+
+// send is the internal helper that renders a template and dispatches via Graph.
+// When the client is not configured, it logs at INFO and returns nil so callers
+// can continue (per spec: "los hooks loggean info y siguen").
+func (s *Service) send(ctx context.Context, to, subject, templateName string, data any, bcc []string) error {
+	if s == nil || s.client == nil || !s.client.IsConfigured() {
+		log.Printf("email: SKIP send (not configured) to=%s subject=%q template=%s", to, subject, templateName)
+		return nil
+	}
+	if strings.TrimSpace(to) == "" {
+		log.Printf("email: SKIP send (empty recipient) subject=%q template=%s", subject, templateName)
+		return nil
+	}
+	htmlBody, err := s.client.Render(templateName, data)
+	if err != nil {
+		return fmt.Errorf("email service: render: %w", err)
+	}
+	if len(bcc) > 0 {
+		if err := s.client.SendMailBCC(ctx, to, bcc, subject, htmlBody, ""); err != nil {
+			if errors.Is(err, ErrNotConfigured) {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+	if err := s.client.SendMail(ctx, to, subject, htmlBody, ""); err != nil {
+		if errors.Is(err, ErrNotConfigured) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}

@@ -8,7 +8,17 @@ import (
 )
 
 func (a *cotizadorAdapter) CloseQuoteWithOutcome(ctx context.Context, quoteID, newStatus, byUID, reason, lessonText string, lessonTags []string) error {
-	return a.store.CloseQuoteWithOutcome(ctx, quoteID, newStatus, byUID, reason, lessonText, lessonTags)
+	fromStatus := ""
+	if q, err := a.store.GetQuote(ctx, quoteID); err == nil && q != nil {
+		fromStatus = q.Status
+	}
+	if err := a.store.CloseQuoteWithOutcome(ctx, quoteID, newStatus, byUID, reason, lessonText, lessonTags); err != nil {
+		return err
+	}
+	if a.notifier != nil {
+		a.notifier.NotifyQuoteClose(ctx, quoteID, fromStatus, newStatus, byUID, reason)
+	}
+	return nil
 }
 
 func (a *cotizadorAdapter) SearchSimilarItems(ctx context.Context, query string, limit int) ([]dashboard.CotizadorSimilarItemView, error) {

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<title>Invitación a ARIA Core</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2433;">
+	<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f6;padding:24px 0;">
+		<tr><td align="center">
+			<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+				<tr><td style="background:#0b1933;padding:24px;color:#ffffff;">
+					<h1 style="margin:0;font-size:20px;font-weight:600;letter-spacing:1px;">iTechDev — ARIA Core</h1>
+					<p style="margin:4px 0 0 0;font-size:13px;color:#9aa6c7;">Invitación de acceso</p>
+				</td></tr>
+				<tr><td style="padding:32px 24px 16px 24px;">
+					<h2 style="margin:0 0 12px 0;font-size:18px;color:#1f2433;">Te invitamos a ARIA Core</h2>
+					<p style="margin:0 0 12px 0;font-size:14px;line-height:1.5;">
+						{{ if .InvitedBy }}<strong>{{ .InvitedBy }}</strong> te invitó{{ else }}Has sido invitado{{ end }}
+						al panel de iTechDev ARIA Core con el correo <strong>{{ .Email }}</strong>.
+					</p>
+					{{ if .Roles }}
+					<p style="margin:0 0 12px 0;font-size:14px;line-height:1.5;">
+						<strong>Roles asignados:</strong>
+						{{ range .Roles }}<span style="display:inline-block;background:#e7eefa;color:#0b1933;padding:2px 8px;border-radius:3px;margin-right:4px;font-size:12px;">{{ . }}</span>{{ end }}
+					</p>
+					{{ end }}
+					<p style="margin:24px 0;text-align:center;">
+						<a href="{{ .Link }}" style="display:inline-block;background:#0b1933;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:6px;font-weight:600;font-size:14px;letter-spacing:0.5px;">Activar mi cuenta</a>
+					</p>
+					<p style="margin:0 0 8px 0;font-size:12px;color:#7a8398;line-height:1.5;">
+						O copiá este link en tu navegador:<br>
+						<span style="word-break:break-all;color:#0b1933;">{{ .Link }}</span>
+					</p>
+					{{ if .ExpiresAt }}
+					<p style="margin:16px 0 0 0;font-size:12px;color:#7a8398;">
+						Este link expira el <strong>{{ .ExpiresAt }}</strong> y solo puede usarse una vez.
+					</p>
+					{{ end }}
+				</td></tr>
+				<tr><td style="background:#f7f9fc;padding:16px 24px;font-size:11px;color:#7a8398;border-top:1px solid #e3e8f0;">
+					iTechDev · ARIA Core. Si no esperabas esta invitación, ignorá este correo.
+				</td></tr>
+			</table>
+		</td></tr>
+	</table>
+</body>
+</html>
