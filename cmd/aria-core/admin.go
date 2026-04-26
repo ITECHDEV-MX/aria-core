@@ -12,6 +12,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudusers"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/redactor"
 )
 
 // cmdAdmin dispatch para `aria-core admin <subcommand>`.
@@ -265,6 +266,166 @@ func adminCreateInvite(ctx context.Context, store *cloudusers.Store, args []stri
 	link := strings.TrimRight(base, "/") + "/dashboard/invite/" + inv.Token
 	fmt.Printf("✓ invitación creada\n  email:   %s\n  roles:   %s\n  expires: %s\n  link:    %s\n",
 		inv.Email, strings.Join(inv.Roles, ", "), inv.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC"), link)
+	return nil
+}
+
+// ─── Redactor CLI subcommand ─────────────────────────────────────────────────
+//
+// `aria-core redactor scan FILE`        -- escanea un archivo y muestra qué
+//                                          patrones detecta (sin persistir nada).
+// `aria-core redactor stats [--days N]` -- imprime stats de aria_llm_egress_log.
+// `aria-core redactor reveal-aliases T` -- expande [TOKEN-XXXX] -> displayValue.
+//                                          Admin-only; toca aria_redaction_aliases.
+
+func cmdRedactor() {
+	if len(os.Args) < 3 {
+		printRedactorUsage()
+		exitFunc(2)
+		return
+	}
+	sub := os.Args[2]
+	args := os.Args[3:]
+	switch sub {
+	case "scan":
+		redactorScan(args)
+	case "stats":
+		runRedactorWithDB(args, redactorStats)
+	case "reveal-aliases", "reveal":
+		runRedactorWithDB(args, redactorReveal)
+	case "help", "--help", "-h":
+		printRedactorUsage()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown redactor subcommand: %s\n\n", sub)
+		printRedactorUsage()
+		exitFunc(2)
+	}
+}
+
+func printRedactorUsage() {
+	fmt.Println(`aria-core redactor — bóveda de cliente / PII scrubber
+
+Subcommands:
+  scan FILE                     Escanea archivo y reporta qué se redactaría
+                                (no requiere DB; solo regex local).
+  stats [--days N]              Stats de envíos a LLM externos
+                                (lee aria_llm_egress_log; default --days 30).
+  reveal-aliases TOKEN          Expande [TOKEN-XXXX] -> displayValue real.
+                                Admin-only; consulta aria_redaction_aliases.
+
+Requiere ARIA_CORE_DATABASE_URL para stats / reveal-aliases.`)
+}
+
+func runRedactorWithDB(args []string, fn func(ctx context.Context, db *sql.DB, args []string) error) {
+	dsn := strings.TrimSpace(os.Getenv("ARIA_CORE_DATABASE_URL"))
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "ARIA_CORE_DATABASE_URL is required (postgres://...)")
+		exitFunc(1)
+		return
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "open db: %v\n", err)
+		exitFunc(1)
+		return
+	}
+	defer db.Close()
+	if err := db.Ping(); err != nil {
+		fmt.Fprintf(os.Stderr, "ping db: %v\n", err)
+		exitFunc(1)
+		return
+	}
+	if err := fn(context.Background(), db, args); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		exitFunc(1)
+	}
+}
+
+func redactorScan(args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: aria-core redactor scan FILE")
+		exitFunc(2)
+		return
+	}
+	path := args[0]
+	content, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read %s: %v\n", path, err)
+		exitFunc(1)
+		return
+	}
+	svc := redactor.New(redactor.Config{}) // no DB needed for scan
+	res, err := svc.Scrub(context.Background(), string(content), redactor.ScrubOptions{Mode: redactor.ModeTokens})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "scrub: %v\n", err)
+		exitFunc(1)
+		return
+	}
+	fmt.Printf("Archivo: %s (%d bytes)\n", path, len(content))
+	fmt.Printf("Redacciones detectadas: %d tipos\n\n", len(res.Redactions))
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "TIPO\tCOUNT\tEJEMPLO")
+	for _, r := range res.Redactions {
+		example := ""
+		if len(r.ReplacedWith) > 0 {
+			example = r.ReplacedWith[0]
+		}
+		fmt.Fprintf(tw, "%s\t%d\t%s\n", r.Type, r.Count, example)
+	}
+	tw.Flush()
+	fmt.Println("\n--- preview output ---")
+	preview := res.Output
+	if len(preview) > 800 {
+		preview = preview[:800] + "..."
+	}
+	fmt.Println(preview)
+}
+
+func redactorStats(ctx context.Context, db *sql.DB, args []string) error {
+	fs := flag.NewFlagSet("stats", flag.ContinueOnError)
+	days := fs.Int("days", 30, "ventana de tiempo (default 30)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	st, err := redactor.Stats(ctx, db, *days)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Egress audit (últimos %d días):\n", st.WindowDays)
+	fmt.Printf("  total requests:   %d\n", st.TotalRequests)
+	fmt.Printf("  scrubbed:         %d\n", st.TotalScrubbed)
+	fmt.Printf("  sin scrub:        %d\n", st.TotalBypassed)
+	fmt.Printf("  bytes enviados:   %d\n", st.BytesSent)
+	if len(st.ByProvider) > 0 {
+		fmt.Println("\nPor proveedor:")
+		for p, c := range st.ByProvider {
+			fmt.Printf("  %-20s %d\n", p, c)
+		}
+	}
+	if len(st.ByReason) > 0 {
+		fmt.Println("\nPor razón:")
+		for r, c := range st.ByReason {
+			label := r
+			if label == "" {
+				label = "(sin razón)"
+			}
+			fmt.Printf("  %-30s %d\n", label, c)
+		}
+	}
+	return nil
+}
+
+func redactorReveal(ctx context.Context, db *sql.DB, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: aria-core redactor reveal-aliases TOKEN")
+	}
+	token := args[0]
+	entityType, displayValue, err := redactor.RevealAlias(ctx, db, token)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("token:        %s\n", token)
+	fmt.Printf("entity_type:  %s\n", entityType)
+	fmt.Printf("display:      %s\n", displayValue)
 	return nil
 }
 

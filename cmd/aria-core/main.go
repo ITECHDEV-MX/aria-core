@@ -576,6 +576,8 @@ func main() {
 		cmdCloud(cfg)
 	case "admin":
 		cmdAdmin()
+	case "redactor":
+		cmdRedactor()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":

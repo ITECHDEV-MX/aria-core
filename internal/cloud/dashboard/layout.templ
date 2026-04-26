@@ -59,6 +59,7 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 							<div class="sidebar-nav-section">Administración</div>
 							@SidebarLink("/dashboard/contributors", "👥", "Colaboradores", "contributors", activeTab)
 							@SidebarLink("/dashboard/admin/skills", "🎯", "Skills", "admin-skills", activeTab)
+							@SidebarLink("/dashboard/audit/egress", "🛡️", "Egress LLM", "audit-egress", activeTab)
 							@SidebarLink("/dashboard/admin", "⚙️", "Admin", "admin", activeTab)
 						}
 					</nav>

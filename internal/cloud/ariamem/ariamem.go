@@ -74,6 +74,7 @@ type Observation struct {
 	TopicKey         sql.NullString
 	Source           string
 	Canon            bool
+	Sensitivity      string // public|internal|client|confidential — populado por redactor
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -133,12 +134,32 @@ type Recipe struct {
 	CreatedAt       time.Time
 }
 
+// SensitivityInferrer es un hook opcional que permite al módulo redactor
+// auto-clasificar la sensibilidad de cada observation antes de persistirla.
+// Se inyecta vía SetSensitivityInferrer; si no hay inferrer configurado, las
+// observations se guardan con SaveParams.Sensitivity tal cual viene (o
+// 'internal' por default). Mantenido como interfaz para evitar que
+// ariamem dependa del paquete redactor.
+type SensitivityInferrer interface {
+	InferSensitivityString(narrative, facts, scope, clientID string) string
+}
+
 type Store struct {
-	db *sql.DB
+	db        *sql.DB
+	inferrer  SensitivityInferrer
 }
 
 func New(db *sql.DB) *Store {
 	return &Store{db: db}
+}
+
+// SetSensitivityInferrer instala el hook de auto-clasificación. Llamado por
+// el wiring (cmd/aria-core/cloud.go) cuando se construye el redactor.
+func (s *Store) SetSensitivityInferrer(inf SensitivityInferrer) {
+	if s == nil {
+		return
+	}
+	s.inferrer = inf
 }
 
 // DBRaw expone el *sql.DB para queries puntuales del adapter (e.g. ListProjects).
@@ -164,6 +185,10 @@ type SaveParams struct {
 	TopicKey        string
 	Source          string
 	GeneratedByModel string
+	// Sensitivity (opcional): si vacío, el caller con un redactor.Service
+	// inyectado debería auto-inferir antes de invocar Save. Valores válidos:
+	// public | internal | client | confidential. "" se trata como 'internal'.
+	Sensitivity string
 }
 
 // Save inserta o reemplaza por (project, topic_key) cuando topic_key viene seteado.
@@ -191,6 +216,15 @@ func (s *Store) Save(ctx context.Context, p SaveParams) (*Observation, error) {
 	}
 	if strings.TrimSpace(p.Title) == "" {
 		return nil, fmt.Errorf("title is required")
+	}
+
+	// Auto-inferencia de sensitivity si el caller no la pasó explícita.
+	// Respeta override: si SaveParams.Sensitivity ya tiene valor, no lo pisa.
+	if strings.TrimSpace(p.Sensitivity) == "" && s.inferrer != nil {
+		inferred := s.inferrer.InferSensitivityString(p.Narrative, p.Facts, scope, p.ClientID)
+		if inferred != "" {
+			p.Sensitivity = inferred
+		}
 	}
 
 	// Reasoning trace debe ser JSON válido si viene.
@@ -246,33 +280,53 @@ func (s *Store) Save(ctx context.Context, p SaveParams) (*Observation, error) {
 }
 
 func insertObs(ctx context.Context, tx *sql.Tx, id string, p SaveParams, scope, obsType, source, devRole, reasoningTrace string) error {
+	sensitivity := strings.TrimSpace(p.Sensitivity)
+	if sensitivity == "" {
+		sensitivity = "internal"
+	}
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO aria_observations (
 			id, session_id, developer_uid, developer_role, client_id, project, scope,
 			observation_type, title, subtitle, narrative, facts, concepts, files_touched,
-			reasoning_trace, generated_by_model, topic_key, source
+			reasoning_trace, generated_by_model, topic_key, source, sensitivity
 		) VALUES (
 			$1, NULLIF($2,''), NULLIF($3,'')::uuid, $4, NULLIF($5,'')::uuid, NULLIF($6,''), $7,
 			$8, $9, NULLIF($10,''), NULLIF($11,''), NULLIF($12,''), NULLIF($13,''), NULLIF($14,''),
-			NULLIF($15,'')::jsonb, NULLIF($16,''), NULLIF($17,''), $18
+			NULLIF($15,'')::jsonb, NULLIF($16,''), NULLIF($17,''), $18, $19
 		)
 	`, id, p.SessionID, p.DeveloperUID, devRole, p.ClientID, p.Project, scope,
 		obsType, p.Title, p.Subtitle, p.Narrative, p.Facts, p.Concepts, p.FilesTouched,
-		reasoningTrace, p.GeneratedByModel, p.TopicKey, source)
+		reasoningTrace, p.GeneratedByModel, p.TopicKey, source, sensitivity)
 	return err
 }
 
 func updateObs(ctx context.Context, tx *sql.Tx, id string, p SaveParams, scope, obsType, source, devRole, reasoningTrace string) error {
+	sensitivity := strings.TrimSpace(p.Sensitivity)
+	if sensitivity == "" {
+		// Si el caller no envió sensitivity en el upsert, no la pisamos —
+		// preservamos el tag existente. UPDATE con CASE.
+		_, err := tx.ExecContext(ctx, `
+			UPDATE aria_observations SET
+				title = $1, subtitle = NULLIF($2,''), narrative = NULLIF($3,''),
+				facts = NULLIF($4,''), concepts = NULLIF($5,''), files_touched = NULLIF($6,''),
+				reasoning_trace = NULLIF($7,'')::jsonb, observation_type = $8, scope = $9,
+				source = $10, generated_by_model = NULLIF($11,''),
+				relevance_count = relevance_count + 1, updated_at = NOW()
+			WHERE id = $12
+		`, p.Title, p.Subtitle, p.Narrative, p.Facts, p.Concepts, p.FilesTouched,
+			reasoningTrace, obsType, scope, source, p.GeneratedByModel, id)
+		return err
+	}
 	_, err := tx.ExecContext(ctx, `
 		UPDATE aria_observations SET
 			title = $1, subtitle = NULLIF($2,''), narrative = NULLIF($3,''),
 			facts = NULLIF($4,''), concepts = NULLIF($5,''), files_touched = NULLIF($6,''),
 			reasoning_trace = NULLIF($7,'')::jsonb, observation_type = $8, scope = $9,
-			source = $10, generated_by_model = NULLIF($11,''),
+			source = $10, generated_by_model = NULLIF($11,''), sensitivity = $12,
 			relevance_count = relevance_count + 1, updated_at = NOW()
-		WHERE id = $12
+		WHERE id = $13
 	`, p.Title, p.Subtitle, p.Narrative, p.Facts, p.Concepts, p.FilesTouched,
-		reasoningTrace, obsType, scope, source, p.GeneratedByModel, id)
+		reasoningTrace, obsType, scope, source, p.GeneratedByModel, sensitivity, id)
 	return err
 }
 
@@ -823,7 +877,7 @@ const observationSelect = `
 	       observation_type, title, subtitle, narrative, facts, concepts, files_touched,
 	       reasoning_trace::text, generated_by_model, relevance_count, discovery_tokens,
 	       quality_score, drift_detected, valid_from, valid_until, superseded_by,
-	       topic_key, source, canon, created_at, updated_at
+	       topic_key, source, canon, COALESCE(sensitivity,'internal'), created_at, updated_at
 	FROM aria_observations
 `
 
@@ -838,7 +892,7 @@ func scanObs(s scanner) (*Observation, error) {
 		&o.ObservationType, &o.Title, &o.Subtitle, &o.Narrative, &o.Facts, &o.Concepts, &o.FilesTouched,
 		&o.ReasoningTrace, &o.GeneratedByModel, &o.RelevanceCount, &o.DiscoveryTokens,
 		&o.QualityScore, &o.DriftDetected, &o.ValidFrom, &o.ValidUntil, &o.SupersededBy,
-		&o.TopicKey, &o.Source, &o.Canon, &o.CreatedAt, &o.UpdatedAt); err != nil {
+		&o.TopicKey, &o.Source, &o.Canon, &o.Sensitivity, &o.CreatedAt, &o.UpdatedAt); err != nil {
 		return nil, err
 	}
 	o.DeveloperUID = devUID

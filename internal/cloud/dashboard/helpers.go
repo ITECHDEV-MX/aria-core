@@ -758,6 +758,40 @@ func buildAuditListURL(filter cloudstore.AuditFilter) string {
 	return base + "?" + q.Encode()
 }
 
+// buildEgressQueryString returns the active EgressFilter as a urlencoded
+// query string (without leading '?'). Used by the CSV export link and shared
+// by buildEgressListURL.
+func buildEgressQueryString(filter EgressFilter) string {
+	q := url.Values{}
+	if !filter.From.IsZero() {
+		q.Set("from", filter.From.UTC().Format(time.RFC3339))
+	}
+	if !filter.To.IsZero() {
+		q.Set("to", filter.To.UTC().Format(time.RFC3339))
+	}
+	if v := strings.TrimSpace(filter.ClientID); v != "" {
+		q.Set("client_id", v)
+	}
+	if v := strings.TrimSpace(filter.UserUID); v != "" {
+		q.Set("user_uid", v)
+	}
+	if v := strings.TrimSpace(filter.Provider); v != "" {
+		q.Set("provider", v)
+	}
+	return q.Encode()
+}
+
+// buildEgressListURL is the dashboard equivalent of buildAuditListURL but for
+// the redactor egress audit. JW2 deep-linking parity.
+func buildEgressListURL(filter EgressFilter) string {
+	base := "/dashboard/audit/egress/list"
+	q := buildEgressQueryString(filter)
+	if q == "" {
+		return base
+	}
+	return base + "?" + q
+}
+
 // typeBadgeVariant returns a badge color variant for an observation type.
 func typeBadgeVariant(obsType string) string {
 	switch obsType {

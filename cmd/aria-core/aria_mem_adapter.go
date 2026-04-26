@@ -36,6 +36,7 @@ func (a *ariaMemAdapter) Save(ctx context.Context, in cloudserver.AriaMemSaveInp
 		Narrative: in.Narrative, Facts: in.Facts, Concepts: in.Concepts,
 		FilesTouched: in.FilesTouched, ReasoningTrace: in.ReasoningTrace,
 		TopicKey: in.TopicKey, Source: in.Source, GeneratedByModel: in.GeneratedByModel,
+		Sensitivity: in.Sensitivity,
 	})
 	if err != nil {
 		return nil, err
@@ -167,6 +168,7 @@ func toMemObs(o *ariamem.Observation) *cloudserver.AriaMemObservation {
 		ObservationType: o.ObservationType, Title: o.Title, Source: o.Source,
 		RelevanceCount: o.RelevanceCount, DiscoveryTokens: o.DiscoveryTokens,
 		QualityScore: o.QualityScore, DriftDetected: o.DriftDetected, Canon: o.Canon,
+		Sensitivity: o.Sensitivity,
 		ValidFrom: o.ValidFrom, CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 	if o.SessionID.Valid {
@@ -341,6 +343,7 @@ func toMemoryView(o *ariamem.Observation) dashboard.AriaMemoryView {
 	v := dashboard.AriaMemoryView{
 		ID: o.ID, Scope: o.Scope, ObservationType: o.ObservationType,
 		Title: o.Title, Source: o.Source, Canon: o.Canon,
+		Sensitivity: o.Sensitivity,
 		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
 	}
 	if o.SessionID.Valid {

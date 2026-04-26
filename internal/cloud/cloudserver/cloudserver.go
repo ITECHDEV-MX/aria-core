@@ -65,7 +65,24 @@ type CloudServer struct {
 	email            EmailService
 	invites          InviteService
 	dashboardInvites dashboard.InviteDashboardService
+	redactor         dashboard.RedactorService
+	scrubber         ScrubGate
 	publicURL        string
+}
+
+// ScrubGate is the runtime contract used by /v1/memory/* handlers to scrub
+// observation text before it reaches a Claude / OpenAI client. Mirrors a subset
+// of redactor.Service so cloudserver does not import the redactor package.
+type ScrubGate interface {
+	// CanSendToLLM checks the policy gate for a sensitivity tag + provider.
+	CanSendToLLM(sensitivity, provider string) bool
+	// ScrubString runs PII scrubbing in tokens mode and returns (output, redactionsJSON).
+	// On any error the original text is returned unmodified and an empty
+	// redactions JSON is returned. This is fail-open for the dev path but
+	// is paired with audit logging by LogEgress so the bypass is observable.
+	ScrubString(ctx context.Context, text string) (string, string)
+	// LogEgress records one row in aria_llm_egress_log.
+	LogEgress(ctx context.Context, requestID, observationID, provider, model, clientID, userUID, reason, payloadHash string, payloadSize int, scrubbed bool, redactionsJSON string) error
 }
 
 // EmailService is the contract for sending transactional emails.
@@ -258,6 +275,22 @@ func WithDashboardInvites(d dashboard.InviteDashboardService) Option {
 	}
 }
 
+// WithRedactor inyecta el servicio dashboard del módulo redactor (egress audit).
+func WithRedactor(r dashboard.RedactorService) Option {
+	return func(s *CloudServer) {
+		s.redactor = r
+	}
+}
+
+// WithScrubGate inyecta la capa runtime del redactor para v1_memory egress.
+// Si nil, el handler de aria_search retorna observations sin scrub (sólo
+// filtrado por sensitivity + log).
+func WithScrubGate(g ScrubGate) Option {
+	return func(s *CloudServer) {
+		s.scrubber = g
+	}
+}
+
 // WithPublicURL configura la URL pública usada para construir magic links.
 func WithPublicURL(u string) Option {
 	return func(s *CloudServer) {
@@ -296,6 +329,8 @@ type AriaMemSaveInput struct {
 	SessionID, DeveloperUID, DeveloperRole, ClientID, Project, Scope    string
 	ObservationType, Title, Subtitle, Narrative, Facts, Concepts        string
 	FilesTouched, ReasoningTrace, TopicKey, Source, GeneratedByModel    string
+	// Sensitivity (opcional). Si vacío, el redactor auto-infiere.
+	Sensitivity                                                          string
 }
 
 type AriaMemSearchInput struct {
@@ -318,6 +353,7 @@ type AriaMemObservation struct {
 	ObservationType, Title, Subtitle, Narrative, Facts, Concepts         string
 	FilesTouched, ReasoningTrace, GeneratedByModel, TopicKey, Source     string
 	SupersededBy                                                          string
+	Sensitivity                                                           string
 	RelevanceCount, DiscoveryTokens                                       int
 	QualityScore                                                          float64
 	DriftDetected, Canon                                                  bool
@@ -528,6 +564,7 @@ func (s *CloudServer) routes() {
 		AriaMem:           s.ariaMemDash,
 		PDFClient:         s.pdfClient,
 		Invites:           s.dashboardInvites,
+		Redactor:          s.redactor,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))

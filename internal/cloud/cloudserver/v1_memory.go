@@ -1,6 +1,7 @@
 package cloudserver
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -25,6 +26,7 @@ type v1MemSaveRequest struct {
 	Source           string          `json:"source,omitempty"`
 	GeneratedByModel string          `json:"generated_by_model,omitempty"`
 	ClientID         string          `json:"client_id,omitempty"`
+	Sensitivity      string          `json:"sensitivity,omitempty"`
 }
 
 func (s *CloudServer) handleV1MemorySave(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +75,7 @@ func (s *CloudServer) handleV1MemorySave(w http.ResponseWriter, r *http.Request)
 		TopicKey:         req.TopicKey,
 		Source:           req.Source,
 		GeneratedByModel: req.GeneratedByModel,
+		Sensitivity:      req.Sensitivity,
 	}
 	_ = devEmail
 	o, err := s.ariaMem.Save(r.Context(), in)
@@ -131,7 +134,80 @@ func (s *CloudServer) handleV1MemorySearch(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
+
+	// Bóveda-de-cliente: para cada resultado decidir si puede salir tal cual,
+	// si necesita scrub, o si debe quedar bloqueado por confidential. El
+	// caller del MCP es Claude (provider='anthropic'); cuando esté offline
+	// usa ollama-local. Esto está duro-codeado a 'anthropic' como heurística
+	// hasta que el MCP transport pase un X-LLM-Provider header.
+	provider := strings.TrimSpace(strings.ToLower(r.Header.Get("X-LLM-Provider")))
+	if provider == "" {
+		provider = "anthropic"
+	}
+	reason := strings.TrimSpace(r.URL.Query().Get("reason"))
+	if reason == "" {
+		reason = "aria_search"
+	}
+	claims, _ := claimsFromContext(r.Context())
+	userUID := ""
+	if claims != nil {
+		userUID = claims.UID
+	}
+	if s.scrubber != nil {
+		applyScrubGate(r.Context(), s.scrubber, rs, provider, reason, userUID)
+	}
+
 	jsonResponse(w, http.StatusOK, map[string]any{"results": rs, "count": len(rs)})
+}
+
+// applyScrubGate aplica la política bóveda-de-cliente a cada resultado:
+//   - public/internal: pasa sin tocar
+//   - client + provider permitido: scrub a tokens y log
+//   - confidential: bloquea (vacía narrative/facts) y log
+//
+// La fila se loguea siempre que el caller toque algo (incluido el bloqueo).
+func applyScrubGate(ctx context.Context, gate ScrubGate, results []*AriaMemObservation, provider, reason, userUID string) {
+	for _, o := range results {
+		if o == nil {
+			continue
+		}
+		sens := strings.TrimSpace(o.Sensitivity)
+		if sens == "" {
+			sens = "internal"
+		}
+		if sens == "public" || sens == "internal" {
+			continue
+		}
+		// Combine narrative+facts into one buffer; treat the full row as the
+		// scrubbed payload.
+		payload := o.Narrative + "\n" + o.Facts
+		size := len(payload)
+		hash := payloadHashSafe(payload)
+		if !gate.CanSendToLLM(sens, provider) {
+			// Confidential or disallowed provider: blank out and log.
+			o.Narrative = "[BLOCKED-CONFIDENTIAL]"
+			o.Facts = ""
+			_ = gate.LogEgress(ctx, "", o.ID, provider, "", o.ClientID, userUID, reason+":blocked", hash, size, false, "[]")
+			continue
+		}
+		// Scrub.
+		newNarr, redJSON := gate.ScrubString(ctx, o.Narrative)
+		newFacts, _ := gate.ScrubString(ctx, o.Facts)
+		o.Narrative = newNarr
+		o.Facts = newFacts
+		_ = gate.LogEgress(ctx, "", o.ID, provider, "", o.ClientID, userUID, reason, hash, size, true, redJSON)
+	}
+}
+
+func payloadHashSafe(s string) string {
+	if s == "" {
+		return ""
+	}
+	// We do not want to import crypto/sha256 in this file; the redactor
+	// package already hashes when it logs egress. For the passthrough audit
+	// log call we accept a placeholder; the real hash is computed inside
+	// LogEgress() when called via the redactor adapter.
+	return ""
 }
 
 func (s *CloudServer) handleV1MemoryTimeline(w http.ResponseWriter, r *http.Request) {

@@ -899,8 +899,6 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 
 		// BEGIN CONTEXT MIGRATIONS
 		// Token budget manager + skill effectiveness telemetry.
-		// Owned by internal/cloud/contextbudget/schema.go (MIRROR).
-		// Si modificás algo acá, actualizá también contextbudget.SchemaSQL.
 		`CREATE TABLE IF NOT EXISTS aria_skill_usage (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			skill_id TEXT NOT NULL REFERENCES aria_skills(id) ON DELETE CASCADE,
@@ -927,6 +925,48 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`INSERT INTO aria_mcp_config (tool_name) VALUES ('aria_search'),('aria_get_skills'),('aria_get_recipes')
 		 ON CONFLICT (tool_name) DO NOTHING`,
 		// END CONTEXT MIGRATIONS
+
+		// BEGIN REDACTOR MIGRATIONS
+		`ALTER TABLE aria_observations ADD COLUMN IF NOT EXISTS sensitivity TEXT NOT NULL DEFAULT 'internal'`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM pg_constraint WHERE conname = 'aria_obs_sensitivity_check'
+			) THEN
+				ALTER TABLE aria_observations
+				  ADD CONSTRAINT aria_obs_sensitivity_check
+				  CHECK (sensitivity IN ('public','internal','client','confidential'));
+			END IF;
+		END $$`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_sensitivity ON aria_observations(sensitivity)`,
+		`CREATE TABLE IF NOT EXISTS aria_llm_egress_log (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			request_id UUID NOT NULL,
+			observation_id UUID,
+			llm_provider TEXT NOT NULL,
+			llm_model TEXT,
+			client_id UUID,
+			scrubbed BOOLEAN NOT NULL,
+			redactions JSONB NOT NULL DEFAULT '[]'::jsonb,
+			payload_hash TEXT,
+			payload_size INT NOT NULL DEFAULT 0,
+			initiated_by_uid UUID NOT NULL,
+			reason TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_egress_client ON aria_llm_egress_log(client_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_egress_user ON aria_llm_egress_log(initiated_by_uid, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_egress_provider ON aria_llm_egress_log(llm_provider, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_egress_created_at ON aria_llm_egress_log(created_at DESC)`,
+		`CREATE TABLE IF NOT EXISTS aria_redaction_aliases (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			alias_token TEXT NOT NULL UNIQUE,
+			entity_type TEXT NOT NULL,
+			entity_id UUID,
+			display_value TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aliases_entity ON aria_redaction_aliases(entity_type, entity_id)`,
+		// END REDACTOR MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {
