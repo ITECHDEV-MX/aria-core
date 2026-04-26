@@ -19,11 +19,33 @@ const (
 
 // Claims representa los claims de la sesión del dashboard.
 type Claims struct {
-	UID   string `json:"sub"`
-	Email string `json:"email,omitempty"`
-	Role  string `json:"role,omitempty"`
-	IAT   int64  `json:"iat"`
-	EXP   int64  `json:"exp"`
+	UID   string   `json:"sub"`
+	Email string   `json:"email,omitempty"`
+	Roles []string `json:"roles,omitempty"`
+	// Role es legacy single-role (compat con tokens viejos). Si Roles está vacío y Role no, se promueve.
+	Role string `json:"role,omitempty"`
+	IAT  int64  `json:"iat"`
+	EXP  int64  `json:"exp"`
+}
+
+// HasRole retorna true si el JWT tiene el rol dado.
+func (c *Claims) HasRole(role string) bool {
+	for _, r := range c.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return c.Role == role
+}
+
+// HasAnyRole retorna true si el JWT tiene al menos uno de los roles dados.
+func (c *Claims) HasAnyRole(roles ...string) bool {
+	for _, want := range roles {
+		if c.HasRole(want) {
+			return true
+		}
+	}
+	return false
 }
 
 type Codec struct {
@@ -42,17 +64,24 @@ func NewCodec(secret string, ttl time.Duration) (*Codec, error) {
 	return &Codec{secret: []byte(secret), ttl: ttl}, nil
 }
 
-// Mint emite un JWT HS256 con los claims dados (uid, email, role).
-func (c *Codec) Mint(uid, email, role string) (string, error) {
+// Mint emite un JWT HS256 con los claims dados.
+// roles puede tener uno o más roles. Si vacío, queda sin role claim.
+func (c *Codec) Mint(uid, email string, roles []string) (string, error) {
 	uid = strings.TrimSpace(uid)
 	if uid == "" {
 		return "", errors.New("dashboardsession: uid is required")
 	}
 	now := time.Now().UTC()
+	cleaned := make([]string, 0, len(roles))
+	for _, r := range roles {
+		if r = strings.TrimSpace(r); r != "" {
+			cleaned = append(cleaned, r)
+		}
+	}
 	claims := Claims{
 		UID:   uid,
 		Email: strings.TrimSpace(email),
-		Role:  strings.TrimSpace(role),
+		Roles: cleaned,
 		IAT:   now.Unix(),
 		EXP:   now.Add(c.ttl).Unix(),
 	}

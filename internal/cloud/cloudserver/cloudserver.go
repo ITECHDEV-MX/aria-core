@@ -61,13 +61,15 @@ type CloudServer struct {
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
-// Lo implementa internal/cloud/cloudusers.Store.
+// Lo implementa internal/cloud/cloudusers.Store via adapter.
 type DashboardUserService interface {
 	VerifyPassword(ctx context.Context, email, password string) (*UserPrincipal, error)
 	GetByUID(ctx context.Context, uid string) (*UserPrincipal, error)
+	GetByEmail(ctx context.Context, email string) (*UserPrincipal, error)
 	List(ctx context.Context) ([]*UserPrincipal, error)
-	Create(ctx context.Context, email, name, role, password string) (*UserPrincipal, error)
-	SetRole(ctx context.Context, uid, role string) error
+	Create(ctx context.Context, email, name string, roles []string, password string) (*UserPrincipal, error)
+	AddRole(ctx context.Context, uid, role string) error
+	RemoveRole(ctx context.Context, uid, role string) error
 	SetActive(ctx context.Context, uid string, active bool) error
 	ChangePassword(ctx context.Context, uid, newPassword string) error
 }
@@ -77,7 +79,7 @@ type UserPrincipal struct {
 	UID       string
 	Email     string
 	Name      string
-	Role      string
+	Roles     []string
 	IsActive  bool
 	CreatedAt time.Time
 }
@@ -182,7 +184,7 @@ func (s *CloudServer) routes() {
 		if err != nil {
 			return nil, err
 		}
-		return &dashboard.LoginPrincipal{UID: u.UID, Email: u.Email, Name: u.Name, Role: u.Role}, nil
+		return &dashboard.LoginPrincipal{UID: u.UID, Email: u.Email, Name: u.Name, Roles: u.Roles}, nil
 	}
 	validateLoginToken := func(token string) error {
 		token = strings.TrimSpace(token)
@@ -202,7 +204,7 @@ func (s *CloudServer) routes() {
 		if s.sessionCodec == nil {
 			return fmt.Errorf("session codec not configured")
 		}
-		jwt, err := s.sessionCodec.Mint(principal.UID, principal.Email, principal.Role)
+		jwt, err := s.sessionCodec.Mint(principal.UID, principal.Email, principal.Roles)
 		if err != nil {
 			return err
 		}
@@ -241,6 +243,9 @@ func (s *CloudServer) routes() {
 		},
 		IsAdmin: func(r *http.Request) bool {
 			return s.isDashboardAdmin(r)
+		},
+		GetRoles: func(r *http.Request) []string {
+			return s.dashboardRolesFromRequest(r)
 		},
 		GetDisplayName: func(r *http.Request) string {
 			return s.displayNameFor(r)
@@ -321,7 +326,22 @@ func (s *CloudServer) isDashboardAdmin(r *http.Request) bool {
 	if err != nil || claims == nil {
 		return false
 	}
-	return claims.Role == "admin"
+	return claims.HasRole("admin")
+}
+
+// dashboardRolesFromRequest retorna los roles del usuario autenticado, vacío si no hay sesión.
+func (s *CloudServer) dashboardRolesFromRequest(r *http.Request) []string {
+	claims, err := s.dashboardClaimsFromRequest(r)
+	if err != nil || claims == nil {
+		return nil
+	}
+	if len(claims.Roles) > 0 {
+		return claims.Roles
+	}
+	if claims.Role != "" {
+		return []string{claims.Role}
+	}
+	return nil
 }
 
 func (s *CloudServer) displayNameFor(r *http.Request) string {
@@ -348,19 +368,26 @@ func (a userServiceAdapter) ListUsers(ctx context.Context) ([]dashboard.AdminUse
 	out := make([]dashboard.AdminUserView, 0, len(users))
 	for _, u := range users {
 		out = append(out, dashboard.AdminUserView{
-			UID: u.UID, Email: u.Email, Name: u.Name, Role: u.Role, IsActive: u.IsActive, CreatedAt: u.CreatedAt,
+			UID: u.UID, Email: u.Email, Name: u.Name, Roles: u.Roles, IsActive: u.IsActive, CreatedAt: u.CreatedAt,
 		})
 	}
 	return out, nil
 }
 
-func (a userServiceAdapter) CreateUser(ctx context.Context, email, name, role, password string) error {
-	_, err := a.us.Create(ctx, email, name, role, password)
+func (a userServiceAdapter) CreateUser(ctx context.Context, email, name string, roles []string, password string) error {
+	if len(roles) == 0 {
+		return fmt.Errorf("at least one role is required")
+	}
+	_, err := a.us.Create(ctx, email, name, roles, password)
 	return err
 }
 
-func (a userServiceAdapter) SetRole(ctx context.Context, uid, role string) error {
-	return a.us.SetRole(ctx, uid, role)
+func (a userServiceAdapter) AddRole(ctx context.Context, uid, role string) error {
+	return a.us.AddRole(ctx, uid, role)
+}
+
+func (a userServiceAdapter) RemoveRole(ctx context.Context, uid, role string) error {
+	return a.us.RemoveRole(ctx, uid, role)
 }
 
 func (a userServiceAdapter) SetActive(ctx context.Context, uid string, active bool) error {

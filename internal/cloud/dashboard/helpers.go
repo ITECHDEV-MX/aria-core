@@ -283,6 +283,51 @@ func AvailableRoles() []RoleOption {
 	}
 }
 
+// userHasRole verifica si u tiene el role en su lista.
+func userHasRole(u AdminUserView, role string) bool {
+	for _, r := range u.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// hasAnyRole retorna true si la slice de roles incluye al menos uno de los wanted.
+func hasAnyRole(roles []string, wanted ...string) bool {
+	for _, r := range roles {
+		for _, w := range wanted {
+			if r == w {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// rolesBadge produce el subtítulo del header con los roles activos del usuario.
+func rolesBadge(roles []string) string {
+	if len(roles) == 0 {
+		return "sin roles asignados"
+	}
+	labels := make([]string, 0, len(roles))
+	for _, r := range roles {
+		switch r {
+		case "admin":
+			labels = append(labels, "Admin")
+		case "dev":
+			labels = append(labels, "Dev")
+		case "cotizador":
+			labels = append(labels, "Cotizador")
+		case "project_admin":
+			labels = append(labels, "Project Admin")
+		default:
+			labels = append(labels, r)
+		}
+	}
+	return strings.Join(labels, " · ")
+}
+
 // countPausedProjects counts how many controls have SyncEnabled=false.
 // ADAPTED: cloudstore.ProjectSyncControl -> cloudstore.ProjectSyncControl (same name, new file).
 func countPausedProjects(controls []cloudstore.ProjectSyncControl) int {

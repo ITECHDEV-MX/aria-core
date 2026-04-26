@@ -33,6 +33,14 @@ func (a *dashboardUserAdapter) GetByUID(ctx context.Context, uid string) (*cloud
 	return toPrincipal(u), nil
 }
 
+func (a *dashboardUserAdapter) GetByEmail(ctx context.Context, email string) (*cloudserver.UserPrincipal, error) {
+	u, err := a.store.GetByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	return toPrincipal(u), nil
+}
+
 func (a *dashboardUserAdapter) List(ctx context.Context) ([]*cloudserver.UserPrincipal, error) {
 	users, err := a.store.List(ctx)
 	if err != nil {
@@ -45,16 +53,32 @@ func (a *dashboardUserAdapter) List(ctx context.Context) ([]*cloudserver.UserPri
 	return out, nil
 }
 
-func (a *dashboardUserAdapter) Create(ctx context.Context, email, name, role, password string) (*cloudserver.UserPrincipal, error) {
-	u, err := a.store.Create(ctx, email, name, role, password)
+func (a *dashboardUserAdapter) Create(ctx context.Context, email, name string, roles []string, password string) (*cloudserver.UserPrincipal, error) {
+	if len(roles) == 0 {
+		roles = []string{cloudusers.RoleDev}
+	}
+	u, err := a.store.Create(ctx, email, name, roles[0], password)
 	if err != nil {
 		return nil, err
+	}
+	for _, extra := range roles[1:] {
+		if err := a.store.AddRole(ctx, u.UID, extra); err != nil {
+			return nil, err
+		}
+	}
+	// re-fetch para que Roles incluya todo
+	if reread, err := a.store.GetByUID(ctx, u.UID); err == nil {
+		u = reread
 	}
 	return toPrincipal(u), nil
 }
 
-func (a *dashboardUserAdapter) SetRole(ctx context.Context, uid, role string) error {
-	return a.store.SetRole(ctx, uid, role)
+func (a *dashboardUserAdapter) AddRole(ctx context.Context, uid, role string) error {
+	return a.store.AddRole(ctx, uid, role)
+}
+
+func (a *dashboardUserAdapter) RemoveRole(ctx context.Context, uid, role string) error {
+	return a.store.RemoveRole(ctx, uid, role)
 }
 
 func (a *dashboardUserAdapter) SetActive(ctx context.Context, uid string, active bool) error {
@@ -70,7 +94,7 @@ func toPrincipal(u *cloudusers.User) *cloudserver.UserPrincipal {
 		UID:       u.UID,
 		Email:     u.Email,
 		Name:      u.Name,
-		Role:      u.Role,
+		Roles:     u.Roles,
 		IsActive:  u.IsActive,
 		CreatedAt: u.CreatedAt,
 	}

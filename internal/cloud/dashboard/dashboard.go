@@ -43,7 +43,7 @@ type LoginPrincipal struct {
 	UID   string
 	Email string
 	Name  string
-	Role  string
+	Roles []string
 }
 
 type MountConfig struct {
@@ -57,6 +57,7 @@ type MountConfig struct {
 	CreateSessionCookie func(w http.ResponseWriter, r *http.Request, principal *LoginPrincipal) error
 	ClearSessionCookie  func(w http.ResponseWriter, r *http.Request)
 	IsAdmin             func(r *http.Request) bool
+	GetRoles            func(r *http.Request) []string
 	GetDisplayName      func(r *http.Request) string
 	Store               DashboardStore
 	MaxLoginBodyBytes   int64
@@ -68,8 +69,9 @@ type MountConfig struct {
 // AdminUserService expone el CRUD de usuarios al dashboard admin.
 type AdminUserService interface {
 	ListUsers(ctx context.Context) ([]AdminUserView, error)
-	CreateUser(ctx context.Context, email, name, role, password string) error
-	SetRole(ctx context.Context, uid, role string) error
+	CreateUser(ctx context.Context, email, name string, roles []string, password string) error
+	AddRole(ctx context.Context, uid, role string) error
+	RemoveRole(ctx context.Context, uid, role string) error
 	SetActive(ctx context.Context, uid string, active bool) error
 	ChangePassword(ctx context.Context, uid, newPassword string) error
 }
@@ -78,7 +80,7 @@ type AdminUserView struct {
 	UID       string
 	Email     string
 	Name      string
-	Role      string
+	Roles     []string
 	IsActive  bool
 	CreatedAt time.Time
 }
@@ -167,7 +169,8 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/admin/users", h.requireAdmin(h.handleAdminUsers))
 	mux.HandleFunc("GET /dashboard/admin/users/list", h.requireAdmin(h.handleAdminUsersList))
 	mux.HandleFunc("POST /dashboard/admin/users/create", h.requireAdmin(h.handleAdminUserCreate))
-	mux.HandleFunc("POST /dashboard/admin/users/{uid}/role", h.requireAdmin(h.handleAdminUserSetRole))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/roles/{role}/add", h.requireAdmin(h.handleAdminUserAddRole))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/roles/{role}/remove", h.requireAdmin(h.handleAdminUserRemoveRole))
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/activate", h.requireAdmin(h.handleAdminUserSetActive(true)))
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/deactivate", h.requireAdmin(h.handleAdminUserSetActive(false)))
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/password", h.requireAdmin(h.handleAdminUserChangePassword))
@@ -320,7 +323,7 @@ func (h *handlers) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 			renderComponent(w, r, LoginPage("invalid recovery token", next))
 			return
 		}
-		principal = &LoginPrincipal{UID: "admin-recovery", Email: "admin@recovery.local", Role: "admin"}
+		principal = &LoginPrincipal{UID: "admin-recovery", Email: "admin@recovery.local", Roles: []string{"admin"}}
 	default:
 		renderComponent(w, r, LoginPage("email and password are required", next))
 		return
@@ -348,7 +351,7 @@ func (h *handlers) handleDashboardHome(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, DashboardHome(p.DisplayName()))
 		return
 	}
-	renderComponent(w, r, Layout("Dashboard", p.DisplayName(), "dashboard", p.IsAdmin(), DashboardHome(p.DisplayName())))
+	renderComponent(w, r, Layout("Dashboard", p.DisplayName(), "dashboard", p.Roles(), DashboardHome(p.DisplayName())))
 }
 
 func (h *handlers) handleDashboardStats(w http.ResponseWriter, r *http.Request) {
@@ -371,7 +374,7 @@ func (h *handlers) handleDashboardStats(w http.ResponseWriter, r *http.Request) 
 		renderHTML(w, body)
 		return
 	}
-	renderComponent(w, r, Layout("Stats", p.DisplayName(), "dashboard", p.IsAdmin(), templ.Raw(body)))
+	renderComponent(w, r, Layout("Stats", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(body)))
 }
 
 func (h *handlers) handleDashboardActivity(w http.ResponseWriter, r *http.Request) {
@@ -404,7 +407,7 @@ func (h *handlers) handleDashboardActivity(w http.ResponseWriter, r *http.Reques
 		renderHTML(w, b.String())
 		return
 	}
-	renderComponent(w, r, Layout("Activity", p.DisplayName(), "dashboard", p.IsAdmin(), templ.Raw(b.String())))
+	renderComponent(w, r, Layout("Activity", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(b.String())))
 }
 
 func (h *handlers) handleBrowser(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +433,7 @@ func (h *handlers) handleBrowser(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 func (h *handlers) handleBrowserObservations(w http.ResponseWriter, r *http.Request) {
@@ -473,7 +476,7 @@ func (h *handlers) handleBrowserObservations(w http.ResponseWriter, r *http.Requ
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.IsAdmin(), BrowserPage(nil, nil, project, query, obsType)))
+	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, obsType)))
 }
 
 func (h *handlers) handleBrowserSessions(w http.ResponseWriter, r *http.Request) {
@@ -515,7 +518,7 @@ func (h *handlers) handleBrowserSessions(w http.ResponseWriter, r *http.Request)
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.IsAdmin(), BrowserPage(nil, nil, project, query, "")))
+	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
 }
 
 func (h *handlers) handleBrowserPrompts(w http.ResponseWriter, r *http.Request) {
@@ -557,7 +560,7 @@ func (h *handlers) handleBrowserPrompts(w http.ResponseWriter, r *http.Request) 
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.IsAdmin(), BrowserPage(nil, nil, project, query, "")))
+	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
 }
 
 // handleBrowserSessionDetail handles GET /dashboard/browser/sessions/{sessionID}.
@@ -567,7 +570,7 @@ func (h *handlers) handleBrowserSessionDetail(w http.ResponseWriter, r *http.Req
 	p := h.principalFromRequest(r)
 	sessionID := strings.TrimSpace(r.PathValue("sessionID"))
 	if sessionID == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Session Detail", p.DisplayName(), "browser", p.IsAdmin(), EmptyState("Session Not Found", "No dashboard data exists for that session identifier.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Session Detail", p.DisplayName(), "browser", p.Roles(), EmptyState("Session Not Found", "No dashboard data exists for that session identifier.")))
 		return
 	}
 	// Clone the request before mutating URL so the original request is not modified.
@@ -584,14 +587,14 @@ func (h *handlers) handleProjects(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Projects", p.DisplayName(), "projects", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Projects", p.DisplayName(), "projects", p.Roles(), component))
 }
 
 func (h *handlers) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	p := h.principalFromRequest(r)
 	project := strings.TrimSpace(r.PathValue("project"))
 	if project == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Project Detail", p.DisplayName(), "projects", p.IsAdmin(), EmptyState("Project Not Found", "No replicated dashboard data exists for that project.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Project Detail", p.DisplayName(), "projects", p.Roles(), EmptyState("Project Not Found", "No replicated dashboard data exists for that project.")))
 		return
 	}
 	var stats *cloudstore.DashboardProjectRow
@@ -610,7 +613,7 @@ func (h *handlers) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	component := ProjectDetailPage(project, stats, ctrl)
-	renderComponent(w, r, Layout("Project Detail", p.DisplayName(), "projects", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Project Detail", p.DisplayName(), "projects", p.Roles(), component))
 }
 
 func (h *handlers) handleContributors(w http.ResponseWriter, r *http.Request) {
@@ -623,7 +626,7 @@ func (h *handlers) handleContributors(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Contributors", p.DisplayName(), "contributors", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Contributors", p.DisplayName(), "contributors", p.Roles(), component))
 }
 
 // handleContributorsList handles GET /dashboard/contributors/list.
@@ -666,11 +669,11 @@ func (h *handlers) handleContributorDetail(w http.ResponseWriter, r *http.Reques
 	p := h.principalFromRequest(r)
 	contributor := strings.TrimSpace(r.PathValue("contributor"))
 	if contributor == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Contributor Detail", p.DisplayName(), "contributors", p.IsAdmin(), EmptyState("Contributor Not Found", "No dashboard data exists for that contributor.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), EmptyState("Contributor Not Found", "No dashboard data exists for that contributor.")))
 		return
 	}
 	if h.cfg.Store == nil {
-		renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.IsAdmin(), ContributorDetailPage(nil, nil, nil, nil)))
+		renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), ContributorDetailPage(nil, nil, nil, nil)))
 		return
 	}
 	row, sessions, observations, prompts, err := h.cfg.Store.GetContributorDetail(contributor)
@@ -679,7 +682,7 @@ func (h *handlers) handleContributorDetail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	component := ContributorDetailPage(&row, sessions, observations, prompts)
-	renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), component))
 }
 
 func (h *handlers) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -703,7 +706,7 @@ func (h *handlers) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin", p.DisplayName(), "admin", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Admin", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminProjectControls handles GET /dashboard/admin/projects.
@@ -727,7 +730,7 @@ func (h *handlers) handleAdminProjectControls(w http.ResponseWriter, r *http.Req
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin Projects", p.DisplayName(), "admin", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Admin Projects", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // ─── 11 New Handler Implementations (visual parity batch) ────────────────────
@@ -834,7 +837,7 @@ func (h *handlers) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin Users", p.DisplayName(), "admin", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Admin Users", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminUsersList handles GET /dashboard/admin/users/list — tabla de users desde AdminUsers service.
@@ -853,6 +856,7 @@ func (h *handlers) handleAdminUsersList(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleAdminUserCreate handles POST /dashboard/admin/users/create.
+// Acepta múltiples valores en form field "roles" (checkboxes). Si está vacío, default ["dev"].
 func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.AdminUsers == nil {
 		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
@@ -864,9 +868,12 @@ func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request)
 	}
 	email := strings.TrimSpace(r.PostForm.Get("email"))
 	name := strings.TrimSpace(r.PostForm.Get("name"))
-	role := strings.TrimSpace(r.PostForm.Get("role"))
+	roles := r.PostForm["roles"]
+	if len(roles) == 0 {
+		roles = []string{"dev"}
+	}
 	password := r.PostForm.Get("password")
-	if err := h.cfg.AdminUsers.CreateUser(r.Context(), email, name, role, password); err != nil {
+	if err := h.cfg.AdminUsers.CreateUser(r.Context(), email, name, roles, password); err != nil {
 		renderComponent(w, r, AdminUsersListPartial(nil, fmt.Sprintf("error: %v", err)))
 		return
 	}
@@ -878,20 +885,31 @@ func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request)
 	renderComponent(w, r, AdminUsersListPartial(users, ""))
 }
 
-// handleAdminUserSetRole handles POST /dashboard/admin/users/{uid}/role.
-func (h *handlers) handleAdminUserSetRole(w http.ResponseWriter, r *http.Request) {
+// handleAdminUserAddRole POST /dashboard/admin/users/{uid}/roles/{role}/add
+func (h *handlers) handleAdminUserAddRole(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.AdminUsers == nil {
 		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
 		return
 	}
 	uid := r.PathValue("uid")
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+	role := r.PathValue("role")
+	if err := h.cfg.AdminUsers.AddRole(r.Context(), uid, role); err != nil {
+		http.Error(w, fmt.Sprintf("add role: %v", err), http.StatusBadRequest)
 		return
 	}
-	role := strings.TrimSpace(r.PostForm.Get("role"))
-	if err := h.cfg.AdminUsers.SetRole(r.Context(), uid, role); err != nil {
-		http.Error(w, fmt.Sprintf("set role: %v", err), http.StatusBadRequest)
+	h.renderSingleUserRow(w, r, uid)
+}
+
+// handleAdminUserRemoveRole POST /dashboard/admin/users/{uid}/roles/{role}/remove
+func (h *handlers) handleAdminUserRemoveRole(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.AdminUsers == nil {
+		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+	uid := r.PathValue("uid")
+	role := r.PathValue("role")
+	if err := h.cfg.AdminUsers.RemoveRole(r.Context(), uid, role); err != nil {
+		http.Error(w, fmt.Sprintf("remove role: %v", err), http.StatusBadRequest)
 		return
 	}
 	h.renderSingleUserRow(w, r, uid)
@@ -969,7 +987,7 @@ func (h *handlers) handleAdminHealth(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin Health", p.DisplayName(), "admin", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Admin Health", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminSyncTogglePost handles POST /dashboard/admin/projects/{name}/sync.
@@ -1034,7 +1052,7 @@ func (h *handlers) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 	project := strings.TrimSpace(r.PathValue("project"))
 	sessionID := strings.TrimSpace(r.PathValue("sessionID"))
 	if project == "" || sessionID == "" || len(sessionID) > 128 {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Session", p.DisplayName(), "browser", p.IsAdmin(), EmptyState("Session Not Found", "Invalid session identifier.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Session", p.DisplayName(), "browser", p.Roles(), EmptyState("Session Not Found", "Invalid session identifier.")))
 		return
 	}
 	var sess *cloudstore.DashboardSessionRow
@@ -1051,7 +1069,7 @@ func (h *handlers) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 		prompts = pr
 	}
 	component := SessionDetailPage(sess, obs, prompts)
-	renderComponent(w, r, Layout("Session Detail", p.DisplayName(), "browser", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Session Detail", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // handleObservationDetail handles GET /dashboard/observations/{project}/{sessionID}/{syncID}.
@@ -1061,7 +1079,7 @@ func (h *handlers) handleObservationDetail(w http.ResponseWriter, r *http.Reques
 	sessionID := strings.TrimSpace(r.PathValue("sessionID"))
 	syncID := strings.TrimSpace(r.PathValue("syncID"))
 	if project == "" || sessionID == "" || syncID == "" || len(syncID) > 128 {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Observation", p.DisplayName(), "browser", p.IsAdmin(), EmptyState("Observation Not Found", "Invalid observation identifier.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Observation", p.DisplayName(), "browser", p.Roles(), EmptyState("Observation Not Found", "Invalid observation identifier.")))
 		return
 	}
 	var obs *cloudstore.DashboardObservationRow
@@ -1078,7 +1096,7 @@ func (h *handlers) handleObservationDetail(w http.ResponseWriter, r *http.Reques
 		related = rel
 	}
 	component := ObservationDetailPage(obs, sess, related)
-	renderComponent(w, r, Layout("Observation Detail", p.DisplayName(), "browser", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Observation Detail", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // handlePromptDetail handles GET /dashboard/prompts/{project}/{sessionID}/{syncID}.
@@ -1088,7 +1106,7 @@ func (h *handlers) handlePromptDetail(w http.ResponseWriter, r *http.Request) {
 	sessionID := strings.TrimSpace(r.PathValue("sessionID"))
 	syncID := strings.TrimSpace(r.PathValue("syncID"))
 	if project == "" || sessionID == "" || syncID == "" || len(syncID) > 128 {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Prompt", p.DisplayName(), "browser", p.IsAdmin(), EmptyState("Prompt Not Found", "Invalid prompt identifier.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Prompt", p.DisplayName(), "browser", p.Roles(), EmptyState("Prompt Not Found", "Invalid prompt identifier.")))
 		return
 	}
 	var prompt *cloudstore.DashboardPromptRow
@@ -1105,7 +1123,7 @@ func (h *handlers) handlePromptDetail(w http.ResponseWriter, r *http.Request) {
 		related = rel
 	}
 	component := PromptDetailPage(prompt, sess, related)
-	renderComponent(w, r, Layout("Prompt Detail", p.DisplayName(), "browser", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Prompt Detail", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // renderObservationsTable removed in Batch 6 REFACTOR — replaced by ObservationsPartial templ component.
@@ -1122,7 +1140,7 @@ func (h *handlers) renderStoreError(w http.ResponseWriter, r *http.Request, acti
 	// are always present regardless of which handler generated the error.
 	p := h.principalFromRequest(r)
 	body := fmt.Sprintf(`<section class="frame-section"><p class="section-kicker">DEGRADED</p><h2>%s</h2>%s</section>`, html.EscapeString(contextLabel), fragment)
-	renderComponentStatus(w, r, status, Layout(contextLabel, p.DisplayName(), activeTab, p.IsAdmin(), templ.Raw(body)))
+	renderComponentStatus(w, r, status, Layout(contextLabel, p.DisplayName(), activeTab, p.Roles(), templ.Raw(body)))
 }
 
 func classifyStoreError(contextLabel string, err error) (int, string, string) {
@@ -1197,7 +1215,7 @@ func (h *handlers) handleAdminAuditLog(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Audit Log", p.DisplayName(), "admin", p.IsAdmin(), component))
+	renderComponent(w, r, Layout("Audit Log", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminAuditLogList handles GET /dashboard/admin/audit-log/list (partial, admin-gated, HTMX).

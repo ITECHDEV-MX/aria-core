@@ -11,13 +11,20 @@ import (
 
 // NavTabs renders the navigation tab bar.
 // activeTab should be one of: "dashboard", "browser", "projects", "contributors", "admin".
-templ NavTabs(activeTab string, isAdmin bool) {
+templ NavTabs(activeTab string, roles []string) {
 	<div role="tablist">
 		@navTab("/dashboard/", "Dashboard", "dashboard", activeTab)
-		@navTab("/dashboard/browser", "Browser", "browser", activeTab)
-		@navTab("/dashboard/projects", "Projects", "projects", activeTab)
-		@navTab("/dashboard/contributors", "Contributors", "contributors", activeTab)
-		if isAdmin {
+		if hasAnyRole(roles, "admin", "dev") {
+			@navTab("/dashboard/browser", "Browser", "browser", activeTab)
+		}
+		if hasAnyRole(roles, "admin", "dev", "project_admin") {
+			@navTab("/dashboard/projects", "Projects", "projects", activeTab)
+		}
+		if hasAnyRole(roles, "admin", "cotizador") {
+			@navTab("/dashboard/cotizador", "Cotizaciones", "cotizador", activeTab)
+		}
+		if hasAnyRole(roles, "admin") {
+			@navTab("/dashboard/contributors", "Contributors", "contributors", activeTab)
 			@navTab("/dashboard/admin", "Admin", "admin", activeTab)
 		}
 	</div>
@@ -887,13 +894,13 @@ templ adminUserRow(u AdminUserView) {
 		<td>{ u.Email }</td>
 		<td>{ u.Name }</td>
 		<td>
-			<form hx-post={ "/dashboard/admin/users/" + u.UID + "/role" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" style="display:inline">
-				<select name="role" onchange="this.form.requestSubmit()">
-					for _, r := range AvailableRoles() {
-						<option value={ r.Value } selected?={ u.Role == r.Value }>{ r.Label }</option>
-					}
-				</select>
-			</form>
+			for _, r := range AvailableRoles() {
+				if userHasRole(u, r.Value) {
+					<button hx-post={ "/dashboard/admin/users/" + u.UID + "/roles/" + r.Value + "/remove" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" class="shell-button" style="margin:2px;background:#3a5">{ r.Label } ✓</button>
+				} else {
+					<button hx-post={ "/dashboard/admin/users/" + u.UID + "/roles/" + r.Value + "/add" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" class="shell-button" style="margin:2px;opacity:0.5">+ { r.Label }</button>
+				}
+			}
 		</td>
 		<td>
 			if u.IsActive {
@@ -964,14 +971,15 @@ templ AdminUsersPage() {
 				Nombre
 				<input type="text" name="name" placeholder="Nombre Completo"/>
 			</label>
-			<label>
-				Rol
-				<select name="role">
-					for _, r := range AvailableRoles() {
-						<option value={ r.Value }>{ r.Label }</option>
-					}
-				</select>
-			</label>
+			<fieldset>
+				<legend>Roles (uno o más)</legend>
+				for _, r := range AvailableRoles() {
+					<label style="display:block">
+						<input type="checkbox" name="roles" value={ r.Value }/>
+						{ r.Label }
+					</label>
+				}
+			</fieldset>
 			<label>
 				Password (≥8)
 				<input type="password" name="password" required minlength="8"/>

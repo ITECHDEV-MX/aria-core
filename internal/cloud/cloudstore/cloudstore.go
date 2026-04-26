@@ -459,6 +459,21 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev','cotizador','project_admin'));
 		END $$`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_users_email ON cloud_users(lower(email))`,
+		// Multi-role: tabla many-to-many entre usuarios y roles.
+		`CREATE TABLE IF NOT EXISTS cloud_user_roles (
+			uid UUID NOT NULL REFERENCES cloud_users(uid) ON DELETE CASCADE,
+			role TEXT NOT NULL,
+			granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (uid, role),
+			CONSTRAINT cloud_user_roles_role_check CHECK (role IN ('admin','dev','cotizador','project_admin'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_user_roles_uid ON cloud_user_roles(uid)`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_user_roles_role ON cloud_user_roles(role)`,
+		// Backfill desde la columna role single (legacy) hacia cloud_user_roles.
+		`INSERT INTO cloud_user_roles (uid, role)
+		 SELECT uid, role FROM cloud_users
+		 WHERE role IS NOT NULL AND role <> ''
+		 ON CONFLICT DO NOTHING`,
 		`CREATE TABLE IF NOT EXISTS cloud_chunks (
 			project_name TEXT NOT NULL DEFAULT 'default',
 			chunk_id TEXT NOT NULL,
@@ -483,6 +498,12 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			END IF;
 		END $$`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS cloud_chunks_project_chunk_uidx ON cloud_chunks (project_name, chunk_id)`,
+		// created_by_role: scoping de visibilidad por rol de quien guardó el chunk.
+		// 'shared' = visible para todos los autenticados (default para chunks legacy y para
+		// uploads sin contexto de role). Cualquier otro valor = visible solo para users con
+		// ese mismo role o rol admin.
+		`ALTER TABLE cloud_chunks ADD COLUMN IF NOT EXISTS created_by_role TEXT NOT NULL DEFAULT 'shared'`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_chunks_created_by_role ON cloud_chunks(created_by_role)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

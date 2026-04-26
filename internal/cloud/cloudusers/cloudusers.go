@@ -52,12 +52,33 @@ type User struct {
 	UID          string
 	Email        string
 	Name         string
-	Role         string
+	Role         string // legacy single-role (compat); usar Roles para multi-role.
+	Roles        []string
 	IsActive     bool
 	ClientID     sql.NullString
 	PasswordHash string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+// HasRole retorna true si el usuario tiene el rol dado en su set.
+func (u *User) HasRole(role string) bool {
+	for _, r := range u.Roles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// HasAnyRole retorna true si el usuario tiene al menos uno de los roles dados.
+func (u *User) HasAnyRole(roles ...string) bool {
+	for _, want := range roles {
+		if u.HasRole(want) {
+			return true
+		}
+	}
+	return false
 }
 
 type Store struct {
@@ -81,7 +102,8 @@ func normalizeEmail(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-// Create inserta un nuevo usuario. password en texto claro; se hashea con bcrypt cost=12.
+// Create inserta un nuevo usuario con un rol inicial.
+// Para asignar más roles después, usar AddRole.
 func (s *Store) Create(ctx context.Context, email, name, role, password string) (*User, error) {
 	email = normalizeEmail(email)
 	name = strings.TrimSpace(name)
@@ -99,8 +121,13 @@ func (s *Store) Create(ctx context.Context, email, name, role, password string) 
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
 	username := email
-	row := s.db.QueryRowContext(ctx, `
+	row := tx.QueryRowContext(ctx, `
 		INSERT INTO cloud_users (username, email, name, role, password_hash, is_active)
 		VALUES ($1, $2, $3, $4, $5, TRUE)
 		RETURNING uid::text, email, name, role, is_active, client_id, password_hash, created_at, updated_at
@@ -112,6 +139,13 @@ func (s *Store) Create(ctx context.Context, email, name, role, password string) 
 		}
 		return nil, fmt.Errorf("insert user: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO cloud_user_roles (uid, role) VALUES ($1, $2) ON CONFLICT DO NOTHING`, u.UID, role); err != nil {
+		return nil, fmt.Errorf("insert role: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	u.Roles = []string{role}
 	return u, nil
 }
 
@@ -126,6 +160,9 @@ func (s *Store) GetByEmail(ctx context.Context, email string) (*User, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
+		return nil, err
+	}
+	if err := s.attachRoles(ctx, u); err != nil {
 		return nil, err
 	}
 	return u, nil
@@ -147,7 +184,78 @@ func (s *Store) GetByUID(ctx context.Context, uid string) (*User, error) {
 		}
 		return nil, err
 	}
+	if err := s.attachRoles(ctx, u); err != nil {
+		return nil, err
+	}
 	return u, nil
+}
+
+// attachRoles carga los roles del usuario desde cloud_user_roles.
+func (s *Store) attachRoles(ctx context.Context, u *User) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT role FROM cloud_user_roles WHERE uid::text = $1 ORDER BY role`, u.UID)
+	if err != nil {
+		return fmt.Errorf("load roles: %w", err)
+	}
+	defer rows.Close()
+	u.Roles = nil
+	for rows.Next() {
+		var r string
+		if err := rows.Scan(&r); err != nil {
+			return err
+		}
+		u.Roles = append(u.Roles, r)
+	}
+	return rows.Err()
+}
+
+// AddRole asigna un rol adicional al usuario. Idempotente.
+func (s *Store) AddRole(ctx context.Context, uid, role string) error {
+	if !ValidRole(role) {
+		return ErrInvalidRole
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO cloud_user_roles (uid, role) VALUES ($1, $2) ON CONFLICT DO NOTHING`, uid, role)
+	return err
+}
+
+// RemoveRole quita un rol del usuario. Si era el único rol, error.
+func (s *Store) RemoveRole(ctx context.Context, uid, role string) error {
+	if !ValidRole(role) {
+		return ErrInvalidRole
+	}
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM cloud_user_roles WHERE uid::text = $1`, uid).Scan(&count); err != nil {
+		return err
+	}
+	if count <= 1 {
+		return fmt.Errorf("cannot remove last role from user (assign another role first)")
+	}
+	res, err := s.db.ExecContext(ctx, `DELETE FROM cloud_user_roles WHERE uid::text = $1 AND role = $2`, uid, role)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("user does not have role %q", role)
+	}
+	return nil
+}
+
+// ListRoles retorna los roles asignados al usuario.
+func (s *Store) ListRoles(ctx context.Context, uid string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT role FROM cloud_user_roles WHERE uid::text = $1 ORDER BY role`, uid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var r string
+		if err := rows.Scan(&r); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // VerifyPassword devuelve el usuario si email/password coinciden y está activo.
@@ -155,7 +263,6 @@ func (s *Store) VerifyPassword(ctx context.Context, email, password string) (*Us
 	u, err := s.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			// Tiempo constante: igual hacemos un compare dummy para evitar timing attacks.
 			_ = bcrypt.CompareHashAndPassword([]byte("$2a$12$dummy.hash.for.timing.attack.protection.padding"), []byte(password))
 			return nil, ErrInvalidCredential
 		}
@@ -187,7 +294,15 @@ func (s *Store) List(ctx context.Context) ([]*User, error) {
 		}
 		out = append(out, u)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for _, u := range out {
+		if err := s.attachRoles(ctx, u); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (s *Store) SetRole(ctx context.Context, uid, role string) error {
