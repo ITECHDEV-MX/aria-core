@@ -37,6 +37,7 @@ func (a *ariaMemAdapter) Save(ctx context.Context, in cloudserver.AriaMemSaveInp
 		FilesTouched: in.FilesTouched, ReasoningTrace: in.ReasoningTrace,
 		TopicKey: in.TopicKey, Source: in.Source, GeneratedByModel: in.GeneratedByModel,
 		Sensitivity: in.Sensitivity,
+		ForceSave:   in.ForceSave,
 	})
 	if err != nil {
 		return nil, err

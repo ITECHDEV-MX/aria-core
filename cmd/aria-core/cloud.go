@@ -165,6 +165,19 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	notifier := newQuoteEmailNotifier(cotizadorSvc.store, usersStore, emailService, publicURL)
 	cotizadorSvc.setNotifier(notifier)
 
+	// Vault: AES-256-GCM encryption-at-rest. Master key vía env (vacío → degraded).
+	vaultMasterKey := strings.TrimSpace(os.Getenv("ARIA_CORE_VAULT_MASTER_KEY"))
+	vaultAdpt, vaultErr := newVaultAdapter(cs, vaultMasterKey)
+	if vaultErr != nil {
+		_ = cs.Close()
+		return nil, fmt.Errorf("vault adapter: %w", vaultErr)
+	}
+	if !vaultAdpt.Available() {
+		log.Printf("[aria-core-cloud] vault in DEGRADED mode (ARIA_CORE_VAULT_MASTER_KEY empty); secrets cannot be encrypted/decrypted, only metadata is visible")
+	} else {
+		log.Printf("[aria-core-cloud] vault ready (encryption-at-rest enabled)")
+	}
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -185,6 +198,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithRedactor(redactorDashSvc),
 			cloudserver.WithScrubGate(redactorScrubGate),
 			cloudserver.WithPublicURL(publicURL),
+			cloudserver.WithVault(vaultAdpt),
+			cloudserver.WithVaultDashboard(dashboardVaultAdapter{a: vaultAdpt}),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

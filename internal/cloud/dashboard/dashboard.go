@@ -59,8 +59,8 @@ type MountConfig struct {
 	IsAdmin             func(r *http.Request) bool
 	GetRoles            func(r *http.Request) []string
 	GetDisplayName      func(r *http.Request) string
-	// GetUID (opcional) — retorna el UID del usuario autenticado (sub del JWT/session).
-	// Necesario para el cockpit personal /dashboard/me y handlers ACL-by-owner.
+	// GetUID (opcional) — retorna el UID del usuario autenticado.
+	// Necesario para cockpit personal /dashboard/me y módulos como vault.
 	GetUID func(r *http.Request) string
 	Store               DashboardStore
 	MaxLoginBodyBytes   int64
@@ -79,6 +79,8 @@ type MountConfig struct {
 	PersonalCockpit PersonalCockpitService
 	// Redactor (opcional) — habilita /dashboard/audit/egress y stats.
 	Redactor RedactorService
+	// Vault (opcional) — habilita /dashboard/vault con CRUD de secrets + audit log.
+	Vault VaultDashboardService
 }
 
 // RedactorService es el contrato dashboard del módulo redactor (PII scrubber +
@@ -146,6 +148,47 @@ type PDFConvertOptions struct {
 // InviteDashboardService es el contrato del módulo de invites para el dashboard.
 type InviteDashboardService interface {
 	CreateAndSend(ctx context.Context, email string, roles []string, invitedByUID, invitedByEmail string) (link string, emailSent bool, info string, err error)
+}
+
+// VaultSecretView es la representación de un secret en el dashboard (sin valor descifrado).
+type VaultSecretView struct {
+	ID             string
+	Name           string
+	Category       string
+	Scope          string
+	Project        string
+	ClientID       string
+	Description    string
+	RotationPolicy string
+	ExpiresAt      *time.Time
+	CreatedAt      time.Time
+	CreatedByUID   string
+	IsActive       bool
+}
+
+// VaultAccessEntryView es una fila del audit log para mostrar en dashboard.
+type VaultAccessEntryView struct {
+	ID            string
+	SecretID      string
+	SecretName    string
+	AccessedByUID string
+	Action        string
+	Reason        string
+	CommandHash   string
+	AccessedAt    time.Time
+}
+
+// VaultDashboardService es el contrato del módulo vault para el dashboard.
+// Es admin-gated en la layer de routes (requireAdmin).
+type VaultDashboardService interface {
+	List(ctx context.Context, ownerUID string, onlyOwned bool) ([]VaultSecretView, error)
+	Create(ctx context.Context, name, category, scope, project, clientID, description, value string, byUID string) (string, error)
+	Reveal(ctx context.Context, id, byUID, reason string) (string, error)
+	Rotate(ctx context.Context, id, newValue, byUID string) error
+	Delete(ctx context.Context, id, byUID string) error
+	AccessLog(ctx context.Context, secretID string, limit int) ([]VaultAccessEntryView, error)
+	GlobalAuditLog(ctx context.Context, limit, offset int) ([]VaultAccessEntryView, error)
+	Available() bool
 }
 
 // AriaMemDashboardService es el contrato dashboard para la capa de memoria ARIA.
@@ -682,6 +725,16 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/audit/egress", h.requireAdmin(h.handleAuditEgress))
 	mux.HandleFunc("GET /dashboard/audit/egress/list", h.requireAdmin(h.handleAuditEgressList))
 	mux.HandleFunc("GET /dashboard/audit/egress.csv", h.requireAdmin(h.handleAuditEgressCSV))
+
+	// === Vault: bóveda de secretos (admin-gated) ===
+	mux.HandleFunc("GET /dashboard/vault", h.requireAdmin(h.handleVaultPage))
+	mux.HandleFunc("GET /dashboard/vault/list", h.requireAdmin(h.handleVaultList))
+	mux.HandleFunc("POST /dashboard/vault/create", h.requireAdmin(h.handleVaultCreate))
+	mux.HandleFunc("POST /dashboard/vault/{id}/reveal", h.requireAdmin(h.handleVaultReveal))
+	mux.HandleFunc("POST /dashboard/vault/{id}/rotate", h.requireAdmin(h.handleVaultRotate))
+	mux.HandleFunc("POST /dashboard/vault/{id}/delete", h.requireAdmin(h.handleVaultDelete))
+	mux.HandleFunc("GET /dashboard/vault/{id}/audit", h.requireAdmin(h.handleVaultAuditDetail))
+	mux.HandleFunc("GET /dashboard/vault/audit", h.requireAdmin(h.handleVaultAuditGlobal))
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {

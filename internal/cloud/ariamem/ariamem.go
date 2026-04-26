@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
 	"github.com/lib/pq"
 )
 
@@ -145,12 +146,19 @@ type SensitivityInferrer interface {
 }
 
 type Store struct {
-	db        *sql.DB
-	inferrer  SensitivityInferrer
+	db           *sql.DB
+	inferrer     SensitivityInferrer
+	leakDetector vault.LeakDetector
 }
 
 func New(db *sql.DB) *Store {
-	return &Store{db: db}
+	return &Store{db: db, leakDetector: vault.NewLeakDetector()}
+}
+
+// SetLeakDetector permite override del detector (e.g. tests).
+// Pasar nil deshabilita la detección de leaks.
+func (s *Store) SetLeakDetector(d vault.LeakDetector) {
+	s.leakDetector = d
 }
 
 // SetSensitivityInferrer instala el hook de auto-clasificación. Llamado por
@@ -189,6 +197,10 @@ type SaveParams struct {
 	// inyectado debería auto-inferir antes de invocar Save. Valores válidos:
 	// public | internal | client | confidential. "" se trata como 'internal'.
 	Sensitivity string
+	// ForceSave permite saltarse el bloqueo por leak detection.
+	// Si true y se detectaron credenciales, se loguea warning en metadata
+	// y se inserta de todos modos. Reservado para admin override.
+	ForceSave bool
 }
 
 // Save inserta o reemplaza por (project, topic_key) cuando topic_key viene seteado.
@@ -231,6 +243,24 @@ func (s *Store) Save(ctx context.Context, p SaveParams) (*Observation, error) {
 	reasoningTrace := strings.TrimSpace(p.ReasoningTrace)
 	if reasoningTrace != "" && !json.Valid([]byte(reasoningTrace)) {
 		return nil, fmt.Errorf("reasoning_trace must be valid JSON")
+	}
+
+	// Leak detection: bloquear si narrative/facts/subtitle/concepts contiene credenciales.
+	// Excepción: ForceSave=true (admin override) deja pasar pero loguea warning.
+	if s.leakDetector != nil {
+		scanText := strings.Join([]string{p.Narrative, p.Facts, p.Subtitle, p.Concepts}, "\n")
+		if matches := s.leakDetector.Scan(scanText); len(matches) > 0 {
+			if !p.ForceSave {
+				return nil, vault.FormatLeakError(matches)
+			}
+			// ForceSave: registrar warning en server logs (la metadata real va al insert
+			// más abajo en el reasoning_trace si viniera; por ahora solo log).
+			fmt.Printf("[ariamem] WARNING: ForceSave used despite leak patterns: ")
+			for _, m := range matches {
+				fmt.Printf("%s ", m.Pattern)
+			}
+			fmt.Println()
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)

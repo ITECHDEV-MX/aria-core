@@ -578,6 +578,8 @@ func main() {
 		cmdAdmin()
 	case "redactor":
 		cmdRedactor()
+	case "vault":
+		cmdVault()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -781,6 +783,12 @@ func runAriaCloudMCP(cfg store.Config) {
 	}
 	srv := mcp.NewBareServer("aria-core-memory", "0.2.0")
 	mcp.RegisterAriaCloudTools(srv, mcp.AriaCloudConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	// Vault tools: ejecutan comandos locales con secrets cargados desde el cloud,
+	// nunca exponen el plaintext al modelo. Registrados en el mismo server.
+	mcp.RegisterAriaVaultTools(srv, mcp.VaultMCPConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})
