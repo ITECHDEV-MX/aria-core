@@ -22,6 +22,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
 	emailpkg "github.com/ITECHDEV-MX/aria-core/internal/cloud/email"
 	corepdf "github.com/ITECHDEV-MX/aria-core/internal/cloud/pdf"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/redactor"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/remote"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -118,6 +119,17 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	ariaMemSvc := newAriaMemAdapter(cs)
 	ariaMemDashSvc := newAriaMemDashboardAdapter(cs)
 
+	// Redactor: PII scrubbing + sensitivity inference + LLM egress audit.
+	// Bóveda-de-cliente: data sensible nunca debería salir a Claude/LLM externo
+	// sin pasar por Scrub() y registrar el envío en aria_llm_egress_log.
+	redactorSvc := redactor.New(redactor.Config{DB: cs.DB()})
+	if inf, ok := redactorSvc.(redactor.StringInferrer); ok {
+		ariaMemSvc.store.SetSensitivityInferrer(inf)
+		ariaMemDashSvc.store.SetSensitivityInferrer(inf)
+	}
+	redactorDashSvc := newRedactorDashboardAdapter(cs.DB(), redactorSvc)
+	redactorScrubGate := newScrubGateAdapter(redactorSvc)
+
 	// PDF client (gotenberg).
 	gotenbergURL := strings.TrimSpace(os.Getenv("ARIA_CORE_GOTENBERG_URL"))
 	if gotenbergURL == "" {
@@ -170,6 +182,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithEmailService(emailAdapter),
 			cloudserver.WithInviteService(inviteAdapter),
 			cloudserver.WithDashboardInvites(dashboardInvites),
+			cloudserver.WithRedactor(redactorDashSvc),
+			cloudserver.WithScrubGate(redactorScrubGate),
 			cloudserver.WithPublicURL(publicURL),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),

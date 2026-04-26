@@ -72,6 +72,54 @@ type MountConfig struct {
 	PDFClient PDFClient
 	// Invites (opcional) — habilita invitar usuario por email.
 	Invites InviteDashboardService
+	// Redactor (opcional) — habilita /dashboard/audit/egress y stats.
+	Redactor RedactorService
+}
+
+// RedactorService es el contrato dashboard del módulo redactor (PII scrubber +
+// LLM egress audit). Ver internal/cloud/redactor/.
+type RedactorService interface {
+	ListEgress(ctx context.Context, filter EgressFilter, limit, offset int) ([]EgressRow, int, error)
+	StatsLastDays(ctx context.Context, days int) (*EgressStatsView, error)
+	RevealAlias(ctx context.Context, token string) (entityType, displayValue string, err error)
+}
+
+// EgressFilter mirrors redactor.EgressFilter without importing the package
+// (the dashboard package has zero deps on internal/cloud/redactor).
+type EgressFilter struct {
+	From     time.Time
+	To       time.Time
+	ClientID string
+	UserUID  string
+	Provider string
+}
+
+// EgressRow mirrors redactor.EgressRow.
+type EgressRow struct {
+	ID            string
+	RequestID     string
+	ObservationID string
+	LLMProvider   string
+	LLMModel      string
+	ClientID      string
+	UserUID       string
+	Scrubbed      bool
+	RedactionsRaw string
+	PayloadHash   string
+	PayloadSize   int
+	Reason        string
+	OccurredAt    time.Time
+}
+
+// EgressStatsView mirrors redactor.EgressStats.
+type EgressStatsView struct {
+	WindowDays    int
+	TotalRequests int
+	TotalScrubbed int
+	TotalBypassed int
+	BytesSent     int64
+	ByProvider    map[string]int
+	ByReason      map[string]int
 }
 
 // PDFClient es el contrato dashboard para conversiones HTML→PDF (gotenberg).
@@ -149,6 +197,7 @@ type AriaMemoryView struct {
 	TopicKey        string
 	Source          string
 	Canon           bool
+	Sensitivity     string // public|internal|client|confidential
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -618,6 +667,11 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/toggle", h.requireAdmin(h.handleAdminSkillToggle))
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/delete", h.requireAdmin(h.handleAdminSkillDelete))
 	mux.HandleFunc("GET /dashboard/admin/mcp", h.requireAdmin(h.handleAdminMCPView))
+
+	// === Audit egress (redactor module) — admin-gated ===
+	mux.HandleFunc("GET /dashboard/audit/egress", h.requireAdmin(h.handleAuditEgress))
+	mux.HandleFunc("GET /dashboard/audit/egress/list", h.requireAdmin(h.handleAuditEgressList))
+	mux.HandleFunc("GET /dashboard/audit/egress.csv", h.requireAdmin(h.handleAuditEgressCSV))
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {

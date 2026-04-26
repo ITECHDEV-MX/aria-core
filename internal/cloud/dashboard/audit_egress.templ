@@ -1,0 +1,182 @@
+package dashboard
+
+import (
+	"fmt"
+	"strconv"
+)
+
+// AuditEgressPage — shell del módulo redactor / egress audit. Muestra stats
+// agregadas + tabla con filtros HTMX. Admin-gated en el handler.
+templ AuditEgressPage(displayName string, filter EgressFilter, stats *EgressStatsView) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">AUDITORÍA</p>
+			<h1>📤 Egress LLM</h1>
+			<p class="lead">Registro inmutable de qué se envió a qué LLM y por qué. Bóveda-de-cliente: ARIA pre-procesa cada payload antes de salir a Claude / OpenAI.</p>
+		</div>
+	</div>
+
+	if stats != nil {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Últimos { strconv.Itoa(stats.WindowDays) } días</div></div>
+			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;padding:0.5rem 0">
+				<div>
+					<p class="muted">Total requests</p>
+					<h2 style="margin:0">{ strconv.Itoa(stats.TotalRequests) }</h2>
+				</div>
+				<div>
+					<p class="muted">Scrubbed</p>
+					<h2 style="margin:0">{ strconv.Itoa(stats.TotalScrubbed) }</h2>
+				</div>
+				<div>
+					<p class="muted">Sin scrub</p>
+					<h2 style="margin:0">{ strconv.Itoa(stats.TotalBypassed) }</h2>
+				</div>
+				<div>
+					<p class="muted">Bytes enviados</p>
+					<h2 style="margin:0">{ formatBytes(stats.BytesSent) }</h2>
+				</div>
+			</div>
+			if len(stats.ByProvider) > 0 {
+				<div style="margin-top:1rem">
+					<p class="muted" style="margin-bottom:0.25rem">Por proveedor:</p>
+					<div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+						for prov, count := range stats.ByProvider {
+							<span class="pill">{ prov }: { strconv.Itoa(count) }</span>
+						}
+					</div>
+				</div>
+			}
+		</div>
+	}
+
+	<div id="audit-egress-content"
+		hx-get={ buildEgressListURL(filter) }
+		hx-trigger="load"
+		hx-swap="innerHTML">
+		<p class="muted">Cargando egress log...</p>
+	</div>
+}
+
+// AuditEgressListPartial — partial HTMX con filtros + tabla + paginación.
+templ AuditEgressListPartial(rows []EgressRow, pg Pagination, filter EgressFilter) {
+	<div class="card">
+		<div class="card-header"><div class="card-title">Filtros</div></div>
+		<form method="get" action="/dashboard/audit/egress/list"
+			hx-get="/dashboard/audit/egress/list"
+			hx-target="#audit-egress-content"
+			hx-swap="innerHTML"
+			hx-trigger="submit">
+			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.5rem">
+				<label style="margin:0">
+					<input id="egress-from" type="text" name="from" placeholder="Desde (RFC3339 o YYYY-MM-DD)" value={ auditTimeValue(filter.From) }/>
+				</label>
+				<label style="margin:0">
+					<input id="egress-to" type="text" name="to" placeholder="Hasta (RFC3339 o YYYY-MM-DD)" value={ auditTimeValue(filter.To) }/>
+				</label>
+				<label style="margin:0">
+					<input id="egress-client" type="text" name="client_id" placeholder="Client UUID" value={ filter.ClientID }/>
+				</label>
+				<label style="margin:0">
+					<input id="egress-user" type="text" name="user_uid" placeholder="User UID" value={ filter.UserUID }/>
+				</label>
+				<label style="margin:0">
+					<select id="egress-provider" name="provider">
+						<option value="">Todos los proveedores</option>
+						@providerOption("anthropic", filter.Provider)
+						@providerOption("openai", filter.Provider)
+						@providerOption("ollama-local", filter.Provider)
+						@providerOption("unknown", filter.Provider)
+					</select>
+				</label>
+			</div>
+			<div style="margin-top:0.5rem;display:flex;gap:0.5rem">
+				<button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+				<a class="btn btn-sm" href={ templ.SafeURL("/dashboard/audit/egress.csv?" + buildEgressQueryString(filter)) }>Exportar CSV</a>
+			</div>
+		</form>
+	</div>
+
+	if len(rows) == 0 {
+		<div class="card">
+			@EmptyState("Sin registros", "Ningún egress event coincide con los filtros actuales.")
+		</div>
+	} else {
+		<div class="table-wrapper">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Timestamp</th>
+						<th>User</th>
+						<th>Provider / Model</th>
+						<th>Cliente</th>
+						<th>Scrubbed</th>
+						<th>Redactions</th>
+						<th>Size</th>
+						<th>Reason</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, row := range rows {
+						<tr>
+							<td>{ formatTimestampStr(row.OccurredAt.Format("2006-01-02T15:04:05Z07:00")) }</td>
+							<td>{ shortUUID(row.UserUID) }</td>
+							<td>
+								<strong>{ row.LLMProvider }</strong>
+								if row.LLMModel != "" {
+									<br/>
+									<span class="muted">{ row.LLMModel }</span>
+								}
+							</td>
+							<td>{ shortUUID(row.ClientID) }</td>
+							<td>
+								if row.Scrubbed {
+									<span class="pill pill-success">SI</span>
+								} else {
+									<span class="pill pill-warning">NO</span>
+								}
+							</td>
+							<td><code style="font-size:0.8em">{ truncateString(row.RedactionsRaw, 60) }</code></td>
+							<td>{ formatBytesInt(row.PayloadSize) }</td>
+							<td>{ row.Reason }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		@HtmxPaginationBar(pg, "/dashboard/audit/egress/list", "#audit-egress-content", "#egress-from, #egress-to, #egress-client, #egress-user, #egress-provider")
+	}
+}
+
+templ providerOption(value, selected string) {
+	if value == selected {
+		<option value={ value } selected>{ value }</option>
+	} else {
+		<option value={ value }>{ value }</option>
+	}
+}
+
+// formatBytes — humaniza int64.
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
+}
+
+func formatBytesInt(b int) string {
+	return formatBytes(int64(b))
+}
+
+func shortUUID(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8] + "…"
+}
