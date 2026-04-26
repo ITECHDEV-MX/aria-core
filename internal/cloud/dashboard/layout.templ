@@ -1,8 +1,6 @@
 package dashboard
 
-// Layout wraps page content in the base HTML shell with nav, head, and footer.
-// activeTab should be one of: "dashboard", "browser", "projects", "contributors", "admin".
-// ADAPTED: username comes from Principal.DisplayName() at the call site (no context reads).
+// Layout — shell con sidebar + branding iTechDev. Identidad nueva.
 templ Layout(title string, username string, activeTab string, roles []string, content templ.Component) {
 	<!DOCTYPE html>
 	<html lang="es" data-theme="dark">
@@ -10,42 +8,93 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } — ARIA Core</title>
-			<link rel="stylesheet" href="/dashboard/static/pico.min.css"/>
-			<link rel="stylesheet" href="/dashboard/static/styles.css"/>
+			<link rel="stylesheet" href="/dashboard/static/aria-styles.css"/>
 			<script src="/dashboard/static/htmx.min.js"></script>
+			<script>
+				// Theme persistence
+				(function() {
+					const saved = localStorage.getItem('aria-theme') || 'dark';
+					document.documentElement.setAttribute('data-theme', saved);
+				})();
+				function toggleTheme() {
+					const cur = document.documentElement.getAttribute('data-theme');
+					const next = cur === 'dark' ? 'light' : 'dark';
+					document.documentElement.setAttribute('data-theme', next);
+					localStorage.setItem('aria-theme', next);
+				}
+			</script>
 		</head>
-		<body class="shell-body">
-			<div class="shell-backdrop">
-				<div class="status-ribbon">
-					<span class="status-pill">ARIA CORE</span>
-					<span class="status-copy">multi-tenant memory engine / iTechDev</span>
-				</div>
-				<div class="app-shell">
-					<header class="shell-header">
-						<div class="brand-stack">
-							<a href="/dashboard/" class="brand">ARIA Core</a>
-							<p class="brand-subtitle">{ rolesBadge(roles) }</p>
+		<body>
+			<div class="app-shell">
+				<aside class="sidebar">
+					<div class="sidebar-brand">
+						<img src="/dashboard/static/img/itechdev-logo.svg" alt="iTechDev" class="sidebar-brand-logo"/>
+						<div class="sidebar-brand-text">
+							<span class="sidebar-brand-name">ARIA CORE</span>
+							<span class="sidebar-brand-sub">iTechDev</span>
 						</div>
-						<div class="user-info">
-							<span class="user-name">{ username }</span>
-							<form method="post" action="/dashboard/logout" style="margin:0">
-								<button type="submit" class="user-link logout-link">
-									Logout
-								</button>
+					</div>
+					<nav class="sidebar-nav">
+						@SidebarLink("/dashboard/", "🏠", "Inicio", "dashboard", activeTab)
+						@SidebarLink("/dashboard/ayuda", "📖", "Guía", "ayuda", activeTab)
+
+						<div class="sidebar-nav-section">Conocimiento</div>
+						@SidebarLink("/dashboard/memorias", "💡", "Memoria", "memorias", activeTab)
+						if hasAnyRole(roles, "admin", "dev") {
+							@SidebarLink("/dashboard/browser", "🔄", "Sync", "browser", activeTab)
+						}
+
+						if hasAnyRole(roles, "admin", "dev", "project_admin") {
+							<div class="sidebar-nav-section">Operación</div>
+							@SidebarLink("/dashboard/projects", "📁", "Proyectos", "projects", activeTab)
+						}
+
+						if hasAnyRole(roles, "admin", "cotizador") {
+							<div class="sidebar-nav-section">Comercial</div>
+							@SidebarLink("/dashboard/cotizador", "💼", "Cotizaciones", "cotizador", activeTab)
+						}
+
+						if hasAnyRole(roles, "admin") {
+							<div class="sidebar-nav-section">Administración</div>
+							@SidebarLink("/dashboard/contributors", "👥", "Colaboradores", "contributors", activeTab)
+							@SidebarLink("/dashboard/admin", "⚙️", "Admin", "admin", activeTab)
+						}
+					</nav>
+					<div class="sidebar-footer">
+						<div class="user-card">
+							<div class="user-avatar">{ avatarInitial(username) }</div>
+							<div class="user-info">
+								<div class="user-name">{ username }</div>
+								<div class="user-roles">{ rolesShort(roles) }</div>
+							</div>
+						</div>
+						<div style="display:flex;gap:0.5rem;align-items:center">
+							<button class="theme-toggle" onclick="toggleTheme()" title="Cambiar tema">🌓</button>
+							<form method="post" action="/dashboard/logout" style="margin:0;flex:1">
+								<button type="submit" class="shell-button" style="width:100%">Salir</button>
 							</form>
 						</div>
-					</header>
-					<nav class="shell-nav">
-						@NavTabs(activeTab, roles)
-					</nav>
-					<main class="shell-main">
-						@content
-					</main>
-					<footer class="shell-footer">
-						<small>ARIA CORE / iTechDev / multi-tenant memory engine</small>
-					</footer>
-				</div>
+					</div>
+				</aside>
+				<main class="main">
+					@content
+				</main>
 			</div>
 		</body>
 	</html>
+}
+
+// SidebarLink — link del nav lateral con icono y estado activo.
+templ SidebarLink(href, icon, label, tabID, activeTab string) {
+	if tabID == activeTab {
+		<a href={ templ.SafeURL(href) } class="active">
+			<span class="sidebar-nav-icon">{ icon }</span>
+			<span>{ label }</span>
+		</a>
+	} else {
+		<a href={ templ.SafeURL(href) }>
+			<span class="sidebar-nav-icon">{ icon }</span>
+			<span>{ label }</span>
+		</a>
+	}
 }

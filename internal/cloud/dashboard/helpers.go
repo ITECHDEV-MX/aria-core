@@ -392,6 +392,39 @@ func formatDateForInput(t *time.Time) string {
 	return t.Format("2006-01-02")
 }
 
+// avatarInitial primera letra del username (o O por OPERATOR).
+func avatarInitial(username string) string {
+	username = strings.TrimSpace(username)
+	if username == "" {
+		return "?"
+	}
+	r := []rune(strings.ToUpper(username))
+	return string(r[0])
+}
+
+// rolesShort lista los roles del user en una línea corta para el sidebar footer.
+func rolesShort(roles []string) string {
+	if len(roles) == 0 {
+		return "sin rol"
+	}
+	out := make([]string, 0, len(roles))
+	for _, r := range roles {
+		switch r {
+		case "admin":
+			out = append(out, "Admin")
+		case "dev":
+			out = append(out, "Dev")
+		case "cotizador":
+			out = append(out, "Cotizador")
+		case "project_admin":
+			out = append(out, "PM")
+		default:
+			out = append(out, r)
+		}
+	}
+	return strings.Join(out, " · ")
+}
+
 // scopeLabel devuelve display label de un scope.
 func scopeLabel(s string) string {
 	switch s {
