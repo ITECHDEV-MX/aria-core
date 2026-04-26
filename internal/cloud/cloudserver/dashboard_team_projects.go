@@ -1,4 +1,4 @@
-// Dashboard handlers for /dashboard/projects/team/* (wave 7).
+// Dashboard handlers for /dashboard/team-projects/* (wave 7).
 // Renders raw HTML wrapped in dashboard.Layout via templ.Raw — same pattern
 // used by dashboard_recipes.go to avoid creating a new .templ file.
 package cloudserver
@@ -111,21 +111,21 @@ func (s *CloudServer) mountTeamProjectsDashboard() {
 	}
 	allowedRoles := []string{"admin", "dev", "project_admin"}
 
-	s.mux.HandleFunc("GET /dashboard/projects/team", guard(allowedRoles, s.handleTeamProjectsList))
-	s.mux.HandleFunc("GET /dashboard/projects/team/new", guard(allowedRoles, s.handleTeamProjectsNew))
-	s.mux.HandleFunc("POST /dashboard/projects/team", guard(allowedRoles, s.handleTeamProjectsCreate))
-	s.mux.HandleFunc("GET /dashboard/projects/team/{id}", guard(allowedRoles, s.handleTeamProjectDetail))
-	s.mux.HandleFunc("GET /dashboard/projects/team/{id}/members", guard(allowedRoles, s.handleTeamProjectMembers))
-	s.mux.HandleFunc("POST /dashboard/projects/team/{id}/members", guard(allowedRoles, s.handleTeamProjectAddMember))
-	s.mux.HandleFunc("POST /dashboard/projects/team/{id}/members/{uid}/remove", guard(allowedRoles, s.handleTeamProjectRemoveMember))
-	s.mux.HandleFunc("GET /dashboard/projects/team/{id}/tasks", guard(allowedRoles, s.handleTeamProjectKanban))
-	s.mux.HandleFunc("POST /dashboard/projects/team/{id}/tasks", guard(allowedRoles, s.handleTeamProjectCreateTask))
-	s.mux.HandleFunc("GET /dashboard/projects/team/{id}/tasks/{taskID}", guard(allowedRoles, s.handleTeamTaskDetail))
+	s.mux.HandleFunc("GET /dashboard/team-projects", guard(allowedRoles, s.handleTeamProjectsList))
+	s.mux.HandleFunc("GET /dashboard/team-projects/new", guard(allowedRoles, s.handleTeamProjectsNew))
+	s.mux.HandleFunc("POST /dashboard/team-projects", guard(allowedRoles, s.handleTeamProjectsCreate))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}", guard(allowedRoles, s.handleTeamProjectDetail))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/members", guard(allowedRoles, s.handleTeamProjectMembers))
+	s.mux.HandleFunc("POST /dashboard/team-projects/{id}/members", guard(allowedRoles, s.handleTeamProjectAddMember))
+	s.mux.HandleFunc("POST /dashboard/team-projects/{id}/members/{uid}/remove", guard(allowedRoles, s.handleTeamProjectRemoveMember))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/tasks", guard(allowedRoles, s.handleTeamProjectKanban))
+	s.mux.HandleFunc("POST /dashboard/team-projects/{id}/tasks", guard(allowedRoles, s.handleTeamProjectCreateTask))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/tasks/{taskID}", guard(allowedRoles, s.handleTeamTaskDetail))
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/status", guard(allowedRoles, s.handleTeamTaskStatusChange))
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/assign", guard(allowedRoles, s.handleTeamTaskAssign))
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/close", guard(allowedRoles, s.handleTeamTaskClose))
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/comments", guard(allowedRoles, s.handleTeamTaskComment))
-	s.mux.HandleFunc("GET /dashboard/projects/team/{id}/prds", guard(allowedRoles, s.handleTeamProjectPRDs))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/prds", guard(allowedRoles, s.handleTeamProjectPRDs))
 
 	// Cockpit personal: tab "Mis tareas" — lista tasks abiertas asignadas al user.
 	s.mux.HandleFunc("GET /dashboard/me/tasks", guard(nil, s.handleMyTasks))
@@ -161,7 +161,7 @@ func (s *CloudServer) handleMyTasks(w http.ResponseWriter, r *http.Request) {
 				projName = pr.Name
 				projSlug = pr.Slug
 			}
-			b.WriteString(fmt.Sprintf(`<h3><a href="/dashboard/projects/team/%s">%s</a> <small class="muted">%s</small></h3>`,
+			b.WriteString(fmt.Sprintf(`<h3><a href="/dashboard/team-projects/%s">%s</a> <small class="muted">%s</small></h3>`,
 				html.EscapeString(projectID), html.EscapeString(projName), html.EscapeString(projSlug)))
 			b.WriteString(`<ul>`)
 			for _, t := range list {
@@ -169,7 +169,7 @@ func (s *CloudServer) handleMyTasks(w http.ResponseWriter, r *http.Request) {
 				if t.DueDate != nil && time.Until(*t.DueDate) < 72*time.Hour {
 					urgency = ` <span style="color:#f44">⏰ urgente</span>`
 				}
-				b.WriteString(fmt.Sprintf(`<li><a href="/dashboard/projects/team/%s/tasks/%s">%s</a> · %s · %s%s</li>`,
+				b.WriteString(fmt.Sprintf(`<li><a href="/dashboard/team-projects/%s/tasks/%s">%s</a> · %s · %s%s</li>`,
 					html.EscapeString(projectID), html.EscapeString(t.ID), html.EscapeString(t.Title),
 					html.EscapeString(t.Status), html.EscapeString(t.Priority), urgency))
 			}
@@ -209,7 +209,7 @@ func (s *CloudServer) handleTeamProjectsList(w http.ResponseWriter, r *http.Requ
 	b.WriteString(`<h2>Proyectos del equipo iTechDev</h2>`)
 	b.WriteString(`<p>Plataforma de gestión: PRDs · Tasks Kanban · GitHub repos · Knowledge per task</p>`)
 	b.WriteString(`<div style="margin-bottom:1rem;display:flex;gap:1rem;align-items:center">`)
-	b.WriteString(fmt.Sprintf(`<a href="/dashboard/projects/team/new" class="shell-button">+ Nuevo proyecto</a>`))
+	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/new" class="shell-button">+ Nuevo proyecto</a>`))
 	b.WriteString(`<form method="get" style="margin:0">`)
 	b.WriteString(`<select name="status" onchange="this.form.submit()">`)
 	for _, st := range []string{"active", "paused", "archived", "all"} {
@@ -231,7 +231,7 @@ func (s *CloudServer) handleTeamProjectsList(w http.ResponseWriter, r *http.Requ
 				gh = fmt.Sprintf(`<a href="%s" target="_blank" rel="noopener">%s/%s</a>`, html.EscapeString(pr.GitHubRepoURL), html.EscapeString(pr.GitHubRepoOwner), html.EscapeString(pr.GitHubRepoName))
 			}
 			b.WriteString(fmt.Sprintf(
-				`<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><a href="/dashboard/projects/team/%s">Abrir</a></td></tr>`,
+				`<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><a href="/dashboard/team-projects/%s">Abrir</a></td></tr>`,
 				html.EscapeString(pr.Slug), html.EscapeString(pr.Name), statusBadge(pr.Status), gh,
 				pr.CreatedAt.Format("2006-01-02"), html.EscapeString(pr.ID),
 			))
@@ -249,7 +249,7 @@ func (s *CloudServer) handleTeamProjectsNew(w http.ResponseWriter, r *http.Reque
 	b.WriteString(`<section class="frame-section">`)
 	b.WriteString(`<p class="section-kicker">PROYECTOS DEL EQUIPO</p>`)
 	b.WriteString(`<h2>Nuevo proyecto interno</h2>`)
-	b.WriteString(`<form method="post" action="/dashboard/projects/team" class="frame-form" style="max-width:560px">`)
+	b.WriteString(`<form method="post" action="/dashboard/team-projects" class="frame-form" style="max-width:560px">`)
 	b.WriteString(`<label>Nombre <input name="name" required/></label>`)
 	b.WriteString(`<label>Slug (opcional, auto-derivado del nombre) <input name="slug" placeholder="auto"/></label>`)
 	b.WriteString(`<label>Descripción <textarea name="description" rows="4"></textarea></label>`)
@@ -297,7 +297,7 @@ func (s *CloudServer) handleTeamProjectsCreate(w http.ResponseWriter, r *http.Re
 		http.Error(w, "create error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	target := "/dashboard/projects/team/" + pr.ID
+	target := "/dashboard/team-projects/" + pr.ID
 	if warning != "" {
 		target += "?warning=" + url_QueryEscape(warning)
 	}
@@ -349,9 +349,9 @@ func (s *CloudServer) handleTeamProjectDetail(w http.ResponseWriter, r *http.Req
 	}
 	b.WriteString(`</div>`)
 	b.WriteString(`<nav class="tab-nav" style="display:flex;gap:1rem;margin-bottom:1rem">`)
-	b.WriteString(fmt.Sprintf(`<a href="/dashboard/projects/team/%s/tasks" class="shell-button">Kanban</a>`, pr.ID))
-	b.WriteString(fmt.Sprintf(`<a href="/dashboard/projects/team/%s/members" class="shell-button">Miembros</a>`, pr.ID))
-	b.WriteString(fmt.Sprintf(`<a href="/dashboard/projects/team/%s/prds" class="shell-button">PRDs</a>`, pr.ID))
+	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/tasks" class="shell-button">Kanban</a>`, pr.ID))
+	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/members" class="shell-button">Miembros</a>`, pr.ID))
+	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/prds" class="shell-button">PRDs</a>`, pr.ID))
 	b.WriteString(`</nav>`)
 	b.WriteString(`</section>`)
 
@@ -372,7 +372,7 @@ func (s *CloudServer) handleTeamProjectMembers(w http.ResponseWriter, r *http.Re
 	b.WriteString(`<section class="frame-section">`)
 	b.WriteString(fmt.Sprintf(`<p class="section-kicker">PROYECTO · %s · MIEMBROS</p>`, html.EscapeString(pr.Slug)))
 	b.WriteString(fmt.Sprintf(`<h2>%s — Miembros</h2>`, html.EscapeString(pr.Name)))
-	b.WriteString(`<form method="post" action="/dashboard/projects/team/` + html.EscapeString(pr.ID) + `/members" class="frame-form">`)
+	b.WriteString(`<form method="post" action="/dashboard/team-projects/` + html.EscapeString(pr.ID) + `/members" class="frame-form">`)
 	b.WriteString(`<label>UID del usuario <input name="user_uid" required/></label>`)
 	b.WriteString(`<label>Role <select name="role">`)
 	for _, role := range []string{"member", "lead", "owner", "viewer"} {
@@ -383,7 +383,7 @@ func (s *CloudServer) handleTeamProjectMembers(w http.ResponseWriter, r *http.Re
 	b.WriteString(`<table class="data-table"><thead><tr><th>UID</th><th>Role</th><th>Agregado</th><th></th></tr></thead><tbody>`)
 	for _, m := range members {
 		b.WriteString(fmt.Sprintf(
-			`<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td><form method="post" action="/dashboard/projects/team/%s/members/%s/remove" style="margin:0"><button class="shell-button" type="submit">×</button></form></td></tr>`,
+			`<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td><form method="post" action="/dashboard/team-projects/%s/members/%s/remove" style="margin:0"><button class="shell-button" type="submit">×</button></form></td></tr>`,
 			html.EscapeString(truncateUID(m.UserUID)), html.EscapeString(m.Role), m.AddedAt.Format("2006-01-02"),
 			html.EscapeString(pr.ID), html.EscapeString(m.UserUID),
 		))
@@ -405,7 +405,7 @@ func (s *CloudServer) handleTeamProjectAddMember(w http.ResponseWriter, r *http.
 		http.Error(w, "add member: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/dashboard/projects/team/"+id+"/members", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard/team-projects/"+id+"/members", http.StatusSeeOther)
 }
 
 func (s *CloudServer) handleTeamProjectRemoveMember(w http.ResponseWriter, r *http.Request) {
@@ -415,7 +415,7 @@ func (s *CloudServer) handleTeamProjectRemoveMember(w http.ResponseWriter, r *ht
 		http.Error(w, "remove: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/dashboard/projects/team/"+id+"/members", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard/team-projects/"+id+"/members", http.StatusSeeOther)
 }
 
 func (s *CloudServer) handleTeamProjectKanban(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +446,7 @@ func (s *CloudServer) handleTeamProjectKanban(w http.ResponseWriter, r *http.Req
 	b.WriteString(fmt.Sprintf(`<p class="section-kicker">KANBAN · %s</p>`, html.EscapeString(pr.Slug)))
 	b.WriteString(fmt.Sprintf(`<h2>%s — Kanban</h2>`, html.EscapeString(pr.Name)))
 	// Form crear task
-	b.WriteString(`<form method="post" action="/dashboard/projects/team/` + html.EscapeString(pr.ID) + `/tasks" class="frame-form" style="margin-bottom:1rem">`)
+	b.WriteString(`<form method="post" action="/dashboard/team-projects/` + html.EscapeString(pr.ID) + `/tasks" class="frame-form" style="margin-bottom:1rem">`)
 	b.WriteString(`<label>Título <input name="title" required style="min-width:300px"/></label>`)
 	b.WriteString(`<label>Priority <select name="priority"><option>medium</option><option>low</option><option>high</option><option>urgent</option></select></label>`)
 	b.WriteString(`<button class="shell-button">+ Task</button></form>`)
@@ -463,7 +463,7 @@ func (s *CloudServer) handleTeamProjectKanban(w http.ResponseWriter, r *http.Req
 				urgency = ` <span style="color:#f00" title="due en menos de 72h">⏰</span>`
 			}
 			b.WriteString(fmt.Sprintf(
-				`<div class="kanban-card" data-task-id="%s" style="background:rgba(255,255,255,0.06);padding:0.5rem;margin-bottom:0.5rem;border-radius:4px"><a href="/dashboard/projects/team/%s/tasks/%s">%s</a> <small>(%s)</small>%s</div>`,
+				`<div class="kanban-card" data-task-id="%s" style="background:rgba(255,255,255,0.06);padding:0.5rem;margin-bottom:0.5rem;border-radius:4px"><a href="/dashboard/team-projects/%s/tasks/%s">%s</a> <small>(%s)</small>%s</div>`,
 				html.EscapeString(t.ID), html.EscapeString(pr.ID), html.EscapeString(t.ID), html.EscapeString(t.Title), html.EscapeString(t.Priority), urgency))
 		}
 		b.WriteString(`</div>`)
@@ -491,7 +491,7 @@ func (s *CloudServer) handleTeamProjectCreateTask(w http.ResponseWriter, r *http
 		http.Error(w, "create task: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/dashboard/projects/team/"+id+"/tasks", http.StatusSeeOther)
+	http.Redirect(w, r, "/dashboard/team-projects/"+id+"/tasks", http.StatusSeeOther)
 }
 
 func (s *CloudServer) handleTeamTaskDetail(w http.ResponseWriter, r *http.Request) {
@@ -516,7 +516,7 @@ func (s *CloudServer) handleTeamTaskDetail(w http.ResponseWriter, r *http.Reques
 	displayName := s.displayNameFor(r)
 	var b strings.Builder
 	b.WriteString(`<section class="frame-section">`)
-	b.WriteString(fmt.Sprintf(`<p class="section-kicker"><a href="/dashboard/projects/team/%s">%s</a> · TASK</p>`, html.EscapeString(pr.ID), html.EscapeString(pr.Slug)))
+	b.WriteString(fmt.Sprintf(`<p class="section-kicker"><a href="/dashboard/team-projects/%s">%s</a> · TASK</p>`, html.EscapeString(pr.ID), html.EscapeString(pr.Slug)))
 	b.WriteString(fmt.Sprintf(`<h2>%s</h2>`, html.EscapeString(t.Title)))
 	b.WriteString(fmt.Sprintf(`<p><strong>Status</strong>: %s · <strong>Priority</strong>: %s</p>`, statusBadge(t.Status), html.EscapeString(t.Priority)))
 	if t.DescriptionMD != "" {
@@ -596,7 +596,7 @@ func (s *CloudServer) handleTeamTaskStatusChange(w http.ResponseWriter, r *http.
 	}
 	t, _ := s.teamProjects.GetTask(r.Context(), id)
 	if t != nil {
-		http.Redirect(w, r, fmt.Sprintf("/dashboard/projects/team/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -616,7 +616,7 @@ func (s *CloudServer) handleTeamTaskAssign(w http.ResponseWriter, r *http.Reques
 	}
 	t, _ := s.teamProjects.GetTask(r.Context(), id)
 	if t != nil {
-		http.Redirect(w, r, fmt.Sprintf("/dashboard/projects/team/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -640,7 +640,7 @@ func (s *CloudServer) handleTeamTaskClose(w http.ResponseWriter, r *http.Request
 				"sessions": cap.SessionsLinked,
 				"commits":  cap.CommitsLinked,
 			})
-			http.Redirect(w, r, fmt.Sprintf("/dashboard/projects/team/%s/tasks/%s?captured=%s", t.ProjectID, t.ID, url_QueryEscape(string(pl))), http.StatusSeeOther)
+			http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks/%s?captured=%s", t.ProjectID, t.ID, url_QueryEscape(string(pl))), http.StatusSeeOther)
 			return
 		}
 	}
@@ -660,7 +660,7 @@ func (s *CloudServer) handleTeamTaskComment(w http.ResponseWriter, r *http.Reque
 	}
 	t, _ := s.teamProjects.GetTask(r.Context(), id)
 	if t != nil {
-		http.Redirect(w, r, fmt.Sprintf("/dashboard/projects/team/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

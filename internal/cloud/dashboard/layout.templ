@@ -49,7 +49,7 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 						if hasAnyRole(roles, "admin", "dev", "project_admin") {
 							<div class="sidebar-nav-section">Operación</div>
 							@SidebarLink("/dashboard/projects", "📁", "Proyectos", "projects", activeTab)
-							@SidebarLink("/dashboard/projects/team", "🧩", "Proyectos del equipo", "team-projects", activeTab)
+							@SidebarLink("/dashboard/team-projects", "🧩", "Proyectos del equipo", "team-projects", activeTab)
 						}
 
 						if hasAnyRole(roles, "admin", "cotizador") {

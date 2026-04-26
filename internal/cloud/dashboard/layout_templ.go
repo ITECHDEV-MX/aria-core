@@ -90,7 +90,7 @@ func Layout(title string, username string, activeTab string, roles []string, con
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = SidebarLink("/dashboard/projects/team", "🧩", "Proyectos del equipo", "team-projects", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = SidebarLink("/dashboard/team-projects", "🧩", "Proyectos del equipo", "team-projects", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
