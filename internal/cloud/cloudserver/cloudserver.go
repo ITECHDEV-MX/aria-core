@@ -79,6 +79,7 @@ type CloudServer struct {
 	pagePublicView   PagePublicViewService
 	pageDB           PageDatabaseService
 	pageComments     PageCommentsService
+	quoteChat        dashboard.QuoteChatService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -358,6 +359,14 @@ func WithROIDashboard(r dashboard.ROIService) Option {
 func WithPagesDashboard(p dashboard.PagesDashboardService) Option {
 	return func(s *CloudServer) {
 		s.pagesDash = p
+	}
+}
+
+// WithQuoteChat inyecta el servicio quote-chat (wave 6). Si nil, las rutas
+// /dashboard/cotizador/quote-chat/* devuelven 503.
+func WithQuoteChat(q dashboard.QuoteChatService) Option {
+	return func(s *CloudServer) {
+		s.quoteChat = q
 	}
 }
 
@@ -641,6 +650,7 @@ func (s *CloudServer) routes() {
 		Vault:             s.vaultDash,
 		ROI:               s.roiDash,
 		Pages:             s.pagesDash,
+		QuoteChat:         s.quoteChat,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -683,6 +693,13 @@ func (s *CloudServer) routes() {
 	// Templates (commit 9)
 	s.mux.HandleFunc("GET /v1/cotizador/templates", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorTemplatesList))
 	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/apply-template", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorApplyTemplate))
+
+	// Quote-Chat (wave 6): assistant-driven cotización con scrub PII + email manual.
+	s.mux.HandleFunc("POST /v1/cotizador/chat", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorChatCreate))
+	s.mux.HandleFunc("GET /v1/cotizador/chat/{id}", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorChatGet))
+	s.mux.HandleFunc("POST /v1/cotizador/chat/{id}/send", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorChatSend))
+	s.mux.HandleFunc("POST /v1/cotizador/chat/{id}/finalize", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorChatFinalize))
+	s.mux.HandleFunc("POST /v1/cotizador/chat/{id}/email-send", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1CotizadorChatEmailSend))
 
 	// === Pages (mini-Notion): JWT user-bound. Cualquier rol autenticado lee/escribe.
 	s.mux.HandleFunc("POST /v1/pages", s.withJWTAuth(s.handleV1PageCreate))

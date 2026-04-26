@@ -86,6 +86,43 @@ type MountConfig struct {
 	ROI ROIService
 	// Pages (opcional) — habilita /dashboard/pages con mini-Notion: tree + markdown editor + Cmd+K.
 	Pages PagesDashboardService
+	// QuoteChat (opcional) — habilita /dashboard/cotizador/quote-chat (wave 6).
+	QuoteChat QuoteChatService
+}
+
+// QuoteChatService is the dashboard contract for the chat-quote workflow.
+// Implementation lives in /cmd/aria-core/quote_chat_adapter.go.
+type QuoteChatService interface {
+	CreateSession(ctx context.Context, in CreateChatSessionInput) (*ChatSessionView, error)
+	GetSession(ctx context.Context, id string) (*ChatSessionView, []ChatMessageView, []ChatPreviewSectionView, error)
+	ListMessages(ctx context.Context, sessionID string) ([]ChatMessageView, error)
+	ListSections(ctx context.Context, sessionID string) ([]ChatPreviewSectionView, error)
+	SendUserMessage(ctx context.Context, in SendChatMessageInput) (*ChatMessageView, *ChatMessageView, error)
+	UpsertSection(ctx context.Context, sessionID, key, title, contentMD string) error
+	GetSection(ctx context.Context, sessionID, key string) (string, string, error)
+	FinalizeSession(ctx context.Context, sessionID, byUID string) (string, error)
+	BuildEmailPreview(ctx context.Context, sessionID string) (*EmailPreviewView, error)
+	SendEmail(ctx context.Context, sessionID, quoteID, to, cc, subject, bodyHTML string) error
+	ListTemplates() []CotizadorTemplateView
+}
+
+// CreateChatSessionInput is the input for QuoteChatService.CreateSession.
+type CreateChatSessionInput struct {
+	LeadID       string
+	RFPID        string
+	TemplateKey  string
+	Title        string
+	InitiatedBy  string
+}
+
+// SendChatMessageInput is the input for QuoteChatService.SendUserMessage.
+type SendChatMessageInput struct {
+	SessionID    string
+	UserUID      string
+	Message      string
+	Sensitivity  string
+	Attachments  []ChatAttachmentView
+	TimeoutSec   int
 }
 
 // PagesDashboardService es el contrato del módulo de páginas (mini-Notion) para
@@ -869,6 +906,18 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/{key}/delete", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionDelete))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/apply-template", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteApplyTemplate))
 	mux.HandleFunc("GET /dashboard/cotizador/stats", h.requireAnyRole(cotizadorRoles, h.handleCotizadorStats))
+
+	// === Quote-Chat (wave 6): split-pane assistant + live quote preview ===
+	mux.HandleFunc("POST /dashboard/cotizador/quote-chat/create", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatCreate))
+	mux.HandleFunc("GET /dashboard/cotizador/quote-chat/{id}", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatPage))
+	mux.HandleFunc("POST /dashboard/cotizador/quote-chat/{id}/send", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatSend))
+	mux.HandleFunc("GET /dashboard/cotizador/quote-chat/{id}/preview", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatPreview))
+	mux.HandleFunc("GET /dashboard/cotizador/quote-chat/{id}/messages", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatMessages))
+	mux.HandleFunc("GET /dashboard/cotizador/quote-chat/{id}/sections/{key}/edit", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatSectionEdit))
+	mux.HandleFunc("POST /dashboard/cotizador/quote-chat/{id}/sections/{key}/save", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatSectionSave))
+	mux.HandleFunc("POST /dashboard/cotizador/quote-chat/{id}/finalize", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatFinalize))
+	mux.HandleFunc("GET /dashboard/cotizador/quote-chat/{id}/email-preview", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatEmailPreview))
+	mux.HandleFunc("POST /dashboard/cotizador/quote-chat/{id}/email-send", h.requireAnyRole(cotizadorRoles, h.handleQuoteChatEmailSend))
 
 	// === Memoria ARIA (commit 11) ===
 	mux.HandleFunc("GET /dashboard/memorias", h.requireSession(h.handleAriaMemList))

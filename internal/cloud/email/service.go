@@ -94,6 +94,27 @@ func (s *Service) SendInvite(ctx context.Context, ic InviteContext) error {
 	return s.send(ctx, ic.Email, "[iTechDev] Invitación a ARIA Core", "magic_link", ic, nil)
 }
 
+// SendRawHTML dispatches a manually-prepared HTML email. Used by quote-chat
+// where the operator builds + reviews + confirms the body before send. CC is
+// translated to BCC so the recipient does not see the cc list (matches
+// internal use-case).
+func (s *Service) SendRawHTML(ctx context.Context, to string, bcc []string, subject, htmlBody string) error {
+	if s == nil || s.client == nil || !s.client.IsConfigured() {
+		log.Printf("email: SKIP raw send (not configured) to=%s subject=%q", to, subject)
+		return ErrNotConfigured
+	}
+	if strings.TrimSpace(to) == "" {
+		return fmt.Errorf("email: recipient is required")
+	}
+	if strings.TrimSpace(subject) == "" {
+		return fmt.Errorf("email: subject is required")
+	}
+	if strings.TrimSpace(htmlBody) == "" {
+		return fmt.Errorf("email: body is required")
+	}
+	return s.client.SendMailBCC(ctx, to, bcc, subject, htmlBody, "")
+}
+
 // send is the internal helper that renders a template and dispatches via Graph.
 // When the client is not configured, it logs at INFO and returns nil so callers
 // can continue (per spec: "los hooks loggean info y siguen").

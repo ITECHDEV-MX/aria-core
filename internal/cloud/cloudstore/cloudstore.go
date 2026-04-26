@@ -1143,6 +1143,91 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			END IF;
 		END $$`,
 		// END PAGES_DB_COMMENTS MIGRATIONS
+
+		// BEGIN CHAT_QUOTE MIGRATIONS
+		// Wave 6 — quote-chat: split-pane assistant UI con scrub PII + claude-max-vps.
+		// aria_channel_calls: telemetría por call (channel, tokens, costo, duración).
+		// cotizador_chat_sessions: una sesión = un hilo lead + template, en progreso → finalizada.
+		// cotizador_chat_messages: el contenido visible (con datos reales) + scrubbed_payload (lo que se mandó
+		//   a Claude). FK a aria_channel_calls para audit cruzado con telemetría.
+		`CREATE TABLE IF NOT EXISTS aria_channel_calls (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			channel TEXT NOT NULL,
+			model TEXT,
+			prompt_size INT NOT NULL,
+			response_size INT NOT NULL,
+			tokens_in INT,
+			tokens_out INT,
+			duration_ms INT NOT NULL,
+			sensitivity TEXT,
+			initiated_by_uid UUID NOT NULL,
+			related_chat_session_id UUID,
+			cost_estimate_usd DECIMAL(10,6) DEFAULT 0,
+			error TEXT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_channel_calls_recent ON aria_channel_calls(created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_channel_calls_channel ON aria_channel_calls(channel, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_channel_calls_user ON aria_channel_calls(initiated_by_uid, created_at DESC)`,
+
+		`CREATE TABLE IF NOT EXISTS cotizador_chat_sessions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			lead_id UUID,
+			rfp_id UUID,
+			quote_id UUID,
+			template_key TEXT NOT NULL,
+			title TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'in_progress',
+			initiated_by_uid UUID NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			finalized_at TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chat_sessions_lead ON cotizador_chat_sessions(lead_id, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_chat_sessions_status ON cotizador_chat_sessions(status, created_at DESC)`,
+		// FK conditionales — cotizador_leads/rfps/quotes ya existen pero
+		// nos protegemos en caso de orden de creación.
+		`DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'cotizador_leads') THEN
+				IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_chat_sessions_lead') THEN
+					ALTER TABLE cotizador_chat_sessions
+					  ADD CONSTRAINT fk_chat_sessions_lead FOREIGN KEY (lead_id)
+					  REFERENCES cotizador_leads(id) ON DELETE SET NULL;
+				END IF;
+			END IF;
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'cotizador_rfps') THEN
+				IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_chat_sessions_rfp') THEN
+					ALTER TABLE cotizador_chat_sessions
+					  ADD CONSTRAINT fk_chat_sessions_rfp FOREIGN KEY (rfp_id)
+					  REFERENCES cotizador_rfps(id) ON DELETE SET NULL;
+				END IF;
+			END IF;
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'cotizador_quotes') THEN
+				IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_chat_sessions_quote') THEN
+					ALTER TABLE cotizador_chat_sessions
+					  ADD CONSTRAINT fk_chat_sessions_quote FOREIGN KEY (quote_id)
+					  REFERENCES cotizador_quotes(id) ON DELETE SET NULL;
+				END IF;
+			END IF;
+		END $$`,
+
+		`CREATE TABLE IF NOT EXISTS cotizador_chat_messages (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			session_id UUID NOT NULL REFERENCES cotizador_chat_sessions(id) ON DELETE CASCADE,
+			role TEXT NOT NULL CHECK (role IN ('user','assistant','system')),
+			content_md TEXT NOT NULL,
+			scrubbed_payload TEXT,
+			channel_call_id UUID REFERENCES aria_channel_calls(id),
+			attachments_json JSONB DEFAULT '[]'::jsonb,
+			parsed_quote_updates JSONB DEFAULT '{}'::jsonb,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON cotizador_chat_messages(session_id, created_at)`,
+
+		// Optional column on cotizador_quotes para track del email manual.
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS email_sent_to TEXT`,
+		// END CHAT_QUOTE MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {
