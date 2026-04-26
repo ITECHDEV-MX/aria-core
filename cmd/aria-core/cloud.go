@@ -112,6 +112,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	// User store backed by cloudusers package (extends cloud_users table with role/uid/active).
 	userStoreAdapter := newDashboardUserAdapter(cs)
 	cotizadorSvc := newCotizadorAdapter(cs)
+	ariaMemSvc := newAriaMemAdapter(cs)
 
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
@@ -124,6 +125,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithSessionCodec(sessionCodec),
 			cloudserver.WithUserStore(userStoreAdapter),
 			cloudserver.WithCotizador(cotizadorSvc),
+			cloudserver.WithAriaMem(ariaMemSvc),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

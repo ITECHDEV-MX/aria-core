@@ -49,6 +49,8 @@ func cmdAdmin() {
 		runAdmin(args, adminActivate)
 	case "import-proposals":
 		adminImportProposals(args)
+	case "migrate-from-legacy":
+		adminMigrateFromLegacy(args)
 	case "help", "--help", "-h":
 		printAdminUsage()
 	default:
@@ -71,6 +73,9 @@ Subcommands:
   activate      --uid UUID
   deactivate    --uid UUID
   import-proposals    Importa las 3 propuestas histórico iTechDev (idempotente por folio)
+  migrate-from-legacy --sqlite ~/.aria/aria.db [--dry-run]
+                      Migra ARIA legacy SQLite → aria_core_cloud Postgres
+                      (observations, sessions, summaries, skills)
 
 Roles soportados: admin, dev, cotizador, project_admin
 Requiere ARIA_CORE_DATABASE_URL apuntando al Postgres cloud.`)

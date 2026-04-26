@@ -715,6 +715,126 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		// porque to_tsvector con un text-search config custom requiere superuser.
 		// La búsqueda hace unaccent(query) AND to_tsvector(spanish, unaccent(text)).
 		`CREATE EXTENSION IF NOT EXISTS unaccent`,
+
+		// === ARIA Core memory (commit 10): reemplaza legacy mcp__aria__* ===
+		// Schema fielmente portado de ~/.aria/aria.db (SQLite legacy aria-global).
+		`CREATE TABLE IF NOT EXISTS aria_sessions (
+			id TEXT PRIMARY KEY,
+			developer_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			developer_email TEXT,
+			developer_role TEXT NOT NULL DEFAULT 'dev',
+			client_id UUID,
+			machine_id TEXT NOT NULL DEFAULT 'local',
+			project TEXT,
+			directory TEXT,
+			goal TEXT,
+			status TEXT NOT NULL DEFAULT 'active',
+			started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			ended_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_sessions_dev ON aria_sessions(developer_uid)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_sessions_project ON aria_sessions(project)`,
+
+		`CREATE TABLE IF NOT EXISTS aria_observations (
+			id TEXT PRIMARY KEY,
+			session_id TEXT REFERENCES aria_sessions(id) ON DELETE SET NULL,
+			developer_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			developer_role TEXT NOT NULL DEFAULT 'dev',
+			client_id UUID,
+			project TEXT,
+			scope TEXT NOT NULL DEFAULT 'personal',
+			observation_type TEXT NOT NULL DEFAULT 'general',
+			title TEXT NOT NULL,
+			subtitle TEXT,
+			narrative TEXT,
+			facts TEXT,
+			concepts TEXT,
+			files_touched TEXT,
+			reasoning_trace JSONB,
+			generated_by_model TEXT,
+			relevance_count INTEGER NOT NULL DEFAULT 0,
+			discovery_tokens INTEGER NOT NULL DEFAULT 0,
+			quality_score REAL NOT NULL DEFAULT 0.5,
+			drift_detected BOOLEAN NOT NULL DEFAULT FALSE,
+			valid_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			valid_until TIMESTAMPTZ,
+			superseded_by TEXT,
+			topic_key TEXT,
+			source TEXT NOT NULL DEFAULT 'manual',
+			canon BOOLEAN NOT NULL DEFAULT FALSE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT aria_obs_scope_check CHECK (scope IN ('personal','project','team','global','client_knowledge'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_project ON aria_observations(project)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_scope ON aria_observations(scope)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_topic ON aria_observations(project, topic_key) WHERE topic_key IS NOT NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_session ON aria_observations(session_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_created ON aria_observations(created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_canon ON aria_observations(canon) WHERE canon = TRUE`,
+		// FTS spanish + accent-insensitive (vía unaccent on-the-fly en queries).
+		`ALTER TABLE aria_observations ADD COLUMN IF NOT EXISTS search_tsv tsvector
+		 GENERATED ALWAYS AS (
+			to_tsvector('spanish',
+				coalesce(title,'') || ' ' || coalesce(subtitle,'') || ' ' ||
+				coalesce(narrative,'') || ' ' || coalesce(facts,'') || ' ' || coalesce(concepts,'')
+			)
+		) STORED`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_obs_fts ON aria_observations USING GIN (search_tsv)`,
+
+		`CREATE TABLE IF NOT EXISTS aria_session_summaries (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL UNIQUE REFERENCES aria_sessions(id) ON DELETE CASCADE,
+			request TEXT,
+			investigated TEXT,
+			learned TEXT,
+			completed TEXT,
+			next_steps TEXT,
+			files_read TEXT,
+			files_edited TEXT,
+			notes TEXT,
+			drift_score REAL,
+			quality_grade TEXT,
+			tool_calls_count INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+
+		`CREATE TABLE IF NOT EXISTS aria_skills (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			stack TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+			content TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT 'imported',
+			active BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_skills_stack ON aria_skills USING GIN (stack)`,
+
+		`CREATE TABLE IF NOT EXISTS aria_recipes (
+			id TEXT PRIMARY KEY,
+			task_pattern TEXT NOT NULL,
+			stack TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+			steps_json JSONB NOT NULL DEFAULT '[]',
+			source_session_id TEXT,
+			usage_count INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_recipes_stack ON aria_recipes USING GIN (stack)`,
+
+		// Quality records (record_quality del legacy)
+		`CREATE TABLE IF NOT EXISTS aria_quality_records (
+			id BIGSERIAL PRIMARY KEY,
+			observation_id TEXT NOT NULL REFERENCES aria_observations(id) ON DELETE CASCADE,
+			recorded_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			signal TEXT NOT NULL,
+			score REAL,
+			notes TEXT,
+			recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_aria_quality_obs ON aria_quality_records(observation_id)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

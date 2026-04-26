@@ -59,6 +59,7 @@ type CloudServer struct {
 	sessionCodec   *dashboardsession.Codec
 	userStore      DashboardUserService
 	cotizador      dashboard.CotizadorService
+	ariaMem        AriaMemService
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
@@ -135,6 +136,89 @@ func WithCotizador(c dashboard.CotizadorService) Option {
 	return func(s *CloudServer) {
 		s.cotizador = c
 	}
+}
+
+// WithAriaMem inyecta el servicio de memoria ARIA Core (reemplazo del legacy mcp__aria__*).
+func WithAriaMem(m AriaMemService) Option {
+	return func(s *CloudServer) {
+		s.ariaMem = m
+	}
+}
+
+// AriaMemService es el contrato de la capa de memoria ARIA.
+type AriaMemService interface {
+	Save(ctx context.Context, p AriaMemSaveInput) (*AriaMemObservation, error)
+	GetByID(ctx context.Context, id string) (*AriaMemObservation, error)
+	Search(ctx context.Context, p AriaMemSearchInput) ([]*AriaMemObservation, error)
+	Timeline(ctx context.Context, project string, since, until *time.Time, limit int) ([]*AriaMemObservation, error)
+	PromoteCanon(ctx context.Context, id, byUID string) error
+	RecordQuality(ctx context.Context, id, signal string, score float64, notes, byUID string) error
+	StartSession(ctx context.Context, p AriaMemStartSessionInput) (*AriaMemSession, error)
+	GetSession(ctx context.Context, id string) (*AriaMemSession, error)
+	SaveSummary(ctx context.Context, p AriaMemSaveSummaryInput) error
+	GetContextStatus(ctx context.Context, project string) (*AriaMemContextStatus, error)
+	ListSkills(ctx context.Context, stack []string) ([]*AriaMemSkill, error)
+	GetRecipes(ctx context.Context, taskDescription string, stack []string, limit int) ([]*AriaMemRecipe, error)
+}
+
+type AriaMemSaveInput struct {
+	SessionID, DeveloperUID, DeveloperRole, ClientID, Project, Scope    string
+	ObservationType, Title, Subtitle, Narrative, Facts, Concepts        string
+	FilesTouched, ReasoningTrace, TopicKey, Source, GeneratedByModel    string
+}
+
+type AriaMemSearchInput struct {
+	Query, Project, Scope, ObservationType string
+	Limit                                  int
+}
+
+type AriaMemStartSessionInput struct {
+	DeveloperUID, DeveloperEmail, DeveloperRole, ClientID, MachineID string
+	Project, Directory, Goal                                          string
+}
+
+type AriaMemSaveSummaryInput struct {
+	SessionID, Request, Investigated, Learned, Completed string
+	NextSteps, FilesRead, FilesEdited, Notes, QualityGrade string
+}
+
+type AriaMemObservation struct {
+	ID, SessionID, DeveloperUID, DeveloperRole, ClientID, Project, Scope string
+	ObservationType, Title, Subtitle, Narrative, Facts, Concepts         string
+	FilesTouched, ReasoningTrace, GeneratedByModel, TopicKey, Source     string
+	SupersededBy                                                          string
+	RelevanceCount, DiscoveryTokens                                       int
+	QualityScore                                                          float64
+	DriftDetected, Canon                                                  bool
+	ValidFrom, CreatedAt, UpdatedAt                                       time.Time
+	ValidUntil                                                            *time.Time
+}
+
+type AriaMemSession struct {
+	ID, DeveloperUID, DeveloperEmail, DeveloperRole, ClientID, MachineID string
+	Project, Directory, Goal, Status                                      string
+	StartedAt, CreatedAt                                                  time.Time
+	EndedAt                                                               *time.Time
+}
+
+type AriaMemContextStatus struct {
+	Project           string
+	ActiveSessionID   string
+	TotalObservations int
+	Last7DaysCount    int
+	SkillsLoaded      []string
+}
+
+type AriaMemSkill struct {
+	ID, Name, Description, Content, Source string
+	Stack                                  []string
+	Active                                 bool
+}
+
+type AriaMemRecipe struct {
+	ID, TaskPattern, StepsJSON, SourceSessionID string
+	Stack                                       []string
+	UsageCount                                  int
 }
 
 func New(store ChunkStore, authSvc Authenticator, port int, opts ...Option) *CloudServer {
@@ -305,6 +389,20 @@ func (s *CloudServer) routes() {
 	// Templates (commit 9)
 	s.mux.HandleFunc("GET /v1/cotizador/templates", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorTemplatesList))
 	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/apply-template", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorApplyTemplate))
+
+	// === ARIA Memory (commit 10): reemplaza legacy mcp__aria__* ===
+	// Cualquier role autenticado puede leer/guardar memoria.
+	s.mux.HandleFunc("POST /v1/memory/save", s.withJWTAuth(s.handleV1MemorySave))
+	s.mux.HandleFunc("GET /v1/memory/observations/{id}", s.withJWTAuth(s.handleV1MemoryGet))
+	s.mux.HandleFunc("GET /v1/memory/search", s.withJWTAuth(s.handleV1MemorySearch))
+	s.mux.HandleFunc("GET /v1/memory/timeline", s.withJWTAuth(s.handleV1MemoryTimeline))
+	s.mux.HandleFunc("POST /v1/memory/observations/{id}/promote-canon", s.withJWTAuth(s.handleV1MemoryPromoteCanon))
+	s.mux.HandleFunc("POST /v1/memory/observations/{id}/quality", s.withJWTAuth(s.handleV1MemoryRecordQuality))
+	s.mux.HandleFunc("POST /v1/memory/sessions/start", s.withJWTAuth(s.handleV1MemorySessionStart))
+	s.mux.HandleFunc("POST /v1/memory/sessions/{id}/summary", s.withJWTAuth(s.handleV1MemorySessionSummary))
+	s.mux.HandleFunc("GET /v1/memory/context-status", s.withJWTAuth(s.handleV1MemoryContextStatus))
+	s.mux.HandleFunc("GET /v1/memory/skills", s.withJWTAuth(s.handleV1MemorySkills))
+	s.mux.HandleFunc("GET /v1/memory/recipes", s.withJWTAuth(s.handleV1MemoryRecipes))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {

@@ -740,6 +740,10 @@ func cmdMCP(cfg store.Config) {
 		runCotizadorCloudMCP(cfg)
 		return
 	}
+	if profile == "aria" {
+		runAriaCloudMCP(cfg)
+		return
+	}
 
 	s, err := storeNew(cfg)
 	if err != nil {
@@ -752,6 +756,33 @@ func cmdMCP(cfg store.Config) {
 	mcpSrv := newMCPServerWithConfig(s, mcpCfg, allowlist)
 
 	if err := serveMCP(mcpSrv); err != nil {
+		fatal(err)
+	}
+}
+
+// runAriaCloudMCP arranca un MCP server que expone las tools de memoria ARIA Core
+// (reemplazo del legacy mcp__aria__*). Usa el JWT de session.json.
+func runAriaCloudMCP(cfg store.Config) {
+	sess, err := loadSession(cfg)
+	if err != nil {
+		fatal(fmt.Errorf("load session: %w", err))
+	}
+	if sess == nil {
+		fmt.Fprintln(os.Stderr, "no active session — corre 'aria-core login' primero")
+		exitFunc(1)
+		return
+	}
+	if time.Now().UTC().After(sess.ExpiresAt) {
+		fmt.Fprintln(os.Stderr, "session expired — corre 'aria-core login' nuevamente")
+		exitFunc(1)
+		return
+	}
+	srv := mcp.NewBareServer("aria-core-memory", "0.2.0")
+	mcp.RegisterAriaCloudTools(srv, mcp.AriaCloudConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	if err := serveMCP(srv); err != nil {
 		fatal(err)
 	}
 }
