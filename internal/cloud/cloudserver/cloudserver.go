@@ -70,6 +70,30 @@ type CloudServer struct {
 	publicURL        string
 	vault            VaultService
 	vaultDash        dashboard.VaultDashboardService
+	roi              ROIService
+	roiDash          dashboard.ROIService
+}
+
+// ROIService es el contrato runtime del módulo ROI consumido por
+// /v1/memory/search hook. Sólo necesita LogSearch — el resto de métricas las
+// consume el dashboard vía dashboard.ROIService.
+type ROIService interface {
+	LogSearch(ctx context.Context, params ROILogSearchParams) error
+}
+
+// ROILogSearchParams espeja roi.LogSearchParams para evitar el import cíclico
+// cloudserver→roi.
+type ROILogSearchParams struct {
+	Query          string
+	ResultCount    int
+	CanonHitCount  int
+	TotalTokens    int
+	TruncatedCount int
+	DeveloperUID   string
+	Project        string
+	Scope          string
+	ClientID       string
+	DurationMs     int
 }
 
 // ScrubGate is the runtime contract used by /v1/memory/* handlers to scrub
@@ -304,6 +328,23 @@ func WithPublicURL(u string) Option {
 func WithVaultDashboard(v dashboard.VaultDashboardService) Option {
 	return func(s *CloudServer) {
 		s.vaultDash = v
+	}
+}
+
+// WithROI inyecta el servicio runtime ROI. Cuando está presente, el handler
+// /v1/memory/search registra cada call con stats (canon_hits, tokens) en
+// aria_search_log para alimentar la métrica RDR.
+func WithROI(r ROIService) Option {
+	return func(s *CloudServer) {
+		s.roi = r
+	}
+}
+
+// WithROIDashboard inyecta el servicio dashboard del módulo ROI (vista
+// /dashboard/roi). Si nil, el módulo ROI dashboard queda deshabilitado.
+func WithROIDashboard(r dashboard.ROIService) Option {
+	return func(s *CloudServer) {
+		s.roiDash = r
 	}
 }
 
@@ -585,6 +626,7 @@ func (s *CloudServer) routes() {
 		Invites:           s.dashboardInvites,
 		Redactor:          s.redactor,
 		Vault:             s.vaultDash,
+		ROI:               s.roiDash,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))

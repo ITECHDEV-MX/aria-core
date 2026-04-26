@@ -162,6 +162,10 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	inviteAdapter := newInviteServiceAdapter(usersStore)
 	dashboardInvites := newInviteDashboardAdapter(usersStore, emailService, publicURL)
 
+	// ROI: métricas de Return-On-Investment + hook LogSearch en /v1/memory/search.
+	roiRuntimeAdapter := newROIAdapter(cs)
+	roiDashAdapter := newROIDashboardAdapter(cs)
+
 	notifier := newQuoteEmailNotifier(cotizadorSvc.store, usersStore, emailService, publicURL)
 	cotizadorSvc.setNotifier(notifier)
 
@@ -200,6 +204,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPublicURL(publicURL),
 			cloudserver.WithVault(vaultAdpt),
 			cloudserver.WithVaultDashboard(dashboardVaultAdapter{a: vaultAdpt}),
+			cloudserver.WithROI(roiRuntimeAdapter),
+			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

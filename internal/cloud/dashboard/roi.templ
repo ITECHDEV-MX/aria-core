@@ -1,0 +1,371 @@
+package dashboard
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// ROIPage es la vista /dashboard/roi: hero card + 5 stat cards +
+// charts 12 semanas + breakdown por pillar + ranking + per-cliente + filtros.
+templ ROIPage(vm ROIPageVM) {
+	<section class="frame-section">
+		<div class="main-header">
+			<div>
+				<p class="section-kicker">VALOR ENTREGADO</p>
+				<h1>📈 ROI & Ahorro</h1>
+				<p class="lead">Las 5 métricas que vuelven medible el "30% ahorro tiempo+costo" de ARIA Core.</p>
+			</div>
+			<div class="main-actions">
+				<a href={ templ.SafeURL("/dashboard/roi/export.csv?period=" + vm.PeriodCode) } class="btn btn-outline">⬇ CSV</a>
+			</div>
+		</div>
+
+		if !vm.HasService {
+			<div class="card" style="margin-bottom:1rem">
+				<div class="card-header">
+					<div class="card-title">⚠️ ROI service no configurado</div>
+					<p class="card-description">{ vm.Notice }</p>
+				</div>
+			</div>
+		}
+
+		@ROIFilters(vm)
+		@ROIHero(vm)
+		@ROIStatCards(vm)
+		@ROICharts(vm)
+		if vm.IsAdmin {
+			@ROIContributors(vm.Contributors)
+			@ROIClientBreakdownTable(vm.PerClient)
+		}
+	</section>
+}
+
+// ROIFilters: filtros de período (7d/30d/90d), proyecto y dev (admin).
+templ ROIFilters(vm ROIPageVM) {
+	<div class="card" style="margin-bottom:1rem">
+		<form method="get" action="/dashboard/roi" style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-end;margin:0">
+			<label style="display:flex;flex-direction:column;gap:0.25rem">
+				<span class="muted" style="font-size:0.75rem">Período</span>
+				<select name="period" onchange="this.form.submit()">
+					<option value="7d" selected?={ vm.PeriodCode == "7d" }>Últimos 7 días</option>
+					<option value="30d" selected?={ vm.PeriodCode == "30d" }>Últimos 30 días</option>
+					<option value="90d" selected?={ vm.PeriodCode == "90d" }>Últimos 90 días</option>
+				</select>
+			</label>
+			<label style="display:flex;flex-direction:column;gap:0.25rem;flex:1;min-width:200px">
+				<span class="muted" style="font-size:0.75rem">Proyecto (opcional)</span>
+				<input type="text" name="project" value={ vm.Project } placeholder="todos los proyectos"/>
+			</label>
+			if vm.IsAdmin {
+				<label style="display:flex;flex-direction:column;gap:0.25rem;flex:1;min-width:200px">
+					<span class="muted" style="font-size:0.75rem">Dev UID (opcional, admin)</span>
+					<input type="text" name="dev" value={ vm.DevFilter } placeholder="todos los devs"/>
+				</label>
+			}
+			<button type="submit" class="btn btn-primary">Aplicar</button>
+		</form>
+	</div>
+}
+
+// ROIHero: card grande con el ahorro total + comparación previo período.
+templ ROIHero(vm ROIPageVM) {
+	<div class="card" style="background:linear-gradient(135deg, var(--card), color-mix(in srgb, var(--primary) 12%, var(--card)));margin-bottom:1rem">
+		<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem">
+			<div>
+				<p class="section-kicker">{ vm.PeriodLabel }</p>
+				<h2 style="font-size:2.4rem;margin:0.25rem 0">
+					{ formatHoursES(vm.Savings.TotalSavedMinutes) }
+					<span class="muted" style="font-size:1.2rem;margin-left:0.5rem">·</span>
+					<span style="color:var(--success)">{ formatMXNCompact(vm.Savings.TotalSavedMXN) }</span>
+				</h2>
+				<p class="muted">
+					Equivalente a { formatPctOf480(vm.Savings.WorkdayPctSaved) } de un día laboral de 8h.
+					{ comparedDeltaText(vm.Savings.Compared) }
+				</p>
+			</div>
+			<div style="text-align:right">
+				<div class="muted" style="font-size:0.75rem">Costo dev configurado</div>
+				<div style="font-size:1.1rem">{ formatMXNPerHour(vm.Savings.CostMXNPerMin) }</div>
+				<div class="muted" style="font-size:0.7rem">env: ARIA_CORE_DEV_COST_MXN_PER_HOUR</div>
+			</div>
+		</div>
+	</div>
+}
+
+// ROIStatCards: 5 stat cards con TTC, RDR, CWR, SVR, DTT.
+templ ROIStatCards(vm ROIPageVM) {
+	<div class="stat-grid">
+		<div class="stat-card">
+			<div class="stat-label">TTC · Time To Context</div>
+			<div class="stat-value">{ formatMinutesES(vm.Savings.TTC) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.7rem">Promedio: sesión iniciada → primer decision/architecture/discovery</p>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">RDR · Re-Discovery Rate</div>
+			<div class="stat-value">{ formatPct(vm.Savings.RDR * 100) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.7rem">Búsquedas con al menos 1 canon hit</p>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">CWR · Credential Without Reveal</div>
+			<div class="stat-value">{ formatPct(vm.Savings.CWR * 100) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.7rem">vault use_in_cmd / (use_in_cmd + read)</p>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">SVR · Skill Validation Rate</div>
+			<div class="stat-value">{ formatPct(vm.Savings.SVR * 100) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.7rem">% skills con feedback positivo</p>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">DTT · Deploy Total Time</div>
+			<div class="stat-value">{ formatMinutesES(vm.Savings.DTT) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.7rem">Sesiones con goal "deploy" (placeholder hasta recipe runner)</p>
+		</div>
+	</div>
+}
+
+// ROICharts: línea 12-semanas + barras stacked por pillar.
+templ ROICharts(vm ROIPageVM) {
+	<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Tendencia 12 semanas</div>
+				<p class="card-description">Minutos ahorrados por semana — proyección semanal del valor.</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-roi-trend"></canvas></div>
+		</div>
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Breakdown por pillar</div>
+				<p class="card-description">Pillar 1 (dev context) + Pillar 2 (Claude/skills) + Pillar 3 (vault/redactor).</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-roi-pillars"></canvas></div>
+		</div>
+	</div>
+	<div id="aria-roi-data" data-payload={ roiChartsDataJSON(vm) } style="display:none"></div>
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+	<script>
+		(function() {
+			if (!window.Chart) return;
+			const computed = getComputedStyle(document.documentElement);
+			const muted = computed.getPropertyValue('--muted-foreground').trim() || '#888';
+			const border = computed.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.1)';
+			const primary = computed.getPropertyValue('--primary').trim() || '#17a3de';
+			const success = computed.getPropertyValue('--success').trim() || '#3a5';
+			const warning = computed.getPropertyValue('--warning').trim() || '#fa3';
+			const accent = computed.getPropertyValue('--accent').trim() || '#00a4e2';
+			Chart.defaults.color = muted;
+			Chart.defaults.borderColor = border;
+
+			const dataEl = document.getElementById('aria-roi-data');
+			if (!dataEl) return;
+			const data = JSON.parse(dataEl.dataset.payload || '{}');
+
+			if (data.weekly && document.getElementById('chart-roi-trend')) {
+				new Chart(document.getElementById('chart-roi-trend'), {
+					type: 'line',
+					data: {
+						labels: data.weekly.map(p => p.week),
+						datasets: [{
+							label: 'Min ahorrados',
+							data: data.weekly.map(p => p.saved_min),
+							borderColor: primary,
+							backgroundColor: primary + '22',
+							tension: 0.35, fill: true, pointRadius: 4
+						}]
+					},
+					options: {
+						responsive: true, maintainAspectRatio: false,
+						plugins: { legend: { display: false }, tooltip: {
+							callbacks: { label: ctx => Math.round(ctx.parsed.y) + ' min · $' +
+								(data.weekly[ctx.dataIndex].saved_mxn || 0).toLocaleString('es-MX', {maximumFractionDigits:0}) }
+						} },
+						scales: { y: { beginAtZero: true } }
+					}
+				});
+			}
+
+			if (data.pillars && document.getElementById('chart-roi-pillars')) {
+				new Chart(document.getElementById('chart-roi-pillars'), {
+					type: 'bar',
+					data: {
+						labels: ['Esta semana'],
+						datasets: [
+							{ label: 'Dev context (skills+deploy)', data: [data.pillars.context_dev || 0], backgroundColor: primary, stack: 's' },
+							{ label: 'Claude/skills (memoria canon)', data: [data.pillars.claude_skills || 0], backgroundColor: accent, stack: 's' },
+							{ label: 'Vault/redactor (credentials)', data: [data.pillars.vault_redactor || 0], backgroundColor: success, stack: 's' },
+						]
+					},
+					options: {
+						responsive: true, maintainAspectRatio: false,
+						indexAxis: 'y',
+						plugins: { legend: { position: 'bottom' } },
+						scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } }
+					}
+				});
+			}
+		})();
+	</script>
+}
+
+// ROIContributors: top 5 devs por canon contribution (admin-only).
+templ ROIContributors(rows []ROIContributorScore) {
+	<div class="card" style="margin-top:1rem">
+		<div class="card-header">
+			<div class="card-title">Top contributors (canon)</div>
+			<p class="card-description">Devs cuyas observaciones canon más ayudan al equipo.</p>
+		</div>
+		if len(rows) == 0 {
+			@EmptyState("Sin canon en el período", "Cuando un dev promueva una observación a canon aparecerá acá.")
+		} else {
+			<table class="data-table">
+				<thead><tr><th>Dev</th><th>Canon obs</th><th>Relevance total</th></tr></thead>
+				<tbody>
+					for _, c := range rows {
+						<tr>
+							<td>{ orDash(c.DeveloperEmail) }</td>
+							<td>{ fmt.Sprint(c.CanonCount) }</td>
+							<td>{ fmt.Sprint(c.RelevanceTotal) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+// ROIClientBreakdownTable: ahorro proyectado por client_id (admin-only).
+templ ROIClientBreakdownTable(rows []ROIClientBreakdown) {
+	<div class="card" style="margin-top:1rem">
+		<div class="card-header">
+			<div class="card-title">Por cliente</div>
+			<p class="card-description">Observaciones scope=client_knowledge + accesos vault — base para reporte mensual.</p>
+		</div>
+		if len(rows) == 0 {
+			@EmptyState("Sin datos por cliente", "Cuando se guarden observaciones con scope=client_knowledge aparecerá acá.")
+		} else {
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Client ID</th>
+						<th>Obs (canon)</th>
+						<th>Vault accesos</th>
+						<th>use_in_cmd</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, c := range rows {
+						<tr>
+							<td><code>{ truncate8(c.ClientID) }</code></td>
+							<td>{ fmt.Sprint(c.ObservationCount) } ({ fmt.Sprint(c.CanonCount) })</td>
+							<td>{ fmt.Sprint(c.VaultAccess) }</td>
+							<td>{ fmt.Sprint(c.VaultUseInCmd) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+// roiChartsDataJSON pre-serializa el payload para Chart.js.
+func roiChartsDataJSON(vm ROIPageVM) string {
+	type weeklyP struct {
+		Week     string  `json:"week"`
+		SavedMin float64 `json:"saved_min"`
+		SavedMXN float64 `json:"saved_mxn"`
+	}
+	weekly := make([]weeklyP, 0, len(vm.Weekly))
+	for _, w := range vm.Weekly {
+		weekly = append(weekly, weeklyP{
+			Week:     w.WeekStart.Format("02 Jan"),
+			SavedMin: round1(w.SavedMinutes),
+			SavedMXN: round1(w.SavedMXN),
+		})
+	}
+	payload := map[string]any{
+		"weekly":  weekly,
+		"pillars": vm.Savings.ByPillar,
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
+// formatHoursES formatea minutos como "X h Y min" en español.
+func formatHoursES(min float64) string {
+	if min < 1 {
+		return "0 min"
+	}
+	if min < 60 {
+		return fmt.Sprintf("%.0f min", min)
+	}
+	h := int(min / 60)
+	rem := int(min) - h*60
+	if rem == 0 {
+		return fmt.Sprintf("%d h", h)
+	}
+	return fmt.Sprintf("%d h %d min", h, rem)
+}
+
+// formatMinutesES un solo número con sufijo " min".
+func formatMinutesES(m float64) string {
+	if m < 1 {
+		return "0 min"
+	}
+	if m < 60 {
+		return fmt.Sprintf("%.0f min", m)
+	}
+	return fmt.Sprintf("%.1f h", m/60)
+}
+
+// formatMXNCompact suma con K/M.
+func formatMXNCompact(v float64) string {
+	if v >= 1000000 {
+		return fmt.Sprintf("$%.1fM MXN", v/1000000)
+	}
+	if v >= 1000 {
+		return fmt.Sprintf("$%.0fk MXN", v/1000)
+	}
+	return fmt.Sprintf("$%.0f MXN", v)
+}
+
+// formatMXNPerHour reconstruye la cifra hora desde costo/min.
+func formatMXNPerHour(perMin float64) string {
+	return fmt.Sprintf("$%.0f MXN/h", perMin*60)
+}
+
+// formatPctOf480 expresa % de un día laboral.
+func formatPctOf480(v float64) string {
+	return fmt.Sprintf("%.1f%%", v*100)
+}
+
+// comparedDeltaText texto humano del delta vs período anterior.
+func comparedDeltaText(c ROISavingsCompared) string {
+	if c.PreviousMinutes == 0 && c.DeltaMinutes == 0 {
+		return ""
+	}
+	arrow := "▲"
+	if c.DeltaMinutes < 0 {
+		arrow = "▼"
+	}
+	return fmt.Sprintf(" %s %.1f%% vs período anterior", arrow, c.DeltaPct*100)
+}
+
+// orDash devuelve "—" si la cadena está vacía.
+func orDash(s string) string {
+	if s == "" {
+		return "—"
+	}
+	return s
+}
+
+// truncate8 muestra los primeros 8 chars del UUID.
+func truncate8(s string) string {
+	if len(s) <= 8 {
+		return s
+	}
+	return s[:8]
+}
+
+func round1(v float64) float64 {
+	return float64(int(v*10+0.5)) / 10
+}

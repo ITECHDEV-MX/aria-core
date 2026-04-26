@@ -968,6 +968,29 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_aliases_entity ON aria_redaction_aliases(entity_type, entity_id)`,
 		// END REDACTOR MIGRATIONS
+
+		// BEGIN ROI MIGRATIONS
+		// aria_search_log: persiste cada call a /v1/memory/search con stats
+		// (result_count, canon_hit_count, tokens) para alimentar la métrica RDR
+		// (Re-Discovery Rate). El paquete internal/cloud/roi documenta el schema.
+		`CREATE TABLE IF NOT EXISTS aria_search_log (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			query TEXT NOT NULL,
+			result_count INT NOT NULL DEFAULT 0,
+			canon_hit_count INT NOT NULL DEFAULT 0,
+			total_tokens INT,
+			truncated_count INT,
+			developer_uid UUID,
+			project TEXT,
+			scope TEXT,
+			client_id UUID,
+			duration_ms INT,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_search_log_dev ON aria_search_log(developer_uid, created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_search_log_recent ON aria_search_log(created_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_search_log_project ON aria_search_log(project, created_at DESC)`,
+		// END ROI MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {

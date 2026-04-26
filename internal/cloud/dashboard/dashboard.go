@@ -81,6 +81,73 @@ type MountConfig struct {
 	Redactor RedactorService
 	// Vault (opcional) — habilita /dashboard/vault con CRUD de secrets + audit log.
 	Vault VaultDashboardService
+	// ROI (opcional) — habilita /dashboard/roi con métricas TTC/RDR/CWR/SVR/DTT
+	// y savings consolidados.
+	ROI ROIService
+}
+
+// ROIService es el contrato del módulo ROI consumido por el dashboard.
+// Implementación de referencia: internal/cloud/roi.MetricsStore (vía adapter).
+type ROIService interface {
+	CalculateSavings(ctx context.Context, devUID string, since, until time.Time) (*ROISavingsView, error)
+	TopContributors(ctx context.Context, since time.Time, limit int) ([]ROIContributorScore, error)
+	PerClientBreakdown(ctx context.Context, since time.Time) ([]ROIClientBreakdown, error)
+	WeeklyTimeline(ctx context.Context, devUID string, weeks int, costPerMin float64) ([]ROIWeeklyPoint, error)
+	// CostMXNPerMin retorna el costo configurado en MXN/min.
+	CostMXNPerMin() float64
+}
+
+// ROISavingsView espeja roi.SavingsView para evitar el import del paquete roi
+// dentro de dashboard (regla: dashboard no depende de packages de feature).
+type ROISavingsView struct {
+	WindowDays        int
+	TotalSavedMinutes float64
+	TotalSavedMXN     float64
+	WorkdayPctSaved   float64
+	ByPillar          map[string]float64
+	ByPillarMXN       map[string]float64
+	Compared          ROISavingsCompared
+
+	RDR float64
+	CWR float64
+	SVR float64
+	TTC float64
+	DTT float64
+
+	CostMXNPerMin float64
+}
+
+// ROISavingsCompared espeja roi.SavingsCompared.
+type ROISavingsCompared struct {
+	PreviousMinutes float64
+	PreviousMXN     float64
+	DeltaMinutes    float64
+	DeltaMXN        float64
+	DeltaPct        float64
+}
+
+// ROIContributorScore espeja roi.ContributorScore.
+type ROIContributorScore struct {
+	DeveloperUID   string
+	DeveloperEmail string
+	CanonCount     int
+	RelevanceTotal int
+}
+
+// ROIClientBreakdown espeja roi.ClientROI.
+type ROIClientBreakdown struct {
+	ClientID         string
+	ObservationCount int
+	CanonCount       int
+	VaultAccess      int
+	VaultUseInCmd    int
+}
+
+// ROIWeeklyPoint espeja roi.WeeklyPoint.
+type ROIWeeklyPoint struct {
+	WeekStart    time.Time
+	SavedMinutes float64
+	SavedMXN     float64
 }
 
 // RedactorService es el contrato dashboard del módulo redactor (PII scrubber +
@@ -725,6 +792,12 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/audit/egress", h.requireAdmin(h.handleAuditEgress))
 	mux.HandleFunc("GET /dashboard/audit/egress/list", h.requireAdmin(h.handleAuditEgressList))
 	mux.HandleFunc("GET /dashboard/audit/egress.csv", h.requireAdmin(h.handleAuditEgressCSV))
+
+	// === ROI: métricas de Return-On-Investment (cualquier dev autenticado puede ver el suyo).
+	// Admin ve agregados globales; dev ve solo su propio ROI vía filtro JS-side.
+	mux.HandleFunc("GET /dashboard/roi", h.requireSession(h.handleROIPage))
+	mux.HandleFunc("GET /dashboard/roi/data", h.requireSession(h.handleROIData))
+	mux.HandleFunc("GET /dashboard/roi/export.csv", h.requireSession(h.handleROIExportCSV))
 
 	// === Vault: bóveda de secretos (admin-gated) ===
 	mux.HandleFunc("GET /dashboard/vault", h.requireAdmin(h.handleVaultPage))
