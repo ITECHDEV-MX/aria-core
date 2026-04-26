@@ -75,6 +75,9 @@ type MountConfig struct {
 	PDFClient PDFClient
 	// Invites (opcional) — habilita invitar usuario por email.
 	Invites InviteDashboardService
+	// WelcomeMailer (opcional) — envía email de bienvenida cuando admin
+	// crea usuario manual (con password). Si nil, el usuario se crea sin notificación.
+	WelcomeMailer UserWelcomeMailer
 	// PersonalCockpit (opcional) — habilita /dashboard/me cockpit del dev.
 	PersonalCockpit PersonalCockpitService
 	// Redactor (opcional) — habilita /dashboard/audit/egress y stats.
@@ -353,6 +356,22 @@ type PDFConvertOptions struct {
 	MarginRight       float64
 	PreferCSSPageSize bool
 	PrintBackground   bool
+}
+
+// UserWelcomeMailer es el contrato para enviar email de bienvenida al crear
+// usuarios manualmente (con password en clear). Renderiza template welcome_user.html
+// vía Microsoft Graph. Implementado por un adapter en cmd/aria-core/.
+type UserWelcomeMailer interface {
+	SendWelcome(ctx context.Context, params WelcomeParams) error
+}
+
+// WelcomeParams espeja email.WelcomeContext. Mantiene dashboard sin import del paquete email.
+type WelcomeParams struct {
+	Name      string
+	Email     string
+	Password  string
+	Roles     []string
+	CreatedBy string
 }
 
 // InviteDashboardService es el contrato del módulo de invites para el dashboard.
@@ -1692,16 +1711,46 @@ func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request)
 		roles = []string{"dev"}
 	}
 	password := r.PostForm.Get("password")
+	sendWelcome := r.PostForm.Get("send_welcome") == "on" || r.PostForm.Get("send_welcome") == "true"
 	if err := h.cfg.AdminUsers.CreateUser(r.Context(), email, name, roles, password); err != nil {
 		renderWithToast(w, r, AdminUsersListPartial(nil, fmt.Sprintf("error: %v", err)), "No se pudo crear el usuario: "+err.Error(), "error")
 		return
 	}
+
+	// Welcome email opcional. No bloquea creación si falla.
+	mailNote := ""
+	if sendWelcome {
+		if h.cfg.WelcomeMailer == nil {
+			mailNote = " (email no enviado: mailer no configurado)"
+		} else {
+			creator := "un admin de iTechDev"
+			if h.cfg.GetDisplayName != nil {
+				if n := strings.TrimSpace(h.cfg.GetDisplayName(r)); n != "" {
+					creator = n
+				}
+			}
+			err := h.cfg.WelcomeMailer.SendWelcome(r.Context(), WelcomeParams{
+				Name:      name,
+				Email:     email,
+				Password:  password,
+				Roles:     roles,
+				CreatedBy: creator,
+			})
+			if err != nil {
+				log.Printf("dashboard: send welcome email failed: %v", err)
+				mailNote = " (email no enviado: " + err.Error() + ")"
+			} else {
+				mailNote = " · email de bienvenida enviado"
+			}
+		}
+	}
+
 	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
 	if err != nil {
-		renderWithToast(w, r, AdminUsersListPartial(nil, "user creado pero no se pudo recargar la lista"), "Usuario creado, pero no pudo recargar la lista", "info")
+		renderWithToast(w, r, AdminUsersListPartial(nil, "user creado pero no se pudo recargar la lista"), "Usuario creado"+mailNote+", pero no pudo recargar la lista", "info")
 		return
 	}
-	renderWithToast(w, r, AdminUsersListPartial(users, ""), "Usuario "+email+" creado", "success")
+	renderWithToast(w, r, AdminUsersListPartial(users, ""), "Usuario "+email+" creado"+mailNote, "success")
 }
 
 // handleAdminUserAddRole POST /dashboard/admin/users/{uid}/roles/{role}/add

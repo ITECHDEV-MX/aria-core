@@ -1172,6 +1172,10 @@ templ AdminUsersPage() {
 					}
 				</div>
 			</fieldset>
+			<label style="display:flex;align-items:center;gap:0.4rem;margin-top:0.75rem;font-size:0.875rem;color:var(--muted-foreground)">
+				<input type="checkbox" name="send_welcome" value="on" checked style="width:auto;margin:0"/>
+				Enviar email de bienvenida con credenciales + guía de inicio
+			</label>
 			<button type="submit" class="btn btn-primary" style="margin-top:0.75rem">+ Crear usuario</button>
 		</form>
 		<div id="admin-users-feedback" class="muted" style="margin-top:0.5rem"></div>

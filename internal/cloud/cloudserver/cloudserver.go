@@ -80,6 +80,7 @@ type CloudServer struct {
 	pageDB           PageDatabaseService
 	pageComments     PageCommentsService
 	quoteChat        dashboard.QuoteChatService
+	welcomeMailer    dashboard.UserWelcomeMailer
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -304,6 +305,14 @@ func WithInviteService(i InviteService) Option {
 func WithDashboardInvites(d dashboard.InviteDashboardService) Option {
 	return func(s *CloudServer) {
 		s.dashboardInvites = d
+	}
+}
+
+// WithWelcomeMailer inyecta el mailer que envía email de bienvenida cuando
+// admin crea usuario manual con password (handler POST /dashboard/admin/users/create).
+func WithWelcomeMailer(m dashboard.UserWelcomeMailer) Option {
+	return func(s *CloudServer) {
+		s.welcomeMailer = m
 	}
 }
 
@@ -646,6 +655,7 @@ func (s *CloudServer) routes() {
 		AriaMem:           s.ariaMemDash,
 		PDFClient:         s.pdfClient,
 		Invites:           s.dashboardInvites,
+		WelcomeMailer:     s.welcomeMailer,
 		Redactor:          s.redactor,
 		Vault:             s.vaultDash,
 		ROI:               s.roiDash,

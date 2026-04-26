@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<title>Bienvenido a ARIA Core</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1f2433;">
+	<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f6;padding:24px 0;">
+		<tr><td align="center">
+			<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+				<tr><td style="background:linear-gradient(135deg,#3265ae,#00a4e2);padding:28px 24px;color:#ffffff;">
+					<h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:1px;">ARIA — Plataforma central de iTechDev</h1>
+					<p style="margin:6px 0 0 0;font-size:13px;color:#d6e8fa;">Bienvenido al equipo</p>
+				</td></tr>
+
+				<tr><td style="padding:32px 24px 8px 24px;">
+					<h2 style="margin:0 0 12px 0;font-size:20px;color:#1f2433;">Hola {{ .Name }} 👋</h2>
+					<p style="margin:0 0 16px 0;font-size:14px;line-height:1.6;">
+						{{ .CreatedBy }} te creó una cuenta en <strong>ARIA Core</strong>, la plataforma central de iTechDev donde vive la memoria del equipo, las cotizaciones, skills, secretos y mucho más.
+					</p>
+				</td></tr>
+
+				<tr><td style="padding:0 24px;">
+					<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f7ff;border-left:3px solid #00a4e2;border-radius:4px;margin:12px 0;">
+						<tr><td style="padding:16px 18px;">
+							<p style="margin:0 0 6px 0;font-size:11px;color:#3265ae;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Tus credenciales</p>
+							<p style="margin:0 0 8px 0;font-size:14px;line-height:1.5;">
+								<strong>Email:</strong> <code style="background:#ffffff;padding:2px 6px;border-radius:3px;font-family:monospace;">{{ .Email }}</code>
+							</p>
+							<p style="margin:0 0 8px 0;font-size:14px;line-height:1.5;">
+								<strong>Password temporal:</strong> <code style="background:#ffffff;padding:2px 6px;border-radius:3px;font-family:monospace;color:#c33;">{{ .Password }}</code>
+							</p>
+							<p style="margin:0 0 4px 0;font-size:14px;line-height:1.5;">
+								<strong>Roles asignados:</strong>
+								{{ range .Roles }}<span style="display:inline-block;background:#3265ae;color:#fff;padding:2px 8px;border-radius:3px;margin-right:4px;font-size:11px;letter-spacing:0.05em;">{{ . }}</span>{{ end }}
+							</p>
+						</td></tr>
+					</table>
+
+					<p style="margin:12px 0;font-size:13px;color:#a04400;line-height:1.5;">
+						⚠️ <strong>Importante:</strong> cambiá tu password después del primer login (Mi cuenta → Cambiar password).
+					</p>
+
+					<p style="margin:24px 0;text-align:center;">
+						<a href="{{ .LoginURL }}" style="display:inline-block;background:linear-gradient(135deg,#3265ae,#00a4e2);color:#ffffff;text-decoration:none;padding:13px 32px;border-radius:6px;font-weight:600;font-size:14px;letter-spacing:0.5px;">Iniciar sesión en ARIA Core</a>
+					</p>
+				</td></tr>
+
+				<tr><td style="padding:8px 24px 16px 24px;">
+					<h3 style="margin:24px 0 12px 0;font-size:16px;color:#1f2433;border-bottom:1px solid #e3e8f0;padding-bottom:6px;">🚀 Cómo arrancar en 5 minutos</h3>
+
+					<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+						<tr><td style="padding:8px 0;font-size:13px;line-height:1.6;vertical-align:top;width:24px;">
+							<span style="display:inline-block;width:22px;height:22px;background:#3265ae;color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:600;">1</span>
+						</td><td style="padding:8px 0 8px 12px;font-size:13px;line-height:1.6;">
+							<strong>Login</strong> en <a href="{{ .LoginURL }}" style="color:#00a4e2;">{{ .DashboardHost }}</a> con tus credenciales de arriba.
+						</td></tr>
+
+						<tr><td style="padding:8px 0;font-size:13px;line-height:1.6;vertical-align:top;">
+							<span style="display:inline-block;width:22px;height:22px;background:#3265ae;color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:600;">2</span>
+						</td><td style="padding:8px 0 8px 12px;font-size:13px;line-height:1.6;">
+							<strong>Cambiá tu password</strong> en <em>Mi cuenta</em> (esquina inferior izquierda).
+						</td></tr>
+
+						<tr><td style="padding:8px 0;font-size:13px;line-height:1.6;vertical-align:top;">
+							<span style="display:inline-block;width:22px;height:22px;background:#3265ae;color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:600;">3</span>
+						</td><td style="padding:8px 0 8px 12px;font-size:13px;line-height:1.6;">
+							<strong>Leé la guía de uso</strong> en <a href="{{ .GuideURL }}" style="color:#00a4e2;">/dashboard/ayuda</a> — explica memoria, MCP para Claude, scopes, convenciones del equipo.
+						</td></tr>
+
+						<tr><td style="padding:8px 0;font-size:13px;line-height:1.6;vertical-align:top;">
+							<span style="display:inline-block;width:22px;height:22px;background:#3265ae;color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:600;">4</span>
+						</td><td style="padding:8px 0 8px 12px;font-size:13px;line-height:1.6;">
+							<strong>Configurá Claude Desktop con MCP</strong> para que Claude tenga acceso a la memoria del equipo (paso a paso en la guía).
+						</td></tr>
+
+						<tr><td style="padding:8px 0;font-size:13px;line-height:1.6;vertical-align:top;">
+							<span style="display:inline-block;width:22px;height:22px;background:#3265ae;color:#fff;border-radius:50%;text-align:center;line-height:22px;font-size:11px;font-weight:600;">5</span>
+						</td><td style="padding:8px 0 8px 12px;font-size:13px;line-height:1.6;">
+							<strong>Empezá a guardar lo que aprendés</strong>: cuando tomás una decisión técnica, hacés un fix raro o aprendés algo no obvio, guardalo. La memoria del equipo crece con tu contribución.
+						</td></tr>
+					</table>
+				</td></tr>
+
+				<tr><td style="padding:16px 24px;">
+					<h3 style="margin:16px 0 10px 0;font-size:15px;color:#1f2433;">📚 Qué tenés disponible</h3>
+					<ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.7;color:#3a4258;">
+						<li><strong>Memoria persistente</strong> — guardá decisiones, ADRs, learnings; FTS español con tolerancia a acentos</li>
+						<li><strong>Skills + recipes</strong> — workflows reutilizables del equipo</li>
+						<li><strong>Cotizador</strong> (si tenés rol cotizador/admin) — leads, RFPs, propuestas con IA + scrub PII</li>
+						<li><strong>Vault de secretos</strong> — credenciales encriptadas, sin pegar passwords en chats</li>
+						<li><strong>Mini-Notion</strong> — páginas, attachments, databases inline, comentarios</li>
+						<li><strong>MCP server</strong> — Claude Desktop/Code accede a tu memoria con 30+ tools</li>
+					</ul>
+				</td></tr>
+
+				<tr><td style="padding:16px 24px;">
+					<p style="margin:0;font-size:13px;line-height:1.5;color:#3a4258;">
+						¿Dudas? Respondé a este email o pingueá a {{ .CreatedBy }} en el equipo.
+					</p>
+				</td></tr>
+
+				<tr><td style="background:#f7f9fc;padding:16px 24px;font-size:11px;color:#7a8398;border-top:1px solid #e3e8f0;">
+					Este correo fue enviado por <strong>ARIA — Plataforma central de iTechDev</strong> · {{ .DashboardHost }}<br>
+					Si recibiste este email por error, ignoralo o avisanos.
+				</td></tr>
+			</table>
+		</td></tr>
+	</table>
+</body>
+</html>

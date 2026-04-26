@@ -65,6 +65,19 @@ type InviteContext struct {
 	Roles     []string
 }
 
+// WelcomeContext carries the data for the welcome email sent when an admin
+// creates a user manually with a temporary password.
+type WelcomeContext struct {
+	Name          string
+	Email         string
+	Password      string   // temporary password — user should change after first login
+	Roles         []string
+	CreatedBy     string   // display name or email of the admin who created the user
+	LoginURL      string   // full URL to the dashboard login page
+	GuideURL      string   // full URL to /dashboard/ayuda
+	DashboardHost string   // bare host (e.g. ariacore.itechdev.com.mx)
+}
+
 // SendQuoteSent dispatches the "propuesta enviada" email to the contact.
 func (s *Service) SendQuoteSent(ctx context.Context, qc QuoteContext) error {
 	return s.send(ctx, qc.PreparedForContactEmail, "[iTechDev] Propuesta enviada", "quote_sent", qc, nil)
@@ -92,6 +105,14 @@ func (s *Service) SendQuoteExpiring(ctx context.Context, qc QuoteContext, creato
 // SendInvite dispatches the magic-link invite email.
 func (s *Service) SendInvite(ctx context.Context, ic InviteContext) error {
 	return s.send(ctx, ic.Email, "[iTechDev] Invitación a ARIA Core", "magic_link", ic, nil)
+}
+
+// SendWelcome dispatches the welcome email when an admin creates a user with
+// a temporary password (manual-create flow, not magic-link). Includes the
+// password in clear (one-time, user must change after first login per copy
+// in the template) and a 5-step onboarding guide.
+func (s *Service) SendWelcome(ctx context.Context, wc WelcomeContext) error {
+	return s.send(ctx, wc.Email, "[iTechDev] Bienvenido a ARIA Core — tu cuenta + guía", "welcome_user", wc, nil)
 }
 
 // SendRawHTML dispatches a manually-prepared HTML email. Used by quote-chat
