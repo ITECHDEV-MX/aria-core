@@ -178,6 +178,10 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 		log.Printf("[aria-core-cloud] vault ready (encryption-at-rest enabled)")
 	}
 
+	// Recipe runner: executable workflows + telemetry. Bridges vault + aria-mem.
+	recipeRunner := newRecipeRunner(cs, vaultAdpt, ariaMemSvc)
+	log.Printf("[aria-core-cloud] recipe runner ready")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -200,6 +204,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPublicURL(publicURL),
 			cloudserver.WithVault(vaultAdpt),
 			cloudserver.WithVaultDashboard(dashboardVaultAdapter{a: vaultAdpt}),
+			cloudserver.WithRecipeRunner(recipeRunner),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

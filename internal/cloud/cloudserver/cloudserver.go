@@ -70,6 +70,7 @@ type CloudServer struct {
 	publicURL        string
 	vault            VaultService
 	vaultDash        dashboard.VaultDashboardService
+	recipes          RecipeRunnerService
 }
 
 // ScrubGate is the runtime contract used by /v1/memory/* handlers to scrub
@@ -660,6 +661,19 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/delete", s.withJWTAuth(s.handleV1VaultDelete))
 	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/grants", s.withJWTAuth(s.handleV1VaultGrant))
 	s.mux.HandleFunc("GET /v1/vault/secrets/{id}/access-log", s.withJWTAuth(s.handleV1VaultAccessLog))
+
+	// === ARIA Recipes: executable workflow runner ===
+	// Cualquier user autenticado puede listar y ejecutar; admin ve histórico global.
+	s.mux.HandleFunc("GET /v1/recipes/list", s.withJWTAuth(s.handleV1RecipeList))
+	s.mux.HandleFunc("POST /v1/recipes/run", s.withJWTAuth(s.handleV1RecipeRun))
+	s.mux.HandleFunc("GET /v1/recipes/executions", s.withJWTAuth(s.handleV1RecipeExecutionList))
+	s.mux.HandleFunc("GET /v1/recipes/executions/{id}", s.withJWTAuth(s.handleV1RecipeExecutionGet))
+
+	// Dashboard mounts (only when adapter is configured).
+	if s.recipes != nil {
+		dashRecipes := newDashboardRecipeAdapter(s.recipes)
+		mountRecipeDashboard(s.mux, dashRecipes, s.authorizeDashboardRequest, s.dashboardRolesFromRequest, s.displayNameFor)
+	}
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {
