@@ -1,0 +1,152 @@
+package dashboard
+
+// AccountSecurityPage — página self-service "Mi cuenta · Seguridad" donde
+// el dev autenticado cambia su propia password (verifica current).
+templ AccountSecurityPage(email string, errorMsg, successMsg string) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">MI CUENTA</p>
+			<h1>🔒 Seguridad</h1>
+			<p class="lead">Cambiá tu contraseña periódicamente. Mínimo 8 caracteres.</p>
+		</div>
+	</div>
+
+	<div class="card" style="max-width:560px">
+		<div class="card-header">
+			<div class="card-title">Cambiar contraseña</div>
+			<p class="card-description">Estás autenticado como <strong>{ email }</strong></p>
+		</div>
+
+		if errorMsg != "" {
+			<div class="login-error" role="alert" style="margin-bottom:1rem">{ errorMsg }</div>
+		}
+		if successMsg != "" {
+			<div style="background:var(--success);color:#fff;padding:0.6rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.875rem">✓ { successMsg }</div>
+		}
+
+		<form hx-post="/dashboard/me/security/password" hx-target="closest .card" hx-swap="outerHTML">
+			<label style="display:block;margin-bottom:0.85rem">
+				Contraseña actual
+				<input type="password" name="current_password" required autocomplete="current-password" style="width:100%"/>
+			</label>
+			<label style="display:block;margin-bottom:0.85rem">
+				Nueva contraseña (≥8 caracteres)
+				<input type="password" name="new_password" required minlength="8" autocomplete="new-password" style="width:100%"/>
+			</label>
+			<label style="display:block;margin-bottom:1rem">
+				Confirmar nueva contraseña
+				<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password" style="width:100%"/>
+			</label>
+			<button type="submit" class="btn btn-primary">Cambiar contraseña</button>
+		</form>
+
+		<p class="muted" style="font-size:0.85rem;margin-top:1.25rem">
+			¿Olvidaste tu contraseña actual? <a href="/dashboard/logout" style="color:var(--primary)">Cerrá sesión</a> y usá <em>Olvidé mi contraseña</em> en la página de login.
+		</p>
+	</div>
+}
+
+// ForgotPasswordPage — pública, sin auth. Form simple con email.
+templ ForgotPasswordPage(submitted bool) {
+	<!DOCTYPE html>
+	<html lang="es" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Restablecer contraseña — ARIA Core</title>
+			<link rel="stylesheet" href="/dashboard/static/aria-styles.css"/>
+		</head>
+		<body>
+			<main class="login-shell">
+				<section class="login-sidepanel">
+					<div>
+						<img src="/dashboard/static/img/itechdev-logo-white.png" alt="iTechDev" style="height:42px;margin-bottom:1rem"/>
+						<p class="section-kicker" style="color:rgba(255,255,255,0.85)">RECUPERACIÓN</p>
+						<h1>Restablecer contraseña</h1>
+						<p class="login-lead">Te enviaremos un link de un solo uso a tu email del equipo. El link expira en 1 hora.</p>
+					</div>
+				</section>
+				<section class="login-container">
+					<div class="login-form">
+						<p class="section-kicker">¿OLVIDASTE TU CONTRASEÑA?</p>
+						<h2>Te enviamos un link</h2>
+						if submitted {
+							<div style="background:var(--success);color:#fff;padding:1rem;border-radius:var(--radius-md);margin:1rem 0;font-size:0.9rem">
+								✓ Si tu email está registrado, te enviamos un link de recuperación. Revisá tu inbox (y spam) en el próximo minuto.
+							</div>
+							<p class="muted" style="font-size:0.85rem">
+								Por seguridad no confirmamos si el email existe o no en nuestro sistema.
+							</p>
+							<a href="/dashboard/login" class="btn btn-outline" style="width:100%;margin-top:1rem;text-align:center">← Volver al login</a>
+						} else {
+							<p class="login-copy">Ingresá el email con el que accedés a ARIA Core.</p>
+							<form method="post" action="/dashboard/forgot-password">
+								<label>
+									Correo electrónico
+									<input type="email" name="email" placeholder="tu@itechdev.com.mx" required autofocus autocomplete="email"/>
+								</label>
+								<button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:1rem">Enviar link de recuperación</button>
+							</form>
+							<p style="margin-top:1.5rem;text-align:center;font-size:0.85rem">
+								<a href="/dashboard/login" style="color:var(--muted-foreground)">← Volver al login</a>
+							</p>
+						}
+					</div>
+				</section>
+			</main>
+		</body>
+	</html>
+}
+
+// ResetPasswordPage — pública con token. Form para fijar nueva contraseña.
+templ ResetPasswordPage(token, errorMsg string, success bool) {
+	<!DOCTYPE html>
+	<html lang="es" data-theme="dark">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Restablecer contraseña — ARIA Core</title>
+			<link rel="stylesheet" href="/dashboard/static/aria-styles.css"/>
+		</head>
+		<body>
+			<main class="login-shell">
+				<section class="login-sidepanel">
+					<div>
+						<img src="/dashboard/static/img/itechdev-logo-white.png" alt="iTechDev" style="height:42px;margin-bottom:1rem"/>
+						<p class="section-kicker" style="color:rgba(255,255,255,0.85)">RESTABLECER</p>
+						<h1>Fijá tu nueva contraseña</h1>
+						<p class="login-lead">Mínimo 8 caracteres. Después de fijarla, vas a iniciar sesión automáticamente.</p>
+					</div>
+				</section>
+				<section class="login-container">
+					<div class="login-form">
+						if success {
+							<div style="background:var(--success);color:#fff;padding:1rem;border-radius:var(--radius-md);margin:1rem 0;font-size:0.9rem">
+								✓ Contraseña actualizada. Iniciando sesión...
+							</div>
+							<script>setTimeout(function(){window.location='/dashboard/'}, 1500)</script>
+						} else {
+							if errorMsg != "" {
+								<div class="login-error" role="alert" style="margin-bottom:1rem">{ errorMsg }</div>
+							}
+							<p class="section-kicker">NUEVA CONTRASEÑA</p>
+							<h2>Restablecer</h2>
+							<p class="login-copy">Una vez fijada, este link queda inválido.</p>
+							<form method="post" action={ templ.SafeURL("/dashboard/reset-password/" + token) }>
+								<label>
+									Nueva contraseña (≥8 caracteres)
+									<input type="password" name="new_password" required minlength="8" autocomplete="new-password" autofocus/>
+								</label>
+								<label>
+									Confirmar nueva contraseña
+									<input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"/>
+								</label>
+								<button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:1rem">Restablecer contraseña</button>
+							</form>
+						}
+					</div>
+				</section>
+			</main>
+		</body>
+	</html>
+}

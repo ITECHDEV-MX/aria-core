@@ -76,7 +76,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Correo electrónico <input type=\"email\" name=\"email\" placeholder=\"tu@itechdev.com.mx\" required autocomplete=\"email\" autofocus></label> <label>Contraseña <input type=\"password\" name=\"password\" placeholder=\"••••••••\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"btn btn-primary btn-lg\" style=\"width:100%\">Iniciar sesión</button></form><details class=\"login-recovery\"><summary>Recuperación con token admin</summary><form method=\"post\" action=\"/dashboard/login\" style=\"margin-top:0.75rem\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Correo electrónico <input type=\"email\" name=\"email\" placeholder=\"tu@itechdev.com.mx\" required autocomplete=\"email\" autofocus></label> <label>Contraseña <input type=\"password\" name=\"password\" placeholder=\"••••••••\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"btn btn-primary btn-lg\" style=\"width:100%\">Iniciar sesión</button></form><p style=\"margin:0.75rem 0 0 0;text-align:center;font-size:0.85rem\"><a href=\"/dashboard/forgot-password\" style=\"color:var(--muted-foreground)\">¿Olvidaste tu contraseña?</a></p><details class=\"login-recovery\"><summary>Recuperación con token admin</summary><form method=\"post\" action=\"/dashboard/login\" style=\"margin-top:0.75rem\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -88,7 +88,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(next)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/login.templ`, Line: 72, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/login.templ`, Line: 76, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

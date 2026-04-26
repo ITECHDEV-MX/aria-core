@@ -81,6 +81,9 @@ type CloudServer struct {
 	pageComments     PageCommentsService
 	quoteChat        dashboard.QuoteChatService
 	welcomeMailer    dashboard.UserWelcomeMailer
+	passwordSelf     dashboard.PasswordSelfService
+	passwordResetMailer dashboard.PasswordResetMailerService
+	personalCockpit  dashboard.PersonalCockpitService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -313,6 +316,27 @@ func WithDashboardInvites(d dashboard.InviteDashboardService) Option {
 func WithWelcomeMailer(m dashboard.UserWelcomeMailer) Option {
 	return func(s *CloudServer) {
 		s.welcomeMailer = m
+	}
+}
+
+// WithPasswordSelf inyecta el servicio self-service de password (cambiar/reset).
+func WithPasswordSelf(p dashboard.PasswordSelfService) Option {
+	return func(s *CloudServer) {
+		s.passwordSelf = p
+	}
+}
+
+// WithPasswordResetMailer inyecta el mailer para forgot-password emails.
+func WithPasswordResetMailer(m dashboard.PasswordResetMailerService) Option {
+	return func(s *CloudServer) {
+		s.passwordResetMailer = m
+	}
+}
+
+// WithPersonalCockpit inyecta el servicio que alimenta /dashboard/me.
+func WithPersonalCockpit(p dashboard.PersonalCockpitService) Option {
+	return func(s *CloudServer) {
+		s.personalCockpit = p
 	}
 }
 
@@ -654,8 +678,11 @@ func (s *CloudServer) routes() {
 		Cotizador:         s.cotizador,
 		AriaMem:           s.ariaMemDash,
 		PDFClient:         s.pdfClient,
-		Invites:           s.dashboardInvites,
-		WelcomeMailer:     s.welcomeMailer,
+		Invites:             s.dashboardInvites,
+		WelcomeMailer:       s.welcomeMailer,
+		PasswordSelf:        s.passwordSelf,
+		PasswordResetMailer: s.passwordResetMailer,
+		PersonalCockpit:     s.personalCockpit,
 		Redactor:          s.redactor,
 		Vault:             s.vaultDash,
 		ROI:               s.roiDash,

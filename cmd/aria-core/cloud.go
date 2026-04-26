@@ -163,6 +163,9 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	inviteAdapter := newInviteServiceAdapter(usersStore)
 	dashboardInvites := newInviteDashboardAdapter(usersStore, emailService, publicURL)
 	welcomeMailer := newWelcomeMailerAdapter(emailService, publicURL)
+	passwordSelf := newPasswordSelfAdapter(usersStore)
+	passwordResetMailer := newPasswordResetMailerAdapter(emailService, publicURL)
+	personalCockpit := newPersonalCockpitAdapter(cs)
 
 	// ROI: métricas de Return-On-Investment + hook LogSearch en /v1/memory/search.
 	roiRuntimeAdapter := newROIAdapter(cs)
@@ -257,6 +260,9 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithInviteService(inviteAdapter),
 			cloudserver.WithDashboardInvites(dashboardInvites),
 			cloudserver.WithWelcomeMailer(welcomeMailer),
+			cloudserver.WithPasswordSelf(passwordSelf),
+			cloudserver.WithPasswordResetMailer(passwordResetMailer),
+			cloudserver.WithPersonalCockpit(personalCockpit),
 			cloudserver.WithRedactor(redactorDashSvc),
 			cloudserver.WithScrubGate(redactorScrubGate),
 			cloudserver.WithPublicURL(publicURL),

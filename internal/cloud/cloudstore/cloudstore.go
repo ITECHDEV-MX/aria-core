@@ -893,8 +893,9 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_contributor_project ON cloud_sync_audit_log (contributor, project)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_outcome ON cloud_sync_audit_log (outcome)`,
 
-		// === Magic-link invites (email module) ===
+		// === Magic-link invites + password resets (email module) ===
 		// Tokens UUID directos; revocables borrando la fila o marcando used_at.
+		// type='user_invite' (default, magic-link de onboarding) o 'password_reset'.
 		`CREATE TABLE IF NOT EXISTS cloud_invites (
 			token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			email TEXT NOT NULL,
@@ -904,8 +905,16 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			used_at TIMESTAMPTZ,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		// Agregar type column si no existe (para reset password reuso)
+		`ALTER TABLE cloud_invites ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'user_invite'`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_invites_type_check') THEN
+				ALTER TABLE cloud_invites ADD CONSTRAINT cloud_invites_type_check CHECK (type IN ('user_invite','password_reset'));
+			END IF;
+		END $$`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_email ON cloud_invites(lower(email))`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_expires ON cloud_invites(expires_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_type ON cloud_invites(type, email)`,
 
 		// BEGIN CONTEXT MIGRATIONS
 		// Token budget manager + skill effectiveness telemetry.

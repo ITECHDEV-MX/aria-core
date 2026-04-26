@@ -78,6 +78,11 @@ type MountConfig struct {
 	// WelcomeMailer (opcional) — envía email de bienvenida cuando admin
 	// crea usuario manual (con password). Si nil, el usuario se crea sin notificación.
 	WelcomeMailer UserWelcomeMailer
+	// PasswordSelf (opcional) — habilita /dashboard/me/security (cambiar pwd) y
+	// /dashboard/forgot-password + /dashboard/reset-password/{token}.
+	PasswordSelf PasswordSelfService
+	// PasswordResetMailer (opcional) — envía email con magic link de reset.
+	PasswordResetMailer PasswordResetMailerService
 	// PersonalCockpit (opcional) — habilita /dashboard/me cockpit del dev.
 	PersonalCockpit PersonalCockpitService
 	// Redactor (opcional) — habilita /dashboard/audit/egress y stats.
@@ -356,6 +361,11 @@ type PDFConvertOptions struct {
 	MarginRight       float64
 	PreferCSSPageSize bool
 	PrintBackground   bool
+}
+
+// PasswordResetMailerService envía el email magic-link de reset password.
+type PasswordResetMailerService interface {
+	SendPasswordReset(ctx context.Context, email, link string) error
 }
 
 // UserWelcomeMailer es el contrato para enviar email de bienvenida al crear
@@ -788,6 +798,19 @@ type AdminUserService interface {
 	ChangePassword(ctx context.Context, uid, newPassword string) error
 }
 
+// PasswordSelfService es el contrato para self-service password change +
+// forgot-password flow. Separado de AdminUserService para mantener admin clean
+// (admin no necesita verify-with-current; agente no debe poder triggerar resets).
+type PasswordSelfService interface {
+	// VerifyAndChangePassword: dev cambia su propio password (verifica current).
+	VerifyAndChangePassword(ctx context.Context, uid, currentPassword, newPassword string) error
+	// CreatePasswordResetToken: anyone puede pedir; si email existe + active,
+	// crea token 1h y retorna found=true. Si no, found=false (anti-enumeration).
+	CreatePasswordResetToken(ctx context.Context, email string) (token string, expiresAt time.Time, found bool, err error)
+	// ConsumePasswordResetToken: aplica el reset y marca token usado. Retorna uid del user.
+	ConsumePasswordResetToken(ctx context.Context, token, newPassword string) (uid string, err error)
+}
+
 type AdminUserView struct {
 	UID       string
 	Email     string
@@ -960,6 +983,16 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	// Personal cockpit (/dashboard/me) — vista personal del dev autenticado.
 	mux.HandleFunc("GET /dashboard/me", h.requireSession(h.handlePersonalCockpit))
 	mux.HandleFunc("POST /dashboard/sessions/{id}/resume", h.requireSession(h.handleSessionResume))
+
+	// Mi cuenta · Seguridad (cambiar password self-service)
+	mux.HandleFunc("GET /dashboard/me/security", h.requireSession(h.handleAccountSecurityPage))
+	mux.HandleFunc("POST /dashboard/me/security/password", h.requireSession(h.handleAccountPasswordChange))
+
+	// Forgot/reset password (rutas públicas, sin auth)
+	mux.HandleFunc("GET /dashboard/forgot-password", h.handleForgotPasswordPage)
+	mux.HandleFunc("POST /dashboard/forgot-password", h.handleForgotPasswordSubmit)
+	mux.HandleFunc("GET /dashboard/reset-password/{token}", h.handleResetPasswordPage)
+	mux.HandleFunc("POST /dashboard/reset-password/{token}", h.handleResetPasswordSubmit)
 	mux.HandleFunc("POST /dashboard/sessions/{id}/close", h.requireSession(h.handleSessionClose))
 
 	// === Audit egress (redactor module) — admin-gated ===

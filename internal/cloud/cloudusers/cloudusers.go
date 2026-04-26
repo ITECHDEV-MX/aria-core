@@ -365,6 +365,120 @@ func (s *Store) ChangePassword(ctx context.Context, uid, newPassword string) err
 	return nil
 }
 
+// VerifyAndChangePassword verifica el password actual antes de cambiarlo.
+// Usado por self-service: el dev debe probar conocimiento del password viejo.
+// Retorna ErrInvalidCredential si el current no matchea.
+func (s *Store) VerifyAndChangePassword(ctx context.Context, uid, currentPassword, newPassword string) error {
+	if strings.TrimSpace(currentPassword) == "" {
+		return fmt.Errorf("current password required")
+	}
+	if len(newPassword) < 8 {
+		return fmt.Errorf("new password must be at least 8 characters")
+	}
+	if currentPassword == newPassword {
+		return fmt.Errorf("new password must differ from current")
+	}
+	// Cargar hash actual
+	var hash string
+	err := s.db.QueryRowContext(ctx, `SELECT password_hash FROM cloud_users WHERE uid::text = $1`, uid).Scan(&hash)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(currentPassword)); err != nil {
+		return ErrInvalidCredential
+	}
+	return s.ChangePassword(ctx, uid, newPassword)
+}
+
+// CreatePasswordResetToken crea un token magic-link tipo password_reset
+// asociado al email dado, válido 1h. Retorna (token, expiresAt, error).
+// Si no hay user con ese email, NO retorna error (anti-enumeration) pero
+// tampoco crea el token — el caller debe enviar email genérico.
+func (s *Store) CreatePasswordResetToken(ctx context.Context, email string) (token string, expiresAt time.Time, found bool, err error) {
+	email = strings.TrimSpace(strings.ToLower(email))
+	if email == "" {
+		return "", time.Time{}, false, fmt.Errorf("email is required")
+	}
+	// Verificar que el usuario existe
+	var uid string
+	err = s.db.QueryRowContext(ctx, `SELECT uid::text FROM cloud_users WHERE lower(email) = $1 AND is_active = TRUE`, email).Scan(&uid)
+	if err == sql.ErrNoRows {
+		return "", time.Time{}, false, nil
+	}
+	if err != nil {
+		return "", time.Time{}, false, err
+	}
+	// Crear token con expires=1h
+	expires := time.Now().UTC().Add(1 * time.Hour)
+	err = s.db.QueryRowContext(ctx, `
+		INSERT INTO cloud_invites (email, expires_at, type)
+		VALUES ($1, $2, 'password_reset')
+		RETURNING token::text
+	`, email, expires).Scan(&token)
+	if err != nil {
+		return "", time.Time{}, false, fmt.Errorf("create reset token: %w", err)
+	}
+	return token, expires, true, nil
+}
+
+// ConsumePasswordResetToken valida el token (no expirado, no usado, type=password_reset),
+// updatea el password del user matcheado por email, y marca el token como usado.
+func (s *Store) ConsumePasswordResetToken(ctx context.Context, token, newPassword string) (uid string, err error) {
+	if len(newPassword) < 8 {
+		return "", fmt.Errorf("password must be at least 8 characters")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	var email string
+	var expires time.Time
+	var usedAt sql.NullTime
+	var typ string
+	err = tx.QueryRowContext(ctx, `
+		SELECT email, expires_at, used_at, type FROM cloud_invites
+		WHERE token::text = $1 FOR UPDATE
+	`, token).Scan(&email, &expires, &usedAt, &typ)
+	if err == sql.ErrNoRows {
+		return "", ErrInviteNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if typ != "password_reset" {
+		return "", fmt.Errorf("invalid token type")
+	}
+	if usedAt.Valid {
+		return "", ErrInviteExpired
+	}
+	if time.Now().UTC().After(expires) {
+		return "", ErrInviteExpired
+	}
+	// Actualizar password
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), BcryptCost)
+	if err != nil {
+		return "", fmt.Errorf("hash password: %w", err)
+	}
+	if err := tx.QueryRowContext(ctx, `
+		UPDATE cloud_users SET password_hash = $1, updated_at = NOW()
+		WHERE lower(email) = $2 RETURNING uid::text
+	`, string(hash), strings.ToLower(email)).Scan(&uid); err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	// Marcar token usado
+	if _, err := tx.ExecContext(ctx, `UPDATE cloud_invites SET used_at = NOW() WHERE token::text = $1`, token); err != nil {
+		return "", err
+	}
+	return uid, tx.Commit()
+}
+
 // Count devuelve total de usuarios (útil para detectar bootstrap inicial).
 func (s *Store) Count(ctx context.Context) (int, error) {
 	var n int

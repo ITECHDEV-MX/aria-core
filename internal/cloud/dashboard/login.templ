@@ -65,6 +65,10 @@ templ LoginPage(errorMsg string, next string) {
 							<button type="submit" class="btn btn-primary btn-lg" style="width:100%">Iniciar sesión</button>
 						</form>
 
+						<p style="margin:0.75rem 0 0 0;text-align:center;font-size:0.85rem">
+							<a href="/dashboard/forgot-password" style="color:var(--muted-foreground)">¿Olvidaste tu contraseña?</a>
+						</p>
+
 						<details class="login-recovery">
 							<summary>Recuperación con token admin</summary>
 							<form method="post" action="/dashboard/login" style="margin-top:0.75rem">

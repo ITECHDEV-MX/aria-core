@@ -107,6 +107,18 @@ func (s *Service) SendInvite(ctx context.Context, ic InviteContext) error {
 	return s.send(ctx, ic.Email, "[iTechDev] Invitación a ARIA Core", "magic_link", ic, nil)
 }
 
+// PasswordResetContext es lo que usa el template password_reset.html.
+type PasswordResetContext struct {
+	Email         string
+	Link          string
+	DashboardHost string
+}
+
+// SendPasswordReset dispatches the magic-link reset password email.
+func (s *Service) SendPasswordReset(ctx context.Context, rc PasswordResetContext) error {
+	return s.send(ctx, rc.Email, "[iTechDev] Restablecer contraseña — ARIA Core", "password_reset", rc, nil)
+}
+
 // SendWelcome dispatches the welcome email when an admin creates a user with
 // a temporary password (manual-create flow, not magic-link). Includes the
 // password in clear (one-time, user must change after first login per copy
