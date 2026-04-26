@@ -50,12 +50,14 @@ func RegisterAriaCloudTools(srv *server.MCPServer, cfg AriaCloudConfig) {
 	), cli.save)
 
 	srv.AddTool(mcp.NewTool("aria_search",
-		mcp.WithDescription("Busca memorias por FTS español accent-insensitive. Filtros opcionales por project/scope/type."),
+		mcp.WithDescription("Busca memorias por FTS español accent-insensitive. Filtros opcionales por project/scope/type. Si pasás token_budget, ARIA selecciona el subset que cabe en N tokens (rerank canon-first|recent-first|effectiveness)."),
 		mcp.WithString("query", mcp.Description("Texto a buscar (vacío = listar recientes)")),
 		mcp.WithString("project", mcp.Description("Filtrar por proyecto")),
 		mcp.WithString("scope", mcp.Description("Filtrar por scope")),
 		mcp.WithString("type", mcp.Description("Filtrar por observation_type")),
 		mcp.WithString("limit", mcp.Description("Máximo resultados (default 20)")),
+		mcp.WithString("token_budget", mcp.Description("Budget en tokens para el subset retornado (default sin truncar)")),
+		mcp.WithString("strategy", mcp.Description("Estrategia de rerank: canon-first|recent-first|effectiveness (default canon-first)")),
 	), cli.search)
 
 	srv.AddTool(mcp.NewTool("aria_get",
@@ -85,12 +87,14 @@ func RegisterAriaCloudTools(srv *server.MCPServer, cfg AriaCloudConfig) {
 	), cli.recordQuality)
 
 	srv.AddTool(mcp.NewTool("aria_session_start",
-		mcp.WithDescription("Inicia una sesión trackeable. Devuelve session_id para usar en aria_save y aria_session_summary."),
+		mcp.WithDescription("Inicia una sesión trackeable. Devuelve session_id + auto_context (markdown con canon+skills+recipes+open sessions). Usar el auto_context como primer mensaje del agente."),
 		mcp.WithString("project", mcp.Description("Proyecto")),
 		mcp.WithString("directory", mcp.Description("Directorio de trabajo")),
 		mcp.WithString("goal", mcp.Description("Objetivo de la sesión")),
 		mcp.WithString("client_id", mcp.Description("UUID cliente opcional")),
 		mcp.WithString("machine_id", mcp.Description("ID de máquina (default: local)")),
+		mcp.WithString("stack", mcp.Description("Stack separado por comas (typescript,react,go) — usado para sugerir skills")),
+		mcp.WithString("token_budget", mcp.Description("Budget para auto_context (default 8000 tokens)")),
 	), cli.sessionStart)
 
 	srv.AddTool(mcp.NewTool("aria_session_summary",
@@ -113,9 +117,23 @@ func RegisterAriaCloudTools(srv *server.MCPServer, cfg AriaCloudConfig) {
 	), cli.contextStatus)
 
 	srv.AddTool(mcp.NewTool("aria_get_skills",
-		mcp.WithDescription("Skills/standards del equipo para el stack detectado."),
+		mcp.WithDescription("Skills/standards del equipo para el stack detectado. Si pasás task_description, ARIA rankea por effectiveness (Wilson lower bound) + FTS sobre el goal."),
 		mcp.WithString("stack", mcp.Description("Stack separado por comas (ej: typescript,react,go)")),
+		mcp.WithString("task_description", mcp.Description("Descripción del goal actual — habilita rerank por effectiveness")),
+		mcp.WithString("token_budget", mcp.Description("Budget en tokens para el subset retornado")),
+		mcp.WithString("limit", mcp.Description("Máximo skills (default 10)")),
+		mcp.WithString("strategy", mcp.Description("canon-first|recent-first|effectiveness")),
+		mcp.WithString("session_id", mcp.Description("Session activa — para tracking de retrieval")),
+		mcp.WithString("project", mcp.Description("Proyecto actual")),
 	), cli.getSkills)
+
+	srv.AddTool(mcp.NewTool("aria_record_skill_feedback",
+		mcp.WithDescription("Registra feedback sobre un skill recientemente retornado. Permite que ARIA aprenda qué skills funcionan para qué tareas."),
+		mcp.WithString("skill_id", mcp.Required(), mcp.Description("ID del skill")),
+		mcp.WithString("signal", mcp.Required(), mcp.Description("commit_referenced | manual_thumbs_up | manual_thumbs_down | used_in_recipe | unused")),
+		mcp.WithString("helped", mcp.Description("'true' o 'false' — sobreescribe la inferencia del signal")),
+		mcp.WithString("notes", mcp.Description("Notas opcionales")),
+	), cli.recordSkillFeedback)
 
 	srv.AddTool(mcp.NewTool("aria_get_recipes",
 		mcp.WithDescription("Workflow patterns capturados de sesiones exitosas. Filtra por descripción de tarea + stack."),
@@ -204,6 +222,8 @@ func (c *ariaClient) search(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	scope := optString(req, "scope")
 	t := optString(req, "type")
 	limit := optString(req, "limit")
+	tokenBudget := optString(req, "token_budget")
+	strategy := optString(req, "strategy")
 	path := "/v1/memory/search?"
 	if q != "" {
 		path += "q=" + url.QueryEscape(q) + "&"
@@ -219,6 +239,12 @@ func (c *ariaClient) search(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 	if limit != "" {
 		path += "limit=" + url.QueryEscape(limit) + "&"
+	}
+	if tokenBudget != "" {
+		path += "token_budget=" + url.QueryEscape(tokenBudget) + "&"
+	}
+	if strategy != "" {
+		path += "strategy=" + url.QueryEscape(strategy) + "&"
 	}
 	body, code, err := c.do(ctx, http.MethodGet, strings.TrimRight(path, "&?"), nil)
 	return mcpResultFromHTTP("aria_search", body, code, err)
@@ -294,6 +320,20 @@ func (c *ariaClient) sessionStart(ctx context.Context, req mcp.CallToolRequest) 
 		"client_id":  optString(req, "client_id"),
 		"machine_id": optString(req, "machine_id"),
 	}
+	if stack := optString(req, "stack"); stack != "" {
+		parts := []string{}
+		for _, t := range strings.Split(stack, ",") {
+			if tt := strings.TrimSpace(t); tt != "" {
+				parts = append(parts, tt)
+			}
+		}
+		payload["stack"] = parts
+	}
+	if v := optString(req, "token_budget"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			payload["token_budget"] = n
+		}
+	}
 	body, code, err := c.do(ctx, http.MethodPost, "/v1/memory/sessions/start", payload)
 	return mcpResultFromHTTP("aria_session_start", body, code, err)
 }
@@ -330,12 +370,64 @@ func (c *ariaClient) contextStatus(ctx context.Context, req mcp.CallToolRequest)
 
 func (c *ariaClient) getSkills(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	stack := optString(req, "stack")
-	path := "/v1/memory/skills"
+	taskDesc := optString(req, "task_description")
+	tokenBudget := optString(req, "token_budget")
+	limit := optString(req, "limit")
+	strategy := optString(req, "strategy")
+	sessionID := optString(req, "session_id")
+	project := optString(req, "project")
+	path := "/v1/memory/skills?"
 	if stack != "" {
-		path += "?stack=" + url.QueryEscape(stack)
+		path += "stack=" + url.QueryEscape(stack) + "&"
 	}
-	body, code, err := c.do(ctx, http.MethodGet, path, nil)
+	if taskDesc != "" {
+		path += "task_description=" + url.QueryEscape(taskDesc) + "&"
+	}
+	if tokenBudget != "" {
+		path += "token_budget=" + url.QueryEscape(tokenBudget) + "&"
+	}
+	if limit != "" {
+		path += "limit=" + url.QueryEscape(limit) + "&"
+	}
+	if strategy != "" {
+		path += "strategy=" + url.QueryEscape(strategy) + "&"
+	}
+	if sessionID != "" {
+		path += "session_id=" + url.QueryEscape(sessionID) + "&"
+	}
+	if project != "" {
+		path += "project=" + url.QueryEscape(project) + "&"
+	}
+	body, code, err := c.do(ctx, http.MethodGet, strings.TrimRight(path, "&?"), nil)
 	return mcpResultFromHTTP("aria_get_skills", body, code, err)
+}
+
+func (c *ariaClient) recordSkillFeedback(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	skillID, err := req.RequireString("skill_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	signal, err := req.RequireString("signal")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	payload := map[string]any{
+		"skill_id": skillID,
+		"signal":   signal,
+		"notes":    optString(req, "notes"),
+	}
+	if helped := optString(req, "helped"); helped != "" {
+		switch strings.ToLower(strings.TrimSpace(helped)) {
+		case "true", "1", "yes":
+			b := true
+			payload["helped"] = b
+		case "false", "0", "no":
+			b := false
+			payload["helped"] = b
+		}
+	}
+	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/memory/skills/feedback", payload)
+	return mcpResultFromHTTP("aria_record_skill_feedback", body, code, err2)
 }
 
 func (c *ariaClient) getRecipes(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
