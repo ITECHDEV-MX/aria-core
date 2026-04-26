@@ -44,18 +44,18 @@ func NavTabs(activeTab string, roles []string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = navTab("/dashboard/", "Dashboard", "dashboard", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = navTab("/dashboard/", "Inicio", "dashboard", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if hasAnyRole(roles, "admin", "dev") {
-			templ_7745c5c3_Err = navTab("/dashboard/browser", "Browser", "browser", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = navTab("/dashboard/browser", "Memorias", "browser", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if hasAnyRole(roles, "admin", "dev", "project_admin") {
-			templ_7745c5c3_Err = navTab("/dashboard/projects", "Projects", "projects", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = navTab("/dashboard/projects", "Proyectos", "projects", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -67,7 +67,7 @@ func NavTabs(activeTab string, roles []string) templ.Component {
 			}
 		}
 		if hasAnyRole(roles, "admin") {
-			templ_7745c5c3_Err = navTab("/dashboard/contributors", "Contributors", "contributors", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = navTab("/dashboard/contributors", "Colaboradores", "contributors", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -75,7 +75,7 @@ func NavTabs(activeTab string, roles []string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = navTab("/dashboard/admin", "Admin", "admin", activeTab).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = navTab("/dashboard/admin", "Administración", "admin", activeTab).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -261,7 +261,7 @@ func EmptyState(title string, message string) templ.Component {
 			templ_7745c5c3_Var11 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"empty-state\"><p class=\"section-kicker\">NO SIGNAL YET</p><h3>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div class=\"empty-state\"><p class=\"section-kicker\">SIN DATOS</p><h3>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -325,7 +325,7 @@ func PaginationBar(pg Pagination, baseURL string, extraParams map[string]string)
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var15 string
-			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d–%d of %d", pg.Start(), pg.End(), pg.TotalItems))
+			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d–%d de %d", pg.Start(), pg.End(), pg.TotalItems))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 63, Col: 100}
 			}
@@ -432,7 +432,7 @@ func PaginationBar(pg Pagination, baseURL string, extraParams map[string]string)
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div><div class=\"pagination-size\"><span class=\"pagination-size-label\">Show</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</div><div class=\"pagination-size\"><span class=\"pagination-size-label\">Mostrar</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -528,7 +528,7 @@ func HtmxPaginationBar(pg Pagination, endpoint string, target string, includes s
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var25 string
-			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d–%d of %d", pg.Start(), pg.End(), pg.TotalItems))
+			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d–%d de %d", pg.Start(), pg.End(), pg.TotalItems))
 			if templ_7745c5c3_Err != nil {
 				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 102, Col: 100}
 			}
@@ -713,7 +713,7 @@ func HtmxPaginationBar(pg Pagination, endpoint string, target string, includes s
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div><div class=\"pagination-size\"><span class=\"pagination-size-label\">Show</span> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 53, "</div><div class=\"pagination-size\"><span class=\"pagination-size-label\">Mostrar</span> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -842,7 +842,7 @@ func DashboardHome(username string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</p><h2>Welcome to Engram Cloud</h2><p class=\"hero-lead\">Your shared memory workspace is ready. Local SQLite stays authoritative, while cloud turns it into an index your team and agents can actually use.</p></div><div class=\"data-frame\" id=\"dashboard-stats\" hx-get=\"/dashboard/stats\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"htmx-indicator terminal-note\">Loading stats...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</p><h2>Bienvenido a ARIA Core</h2><p class=\"hero-lead\">Tu espacio de memoria compartida está listo. La DB SQLite local sigue siendo autoritativa, mientras la nube la convierte en un índice consultable por tu equipo y agentes.</p></div><div class=\"data-frame\" id=\"dashboard-stats\" hx-get=\"/dashboard/stats\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"htmx-indicator terminal-note\">Cargando estadísticas...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -887,7 +887,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</span> <span class=\"metric-label\">Projects Enrolled</span></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, "</span> <span class=\"metric-label\">Proyectos enrolados</span></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -932,7 +932,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = EmptyState("No Synced Projects Yet", "Project metrics will show up here after the first successful sync.").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmptyState("Sin proyectos sincronizados", "Las métricas aparecerán aquí después del primer sync exitoso.").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -950,7 +950,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</span> <span class=\"metric-label\">Sessions</span></a> <a href=\"/dashboard/browser\" class=\"metric-card stat-card-link\"><span class=\"metric-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "</span> <span class=\"metric-label\">Sesiones</span></a> <a href=\"/dashboard/browser\" class=\"metric-card stat-card-link\"><span class=\"metric-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -963,7 +963,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "</span> <span class=\"metric-label\">Observations</span></a> <a href=\"/dashboard/browser?tab=prompts\" class=\"metric-card stat-card-link\"><span class=\"metric-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "</span> <span class=\"metric-label\">Observaciones</span></a> <a href=\"/dashboard/browser?tab=prompts\" class=\"metric-card stat-card-link\"><span class=\"metric-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -989,7 +989,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</span> <span class=\"metric-label\">Projects Synced</span></a></div><div class=\"project-chip-list metric-tags\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "</span> <span class=\"metric-label\">Proyectos sincronizados</span></a></div><div class=\"project-chip-list metric-tags\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1020,7 +1020,7 @@ func DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []st
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</div><div class=\"section-header compact\"><div><p class=\"section-kicker\">LIVE INDEX</p><h3>Project Activity</h3></div></div><div class=\"browser-controls\"><input id=\"activity-search\" type=\"search\" name=\"q\" placeholder=\"Search projects...\" hx-get=\"/dashboard/activity\" hx-target=\"#activity-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"activity-content\" hx-get=\"/dashboard/activity\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#activity-search\"><p class=\"muted\">Loading...</p></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "</div><div class=\"section-header compact\"><div><p class=\"section-kicker\">ÍNDICE EN VIVO</p><h3>Actividad del proyecto</h3></div></div><div class=\"browser-controls\"><input id=\"activity-search\" type=\"search\" name=\"q\" placeholder=\"Buscar proyectos...\" hx-get=\"/dashboard/activity\" hx-target=\"#activity-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"activity-content\" hx-get=\"/dashboard/activity\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#activity-search\"><p class=\"muted\">Cargando...</p></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1053,12 +1053,12 @@ func DashboardActivityPartial(stats []cloudstore.DashboardProjectRow, pg Paginat
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(stats) == 0 {
-			templ_7745c5c3_Err = EmptyState("No Activity", "No projects match the current search.").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmptyState("Sin actividad", "Ningún proyecto coincide con la búsqueda.").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<table class=\"data-table\"><thead><tr><th>Project</th><th>Sessions</th><th>Observations</th><th>Prompts</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "<table class=\"data-table\"><thead><tr><th>Proyecto</th><th>Sesiones</th><th>Observaciones</th><th>Prompts</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1166,7 +1166,7 @@ func BrowserPage(projects []string, types []string, activeProject string, search
 			templ_7745c5c3_Var58 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<section class=\"frame-section browser-shell\"><div class=\"section-header\"><div><p class=\"section-kicker\">KNOWLEDGE BROWSER</p><h2>Knowledge Browser</h2></div></div><div class=\"browser-controls\"><select id=\"browser-project\" name=\"project\" hx-get=\"/dashboard/browser/observations\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-search, #browser-type\"><option value=\"\">All Projects</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 87, "<section class=\"frame-section browser-shell\"><div class=\"section-header\"><div><p class=\"section-kicker\">EXPLORADOR DE MEMORIAS</p><h2>Explorador de Memorias</h2></div></div><div class=\"browser-controls\"><select id=\"browser-project\" name=\"project\" hx-get=\"/dashboard/browser/observations\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-search, #browser-type\"><option value=\"\">Todos los proyectos</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1235,7 +1235,7 @@ func BrowserPage(projects []string, types []string, activeProject string, search
 				}
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "</select> <input id=\"browser-search\" type=\"search\" name=\"q\" placeholder=\"Search...\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 94, "</select> <input id=\"browser-search\" type=\"search\" name=\"q\" placeholder=\"Buscar...\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1301,7 +1301,7 @@ func BrowserPage(projects []string, types []string, activeProject string, search
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "\">All Types</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 100, "\">Todos los tipos</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1360,7 +1360,7 @@ func BrowserPage(projects []string, types []string, activeProject string, search
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<div class=\"browser-subtabs\" role=\"tablist\" id=\"browser-tabs\"><a role=\"tab\" aria-selected=\"true\" class=\"active\" hx-get=\"/dashboard/browser/observations\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Observations</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"/dashboard/browser/sessions\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Sessions</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"/dashboard/browser/prompts\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Prompts</a></div><div class=\"browser-content-frame\" id=\"browser-content\" hx-get=\"/dashboard/browser/observations\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\"><p class=\"htmx-indicator\">Loading...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<div class=\"browser-subtabs\" role=\"tablist\" id=\"browser-tabs\"><a role=\"tab\" aria-selected=\"true\" class=\"active\" hx-get=\"/dashboard/browser/observations\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Observaciones</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"/dashboard/browser/sessions\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Sesiones</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"/dashboard/browser/prompts\" hx-target=\"#browser-content\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\" hx-on::after-request=\"document.querySelectorAll('#browser-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Prompts</a></div><div class=\"browser-content-frame\" id=\"browser-content\" hx-get=\"/dashboard/browser/observations\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#browser-project, #browser-search, #browser-type\"><p class=\"htmx-indicator\">Cargando...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1528,7 +1528,7 @@ func SessionsPartial(sessions []cloudstore.DashboardSessionRow, pg Pagination) t
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "<div class=\"table-scroll\"><table class=\"data-table\"><thead><tr><th>Project</th><th>Started</th><th>Ended</th><th>Summary</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 116, "<div class=\"table-scroll\"><table class=\"data-table\"><thead><tr><th>Proyecto</th><th>Iniciado</th><th>Terminó</th><th>Summary</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1772,7 +1772,7 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 			templ_7745c5c3_Var90 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">PROMPT DETAIL</p><h2>Prompt Detail</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">DETALLE PROMPT</p><h2>Detalle Prompt</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1782,7 +1782,7 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "<div class=\"data-frame observation-detail-body\"><table class=\"data-table\"><tbody><tr><th>Chunk ID</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 134, "<div class=\"data-frame observation-detail-body\"><table class=\"data-table\"><tbody><tr><th>ID Chunk</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1795,7 +1795,7 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "</td></tr><tr><th>Session</th><td><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 135, "</td></tr><tr><th>Sesión</th><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1821,33 +1821,33 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "</a></td></tr><tr><th>Project</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "</a></td></tr><tr><th>Proyecto</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var94 string
 			templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(prompt.Project)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 446, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 446, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 138, "</td></tr><tr><th>Created</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 138, "</td></tr><tr><th>Creado</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var95 string
 			templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(formatTimestamp(prompt.CreatedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 447, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 447, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "</td></tr></tbody></table><div class=\"observation-content-block\"><p class=\"section-kicker\">CONTENT</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 139, "</td></tr></tbody></table><div class=\"observation-content-block\"><p class=\"section-kicker\">CONTENIDO</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1860,7 +1860,7 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 				return templ_7745c5c3_Err
 			}
 			if session != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "<div class=\"data-frame linked-session-panel\"><p class=\"section-kicker\">LINKED SESSION</p><h3><a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, "<div class=\"data-frame linked-session-panel\"><p class=\"section-kicker\">SESIÓN VINCULADA</p><h3><a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1909,7 +1909,7 @@ func PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstore
 				return templ_7745c5c3_Err
 			}
 			if len(related) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 146, "<h3 class=\"section-block-title\">Other Prompts from this Session</h3>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 146, "<h3 class=\"section-block-title\">Otros prompts de esta sesión</h3>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1951,7 +1951,7 @@ func ProjectsPage(search string) templ.Component {
 			templ_7745c5c3_Var99 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">PROJECT ATLAS</p><h2>Projects</h2></div></div><div class=\"browser-controls\"><input id=\"project-search\" type=\"search\" name=\"q\" placeholder=\"Search projects...\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 148, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ATLAS PROYECTOS</p><h2>Proyectos</h2></div></div><div class=\"browser-controls\"><input id=\"project-search\" type=\"search\" name=\"q\" placeholder=\"Buscar proyectos...\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1964,7 +1964,7 @@ func ProjectsPage(search string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 149, "\" hx-get=\"/dashboard/projects/list\" hx-target=\"#projects-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"projects-content\" hx-get=\"/dashboard/projects/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#project-search\"><p class=\"muted\">Loading...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 149, "\" hx-get=\"/dashboard/projects/list\" hx-target=\"#projects-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"projects-content\" hx-get=\"/dashboard/projects/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#project-search\"><p class=\"muted\">Cargando...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1997,7 +1997,7 @@ func ProjectsListPartial(stats []cloudstore.DashboardProjectRow, controls map[st
 		}
 		ctx = templ.ClearChildren(ctx)
 		if len(stats) == 0 {
-			templ_7745c5c3_Err = EmptyState("No Projects", "No projects match the current search.").Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = EmptyState("Sin proyectos", "Ningún proyecto coincide con la búsqueda.").Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2056,7 +2056,7 @@ func ProjectsListPartial(stats []cloudstore.DashboardProjectRow, controls map[st
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 155, "</span> <span class=\"stat-label\">Sessions</span></div><div class=\"stat\"><span class=\"stat-value\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 155, "</span> <span class=\"stat-label\">Sesiones</span></div><div class=\"stat\"><span class=\"stat-value\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2069,7 +2069,7 @@ func ProjectsListPartial(stats []cloudstore.DashboardProjectRow, controls map[st
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 156, "</span> <span class=\"stat-label\">Observations</span></div><div class=\"stat\"><span class=\"stat-value\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 156, "</span> <span class=\"stat-label\">Observaciones</span></div><div class=\"stat\"><span class=\"stat-value\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2146,14 +2146,14 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 			templ_7745c5c3_Var108 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">PROJECT DETAIL</p><h2><a href=\"/dashboard/projects\">Projects</a> / ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 162, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">DETALLE PROYECTO</p><h2><a href=\"/dashboard/projects\">Proyectos</a> / ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var109 string
 		templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(project)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 556, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 556, Col: 60}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 		if templ_7745c5c3_Err != nil {
@@ -2181,7 +2181,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 			return templ_7745c5c3_Err
 		}
 		if control != nil && !control.SyncEnabled {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "<div class=\"data-frame policy-note danger-note\"><p class=\"section-kicker\">ORG POLICY</p><p>This project is paused by organization policy in the cloud control plane.</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 165, "<div class=\"data-frame policy-note danger-note\"><p class=\"section-kicker\">POLÍTICA ORG</p><p>This project is paused by organization policy in the cloud control plane.</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2261,7 +2261,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 174, "</span> <span class=\"stat-label\">Sessions</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 174, "</span> <span class=\"stat-label\">Sesiones</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2274,7 +2274,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 175, "</span> <span class=\"stat-label\">Observations</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 175, "</span> <span class=\"stat-label\">Observaciones</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2305,7 +2305,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 178, "\" hx-target=\"#project-content\" hx-swap=\"innerHTML\" hx-on::after-request=\"document.querySelectorAll('#project-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Observations</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 178, "\" hx-target=\"#project-content\" hx-swap=\"innerHTML\" hx-on::after-request=\"document.querySelectorAll('#project-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Observaciones</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2318,7 +2318,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "\" hx-target=\"#project-content\" hx-swap=\"innerHTML\" hx-on::after-request=\"document.querySelectorAll('#project-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Sessions</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 179, "\" hx-target=\"#project-content\" hx-swap=\"innerHTML\" hx-on::after-request=\"document.querySelectorAll('#project-tabs [role=tab]').forEach(t=>t.classList.remove('active'));this.classList.add('active')\">Sesiones</a> <a role=\"tab\" aria-selected=\"false\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2344,7 +2344,7 @@ func ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, co
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 181, "\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"muted\">Loading...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 181, "\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"muted\">Cargando...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2386,7 +2386,7 @@ func ContributorsListPartial(contributors []cloudstore.DashboardContributorRow, 
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 182, "<table class=\"data-table\"><thead><tr><th>Contributor</th><th>Chunks</th><th>Projects</th><th>Last Chunk</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 182, "<table class=\"data-table\"><thead><tr><th>Colaborador</th><th>Chunks</th><th>Proyectos</th><th>Último chunk</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2498,7 +2498,7 @@ func ContributorsPage(search string) templ.Component {
 			templ_7745c5c3_Var126 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 190, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">CONTRIBUTOR SIGNAL</p><h2>Contributors</h2></div></div><div class=\"browser-controls\"><input id=\"contributor-search\" type=\"search\" name=\"q\" placeholder=\"Search contributors...\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 190, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">COLABORADORES</p><h2>Colaboradores</h2></div></div><div class=\"browser-controls\"><input id=\"contributor-search\" type=\"search\" name=\"q\" placeholder=\"Buscar colaboradores...\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2511,7 +2511,7 @@ func ContributorsPage(search string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "\" hx-get=\"/dashboard/contributors/list\" hx-target=\"#contributors-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"contributors-content\" hx-get=\"/dashboard/contributors/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#contributor-search\"><p class=\"muted\">Loading...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 191, "\" hx-get=\"/dashboard/contributors/list\" hx-target=\"#contributors-content\" hx-swap=\"innerHTML\" hx-trigger=\"keyup changed delay:300ms\"></div><div id=\"contributors-content\" hx-get=\"/dashboard/contributors/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\" hx-include=\"#contributor-search\"><p class=\"muted\">Cargando...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2543,7 +2543,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 			templ_7745c5c3_Var128 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 192, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">CONTRIBUTOR DETAIL</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 192, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">DETALLE COLABORADOR</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2566,7 +2566,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 195, "<h2>Contributor</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 195, "<h2>Colaborador</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2633,7 +2633,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 201, "</span><span class=\"stat-label\">Projects</span></a><div class=\"stat-card\"><span class=\"stat-value stat-copy\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 201, "</span><span class=\"stat-label\">Proyectos</span></a><div class=\"stat-card\"><span class=\"stat-value stat-copy\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2646,7 +2646,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 202, "</span><span class=\"stat-label\">Last Chunk</span></div></div><h3 class=\"section-block-title\">Recent Sessions</h3>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 202, "</span><span class=\"stat-label\">Último chunk</span></div></div><h3 class=\"section-block-title\">Sesiones recientes</h3>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2654,7 +2654,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 203, " <h3 class=\"section-block-title\">Recent Observations</h3>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 203, " <h3 class=\"section-block-title\">Observaciones recientes</h3>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2662,7 +2662,7 @@ func ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 204, " <h3 class=\"section-block-title\">Recent Prompts</h3>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 204, " <h3 class=\"section-block-title\">Prompts recientes</h3>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2709,23 +2709,23 @@ func adminNav(active string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if active == "overview" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 207, "<a href=\"/dashboard/admin\" class=\"active\">Overview</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 207, "<a href=\"/dashboard/admin\" class=\"active\">Resumen</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, "<a href=\"/dashboard/admin\">Overview</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 208, "<a href=\"/dashboard/admin\">Resumen</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if active == "projects" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 209, "<a href=\"/dashboard/admin/projects\" class=\"active\">Projects</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 209, "<a href=\"/dashboard/admin/projects\" class=\"active\">Proyectos</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 210, "<a href=\"/dashboard/admin/projects\">Projects</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 210, "<a href=\"/dashboard/admin/projects\">Proyectos</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2742,23 +2742,23 @@ func adminNav(active string) templ.Component {
 			}
 		}
 		if active == "health" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 213, "<a href=\"/dashboard/admin/health\" class=\"active\">System Health</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 213, "<a href=\"/dashboard/admin/health\" class=\"active\">Salud del Sistema</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 214, "<a href=\"/dashboard/admin/health\">System Health</a> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 214, "<a href=\"/dashboard/admin/health\">Salud del Sistema</a> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if active == "audit-log" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 215, "<a href=\"/dashboard/admin/audit-log\" class=\"active\">Audit Log</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 215, "<a href=\"/dashboard/admin/audit-log\" class=\"active\">Bitácora de Auditoría</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 216, "<a href=\"/dashboard/admin/audit-log\">Audit Log</a>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 216, "<a href=\"/dashboard/admin/audit-log\">Bitácora de Auditoría</a>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2794,7 +2794,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			templ_7745c5c3_Var136 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 218, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMIN SURFACE</p><h2>Admin Overview</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 218, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMINISTRACIÓN</p><h2>Resumen Administración</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2818,7 +2818,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 220, "</span> <span class=\"stat-label\">Database</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 220, "</span> <span class=\"stat-label\">Base de datos</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2831,7 +2831,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 221, "</span> <span class=\"stat-label\">Contributors</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 221, "</span> <span class=\"stat-label\">Colaboradores</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2844,7 +2844,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 222, "</span> <span class=\"stat-label\">Sessions</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 222, "</span> <span class=\"stat-label\">Sesiones</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2857,7 +2857,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 223, "</span> <span class=\"stat-label\">Observations</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 223, "</span> <span class=\"stat-label\">Observaciones</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2883,7 +2883,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 225, "</span> <span class=\"stat-label\">Projects</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 225, "</span> <span class=\"stat-label\">Proyectos</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2896,7 +2896,7 @@ func AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.P
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 226, "</span> <span class=\"stat-label\">Paused Projects</span></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 226, "</span> <span class=\"stat-label\">Proyectos pausados</span></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2932,7 +2932,7 @@ func AdminProjectsPage(controls []cloudstore.ProjectSyncControl) templ.Component
 			templ_7745c5c3_Var143 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 228, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMIN SURFACE</p><h2>Project Controls</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 228, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMINISTRACIÓN</p><h2>Controles de proyecto</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -2946,7 +2946,7 @@ func AdminProjectsPage(controls []cloudstore.ProjectSyncControl) templ.Component
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 229, "<table class=\"data-table\"><thead><tr><th>Project</th><th>Sync</th><th>Reason</th><th>Updated By</th><th>Updated</th><th>Action</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 229, "<table class=\"data-table\"><thead><tr><th>Proyecto</th><th>Sync</th><th>Razón</th><th>Actualizado por</th><th>Actualizado</th><th>Acción</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3012,7 +3012,7 @@ func AdminProjectsPage(controls []cloudstore.ProjectSyncControl) templ.Component
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 235, "<span class=\"muted\">No reason provided</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 235, "<span class=\"muted\">Sin razón proporcionada</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -3052,7 +3052,7 @@ func AdminProjectsPage(controls []cloudstore.ProjectSyncControl) templ.Component
 						return templ_7745c5c3_Err
 					}
 				} else {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 239, "<span class=\"muted\">Default</span>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 239, "<span class=\"muted\">Por defecto</span>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -3487,7 +3487,7 @@ func AdminUsersPage() templ.Component {
 			templ_7745c5c3_Var171 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 276, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMIN SURFACE</p><h2>Usuarios</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 276, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMINISTRACIÓN</p><h2>Usuarios</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3531,7 +3531,7 @@ func AdminUsersPage() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 281, "</fieldset><label>Password (≥8) <input type=\"password\" name=\"password\" required minlength=\"8\"></label> <button type=\"submit\" class=\"shell-button\">Crear</button></form><div id=\"admin-users-feedback\" class=\"muted\" style=\"margin-top:0.5rem\"></div><h3 class=\"section-block-title\">Lista de usuarios</h3><div id=\"admin-users-content\" hx-get=\"/dashboard/admin/users/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"muted\">Loading...</p></div></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 281, "</fieldset><label>Password (≥8) <input type=\"password\" name=\"password\" required minlength=\"8\"></label> <button type=\"submit\" class=\"shell-button\">Crear</button></form><div id=\"admin-users-feedback\" class=\"muted\" style=\"margin-top:0.5rem\"></div><h3 class=\"section-block-title\">Lista de usuarios</h3><div id=\"admin-users-content\" hx-get=\"/dashboard/admin/users/list\" hx-trigger=\"load\" hx-swap=\"innerHTML\"><p class=\"muted\">Cargando...</p></div></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3562,7 +3562,7 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 			templ_7745c5c3_Var174 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 282, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMIN SURFACE</p><h2>Admin Health</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 282, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMINISTRACIÓN</p><h2>Salud del sistema</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3570,12 +3570,12 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 283, "<h3 class=\"section-block-title\">System Health</h3>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 283, "<h3 class=\"section-block-title\">Salud del Sistema</h3>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if health != nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 284, "<table class=\"data-table\"><tbody><tr><th>Database</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 284, "<table class=\"data-table\"><tbody><tr><th>Base de datos</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3590,7 +3590,7 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 285, "</td></tr><tr><th>Projects</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 285, "</td></tr><tr><th>Proyectos</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3603,7 +3603,7 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 286, "</td></tr><tr><th>Contributors</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 286, "</td></tr><tr><th>Colaboradores</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3616,7 +3616,7 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 287, "</td></tr><tr><th>Sessions</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 287, "</td></tr><tr><th>Sesiones</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3629,7 +3629,7 @@ func AdminHealthPage(health *cloudstore.DashboardSystemHealth) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 288, "</td></tr><tr><th>Observations</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 288, "</td></tr><tr><th>Observaciones</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3867,7 +3867,7 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 306, "<h2>Session</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 306, "<h2>Sesión</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3895,7 +3895,7 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 309, "</span> <span class=\"stat-label\">Observations</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 309, "</span> <span class=\"stat-label\">Observaciones</span></div><div class=\"stat-card\"><span class=\"stat-value\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3921,7 +3921,7 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 311, "</span> <span class=\"stat-label\">Started</span></div></div><div class=\"data-frame session-meta\"><table><tbody><tr><th>Session ID</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 311, "</span> <span class=\"stat-label\">Iniciado</span></div></div><div class=\"data-frame session-meta\"><table><tbody><tr><th>ID Sesión</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3934,14 +3934,14 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 312, "</td></tr><tr><th>Project</th><td><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 312, "</td></tr><tr><th>Proyecto</th><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var193 templ.SafeURL
 			templ_7745c5c3_Var193, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/projects/" + url.PathEscape(session.Project)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1115, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1115, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var193))
 			if templ_7745c5c3_Err != nil {
@@ -3954,39 +3954,39 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 			var templ_7745c5c3_Var194 string
 			templ_7745c5c3_Var194, templ_7745c5c3_Err = templ.JoinStringErrs(session.Project)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1115, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1115, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var194))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 314, "</a></td></tr><tr><th>Directory</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 314, "</a></td></tr><tr><th>Directorio</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var195 string
 			templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs(session.Directory)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1116, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1116, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 315, "</td></tr><tr><th>Started</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 315, "</td></tr><tr><th>Iniciado</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var196 string
 			templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(formatTimestamp(session.StartedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1117, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1117, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 316, "</td></tr><tr><th>Ended</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 316, "</td></tr><tr><th>Terminó</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4026,7 +4026,7 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 319, "</td></tr></tbody></table></div><h3 class=\"section-block-title\">Observations in this Session</h3>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 319, "</td></tr></tbody></table></div><h3 class=\"section-block-title\">Observaciones en esta sesión</h3>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4034,7 +4034,7 @@ func SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 320, " <h3 class=\"section-block-title\">Prompts in this Session</h3>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 320, " <h3 class=\"section-block-title\">Prompts en esta sesión</h3>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4074,7 +4074,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 			templ_7745c5c3_Var199 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 322, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">OBSERVATION DETAIL</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 322, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">DETALLE OBSERVACIÓN</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -4097,7 +4097,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 325, "<h2>Observation</h2>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 325, "<h2>Observación</h2>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4124,7 +4124,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 328, "</div><div class=\"data-frame observation-detail-body\"><table><tbody><tr><th>Chunk ID</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 328, "</div><div class=\"data-frame observation-detail-body\"><table><tbody><tr><th>ID Chunk</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4137,7 +4137,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 329, "</td></tr><tr><th>Session</th><td><a href=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 329, "</td></tr><tr><th>Sesión</th><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4163,20 +4163,20 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 331, "</a></td></tr><tr><th>Created</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 331, "</a></td></tr><tr><th>Creado</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var204 string
 			templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(formatTimestamp(observation.CreatedAt))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1175, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/components.templ`, Line: 1175, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 332, "</td></tr><tr><th>Tool</th><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 332, "</td></tr><tr><th>Herramienta</th><td>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4211,12 +4211,12 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 335, "<span class=\"muted\">None</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 335, "<span class=\"muted\">Ninguno</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 336, "</td></tr></tbody></table><div class=\"observation-content-block\"><p class=\"section-kicker\">CONTENT</p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 336, "</td></tr></tbody></table><div class=\"observation-content-block\"><p class=\"section-kicker\">CONTENIDO</p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4229,7 +4229,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 				return templ_7745c5c3_Err
 			}
 			if session != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 338, "<div class=\"data-frame linked-session-panel\"><p class=\"section-kicker\">LINKED SESSION</p><h3><a href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 338, "<div class=\"data-frame linked-session-panel\"><p class=\"section-kicker\">SESIÓN VINCULADA</p><h3><a href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -4301,7 +4301,7 @@ func ObservationDetailPage(observation *cloudstore.DashboardObservationRow, sess
 				return templ_7745c5c3_Err
 			}
 			if len(related) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 346, "<h3 class=\"section-block-title\">More from this Session</h3>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 346, "<h3 class=\"section-block-title\">Más de esta sesión</h3>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -4346,7 +4346,7 @@ func AdminAuditLogPage(displayName string, filter cloudstore.AuditFilter) templ.
 			templ_7745c5c3_Var211 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 348, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMIN SURFACE</p><h2>Audit Log</h2></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 348, "<section class=\"frame-section\"><div class=\"section-header\"><div><p class=\"section-kicker\">ADMINISTRACIÓN</p><h2>Bitácora de Auditoría</h2></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -4423,7 +4423,7 @@ func AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Paginat
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "\"> <select id=\"audit-outcome\" name=\"outcome\"><option value=\"\">All Outcomes</option> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "\"> <select id=\"audit-outcome\" name=\"outcome\"><option value=\"\">Todos los resultados</option> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -4490,7 +4490,7 @@ func AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Paginat
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 360, "\"> <button type=\"submit\">Filter</button></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 360, "\"> <button type=\"submit\">Filtrar</button></form>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -4500,7 +4500,7 @@ func AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Paginat
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 361, "<table class=\"data-table\"><thead><tr><th>Time</th><th>Contributor</th><th>Project</th><th>Action</th><th>Outcome</th><th>Entries</th><th>Reason</th></tr></thead> <tbody>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 361, "<table class=\"data-table\"><thead><tr><th>Time</th><th>Colaborador</th><th>Proyecto</th><th>Acción</th><th>Resultado</th><th>Entradas</th><th>Razón</th></tr></thead> <tbody>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

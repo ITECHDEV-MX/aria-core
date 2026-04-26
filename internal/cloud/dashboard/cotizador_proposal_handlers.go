@@ -147,6 +147,28 @@ func (h *handlers) handleCotizadorQuoteSectionUpsert(w http.ResponseWriter, r *h
 	http.Redirect(w, r, "/dashboard/cotizador/quotes/"+quoteID+"/edit-header", http.StatusSeeOther)
 }
 
+func (h *handlers) handleCotizadorQuoteApplyTemplate(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.Cotizador == nil {
+		http.Error(w, "cotizador module not configured", http.StatusServiceUnavailable)
+		return
+	}
+	quoteID := r.PathValue("quoteID")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	templateKey := strings.TrimSpace(r.PostForm.Get("template_key"))
+	if templateKey == "" {
+		http.Error(w, "template_key requerido", http.StatusBadRequest)
+		return
+	}
+	if err := h.cfg.Cotizador.ApplyTemplate(r.Context(), quoteID, templateKey); err != nil {
+		http.Error(w, fmt.Sprintf("aplicar plantilla: %v", err), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/dashboard/cotizador/quotes/"+quoteID+"/edit-header", http.StatusSeeOther)
+}
+
 func (h *handlers) handleCotizadorQuoteSectionDelete(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.Cotizador == nil {
 		http.Error(w, "cotizador module not configured", http.StatusServiceUnavailable)

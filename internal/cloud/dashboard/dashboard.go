@@ -106,6 +106,20 @@ type CotizadorService interface {
 	UpsertSection(ctx context.Context, quoteID, key, title, contentMD string, sortOrder int) error
 	DeleteSection(ctx context.Context, quoteID, key string) error
 	UpdateProposalHeader(ctx context.Context, quoteID string, p UpdateProposalHeaderInput) error
+	// Templates (commit 9)
+	ListTemplates() []CotizadorTemplateView
+	ApplyTemplate(ctx context.Context, quoteID, templateKey string) error
+}
+
+type CotizadorTemplateView struct {
+	Key             string
+	Name            string
+	Description     string
+	ProposalType    string
+	DefaultProduct  string
+	DefaultSubtitle string
+	DefaultTags     []string
+	SectionCount    int
 }
 
 type CotizadorClientView struct {
@@ -475,6 +489,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/header", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteUpdateHeader))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/upsert", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionUpsert))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/{key}/delete", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionDelete))
+	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/apply-template", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteApplyTemplate))
 }
 
 func Handler() http.Handler {

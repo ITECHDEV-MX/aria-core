@@ -709,6 +709,12 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		 GENERATED ALWAYS AS (to_tsvector('spanish', coalesce(text,''))) STORED`,
 		`DROP INDEX IF EXISTS idx_cotizador_lessons_fts`,
 		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_fts ON cotizador_lessons USING GIN (text_tsv)`,
+
+		// Accent-insensitive helpers (ARIA Core busca con/sin acentos).
+		// La extensión unaccent existe en Postgres core. Usamos function helper
+		// porque to_tsvector con un text-search config custom requiere superuser.
+		// La búsqueda hace unaccent(query) AND to_tsvector(spanish, unaccent(text)).
+		`CREATE EXTENSION IF NOT EXISTS unaccent`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

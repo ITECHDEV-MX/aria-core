@@ -187,7 +187,7 @@ templ DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []s
 			</a>
 			<a href="/dashboard/projects" class="metric-card stat-card-link">
 				<span class="metric-value">{ fmt.Sprint(len(stats)) }</span>
-				<span class="metric-label">Projects Synced</span>
+				<span class="metric-label">Proyectos sincronizados</span>
 			</a>
 		</div>
 		<div class="project-chip-list metric-tags">
@@ -202,8 +202,8 @@ templ DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []s
 		</div>
 		<div class="section-header compact">
 			<div>
-				<p class="section-kicker">LIVE INDEX</p>
-				<h3>Project Activity</h3>
+				<p class="section-kicker">ÍNDICE EN VIVO</p>
+				<h3>Actividad del proyecto</h3>
 			</div>
 		</div>
 		<div class="browser-controls">
@@ -266,8 +266,8 @@ templ BrowserPage(projects []string, types []string, activeProject string, searc
 	<section class="frame-section browser-shell">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">KNOWLEDGE BROWSER</p>
-				<h2>Knowledge Browser</h2>
+				<p class="section-kicker">EXPLORADOR DE MEMORIAS</p>
+				<h2>Explorador de Memorias</h2>
 			</div>
 		</div>
 		<div class="browser-controls">
@@ -297,7 +297,7 @@ templ BrowserPage(projects []string, types []string, activeProject string, searc
 		<input type="hidden" id="browser-type" name="type" value={ activeType }/>
 		if len(types) > 0 {
 			<div class="filter-strip">
-				<a href={ templ.SafeURL(browserURL(activeProject, search, "")) } class={ typePillClass(activeType, "") }>All Types</a>
+				<a href={ templ.SafeURL(browserURL(activeProject, search, "")) } class={ typePillClass(activeType, "") }>Todos los tipos</a>
 				for _, obsType := range types {
 					<a href={ templ.SafeURL(browserURL(activeProject, search, obsType)) } class={ typePillClass(activeType, obsType) }>{ obsType }</a>
 				}
@@ -370,8 +370,8 @@ templ SessionsPartial(sessions []cloudstore.DashboardSessionRow, pg Pagination) 
 				<thead>
 					<tr>
 						<th>Proyecto</th>
-						<th>Started</th>
-						<th>Ended</th>
+						<th>Iniciado</th>
+						<th>Terminó</th>
 						<th>Summary</th>
 					</tr>
 				</thead>
@@ -431,8 +431,8 @@ templ PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstor
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">PROMPT DETAIL</p>
-				<h2>Prompt Detail</h2>
+				<p class="section-kicker">DETALLE PROMPT</p>
+				<h2>Detalle Prompt</h2>
 			</div>
 		</div>
 		if prompt == nil {
@@ -441,26 +441,26 @@ templ PromptDetailPage(prompt *cloudstore.DashboardPromptRow, session *cloudstor
 			<div class="data-frame observation-detail-body">
 				<table class="data-table">
 					<tbody>
-						<tr><th>Chunk ID</th><td>{ prompt.ChunkID }</td></tr>
-						<tr><th>Session</th><td><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(prompt.Project) + "/" + url.PathEscape(prompt.SessionID)) }>{ prompt.SessionID }</a></td></tr>
+						<tr><th>ID Chunk</th><td>{ prompt.ChunkID }</td></tr>
+						<tr><th>Sesión</th><td><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(prompt.Project) + "/" + url.PathEscape(prompt.SessionID)) }>{ prompt.SessionID }</a></td></tr>
 						<tr><th>Proyecto</th><td>{ prompt.Project }</td></tr>
 						<tr><th>Creado</th><td>{ formatTimestamp(prompt.CreatedAt) }</td></tr>
 					</tbody>
 				</table>
 				<div class="observation-content-block">
-					<p class="section-kicker">CONTENT</p>
+					<p class="section-kicker">CONTENIDO</p>
 					@templ.Raw(renderStructuredContent(prompt.Content))
 				</div>
 			</div>
 			if session != nil {
 				<div class="data-frame linked-session-panel">
-					<p class="section-kicker">LINKED SESSION</p>
+					<p class="section-kicker">SESIÓN VINCULADA</p>
 					<h3><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(session.Project) + "/" + url.PathEscape(session.SessionID)) }>{ session.Project }</a></h3>
 					<p class="muted">Started { formatTimestamp(session.StartedAt) }</p>
 				</div>
 			}
 			if len(related) > 0 {
-				<h3 class="section-block-title">Other Prompts from this Session</h3>
+				<h3 class="section-block-title">Otros prompts de esta sesión</h3>
 				@PromptsPartial(related, Pagination{})
 			}
 		}
@@ -474,8 +474,8 @@ templ ProjectsPage(search string) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">PROJECT ATLAS</p>
-				<h2>Projects</h2>
+				<p class="section-kicker">ATLAS PROYECTOS</p>
+				<h2>Proyectos</h2>
 			</div>
 		</div>
 		<div class="browser-controls">
@@ -551,9 +551,9 @@ templ ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, c
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">PROJECT DETAIL</p>
+				<p class="section-kicker">DETALLE PROYECTO</p>
 				<h2>
-					<a href="/dashboard/projects">Projects</a> / { project }
+					<a href="/dashboard/projects">Proyectos</a> / { project }
 				</h2>
 			</div>
 			if control != nil {
@@ -566,7 +566,7 @@ templ ProjectDetailPage(project string, stats *cloudstore.DashboardProjectRow, c
 		</div>
 		if control != nil && !control.SyncEnabled {
 			<div class="data-frame policy-note danger-note">
-				<p class="section-kicker">ORG POLICY</p>
+				<p class="section-kicker">POLÍTICA ORG</p>
 				<p>This project is paused by organization policy in the cloud control plane.</p>
 				if control.PausedReason != nil {
 					<p><strong>Reason:</strong> { *control.PausedReason }</p>
@@ -635,10 +635,10 @@ templ ContributorsListPartial(contributors []cloudstore.DashboardContributorRow,
 		<table class="data-table">
 			<thead>
 				<tr>
-					<th>Contributor</th>
+					<th>Colaborador</th>
 					<th>Chunks</th>
-					<th>Projects</th>
-					<th>Last Chunk</th>
+					<th>Proyectos</th>
+					<th>Último chunk</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -663,8 +663,8 @@ templ ContributorsPage(search string) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">CONTRIBUTOR SIGNAL</p>
-				<h2>Contributors</h2>
+				<p class="section-kicker">COLABORADORES</p>
+				<h2>Colaboradores</h2>
 			</div>
 		</div>
 		<div class="browser-controls">
@@ -697,11 +697,11 @@ templ ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, ses
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">CONTRIBUTOR DETAIL</p>
+				<p class="section-kicker">DETALLE COLABORADOR</p>
 				if contributor != nil {
 					<h2>{ contributor.CreatedBy }</h2>
 				} else {
-					<h2>Contributor</h2>
+					<h2>Colaborador</h2>
 				}
 			</div>
 		</div>
@@ -710,14 +710,14 @@ templ ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, ses
 		} else {
 			<div class="dashboard-grid">
 				<a href={ templ.SafeURL("/dashboard/browser?q=" + url.QueryEscape(contributor.CreatedBy)) } class="stat-card stat-card-link"><span class="stat-value">{ fmt.Sprint(contributor.Chunks) }</span><span class="stat-label">Chunks</span></a>
-				<a href={ templ.SafeURL("/dashboard/projects?q=" + url.QueryEscape(contributor.CreatedBy)) } class="stat-card stat-card-link"><span class="stat-value">{ fmt.Sprint(contributor.Projects) }</span><span class="stat-label">Projects</span></a>
-				<div class="stat-card"><span class="stat-value stat-copy">{ formatTimestampStr(contributor.LastChunkAt) }</span><span class="stat-label">Last Chunk</span></div>
+				<a href={ templ.SafeURL("/dashboard/projects?q=" + url.QueryEscape(contributor.CreatedBy)) } class="stat-card stat-card-link"><span class="stat-value">{ fmt.Sprint(contributor.Projects) }</span><span class="stat-label">Proyectos</span></a>
+				<div class="stat-card"><span class="stat-value stat-copy">{ formatTimestampStr(contributor.LastChunkAt) }</span><span class="stat-label">Último chunk</span></div>
 			</div>
-			<h3 class="section-block-title">Recent Sessions</h3>
+			<h3 class="section-block-title">Sesiones recientes</h3>
 			@SessionsPartial(sessions, Pagination{})
-			<h3 class="section-block-title">Recent Observations</h3>
+			<h3 class="section-block-title">Observaciones recientes</h3>
 			@ObservationsPartial(observations, Pagination{})
-			<h3 class="section-block-title">Recent Prompts</h3>
+			<h3 class="section-block-title">Prompts recientes</h3>
 			@PromptsPartial(prompts, Pagination{})
 		}
 	</section>
@@ -730,14 +730,14 @@ templ ContributorDetailPage(contributor *cloudstore.DashboardContributorRow, ses
 templ adminNav(active string) {
 	<div class="admin-nav">
 		if active == "overview" {
-			<a href="/dashboard/admin" class="active">Overview</a>
+			<a href="/dashboard/admin" class="active">Resumen</a>
 		} else {
-			<a href="/dashboard/admin">Overview</a>
+			<a href="/dashboard/admin">Resumen</a>
 		}
 		if active == "projects" {
-			<a href="/dashboard/admin/projects" class="active">Projects</a>
+			<a href="/dashboard/admin/projects" class="active">Proyectos</a>
 		} else {
-			<a href="/dashboard/admin/projects">Projects</a>
+			<a href="/dashboard/admin/projects">Proyectos</a>
 		}
 		if active == "users" {
 			<a href="/dashboard/admin/users" class="active">Users</a>
@@ -745,14 +745,14 @@ templ adminNav(active string) {
 			<a href="/dashboard/admin/users">Users</a>
 		}
 		if active == "health" {
-			<a href="/dashboard/admin/health" class="active">System Health</a>
+			<a href="/dashboard/admin/health" class="active">Salud del Sistema</a>
 		} else {
-			<a href="/dashboard/admin/health">System Health</a>
+			<a href="/dashboard/admin/health">Salud del Sistema</a>
 		}
 		if active == "audit-log" {
-			<a href="/dashboard/admin/audit-log" class="active">Audit Log</a>
+			<a href="/dashboard/admin/audit-log" class="active">Bitácora de Auditoría</a>
 		} else {
-			<a href="/dashboard/admin/audit-log">Audit Log</a>
+			<a href="/dashboard/admin/audit-log">Bitácora de Auditoría</a>
 		}
 	</div>
 }
@@ -763,8 +763,8 @@ templ AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">ADMIN SURFACE</p>
-				<h2>Admin Overview</h2>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>Resumen Administración</h2>
 			</div>
 		</div>
 		@adminNav("overview")
@@ -778,11 +778,11 @@ templ AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.
 							@StatusBadge("Disconnected", "danger")
 						}
 					</span>
-					<span class="stat-label">Database</span>
+					<span class="stat-label">Base de datos</span>
 				</div>
 				<div class="stat-card">
 					<span class="stat-value">{ fmt.Sprint(health.Contributors) }</span>
-					<span class="stat-label">Contributors</span>
+					<span class="stat-label">Colaboradores</span>
 				</div>
 				<div class="stat-card">
 					<span class="stat-value">{ fmt.Sprint(health.Sessions) }</span>
@@ -798,11 +798,11 @@ templ AdminPage(health *cloudstore.DashboardSystemHealth, controls []cloudstore.
 				</div>
 				<div class="stat-card">
 					<span class="stat-value">{ fmt.Sprint(health.Projects) }</span>
-					<span class="stat-label">Projects</span>
+					<span class="stat-label">Proyectos</span>
 				</div>
 				<div class="stat-card">
 					<span class="stat-value">{ fmt.Sprint(countPausedProjects(controls)) }</span>
-					<span class="stat-label">Paused Projects</span>
+					<span class="stat-label">Proyectos pausados</span>
 				</div>
 			</div>
 		}
@@ -815,8 +815,8 @@ templ AdminProjectsPage(controls []cloudstore.ProjectSyncControl) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">ADMIN SURFACE</p>
-				<h2>Project Controls</h2>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>Controles de proyecto</h2>
 			</div>
 		</div>
 		@adminNav("projects")
@@ -828,9 +828,9 @@ templ AdminProjectsPage(controls []cloudstore.ProjectSyncControl) {
 					<tr>
 						<th>Proyecto</th>
 						<th>Sync</th>
-						<th>Reason</th>
-						<th>Updated By</th>
-						<th>Updated</th>
+						<th>Razón</th>
+						<th>Actualizado por</th>
+						<th>Actualizado</th>
 						<th>Acción</th>
 					</tr>
 				</thead>
@@ -851,7 +851,7 @@ templ AdminProjectsPage(controls []cloudstore.ProjectSyncControl) {
 								} else if control.PausedReason != nil {
 									{ *control.PausedReason }
 								} else {
-									<span class="muted">No reason provided</span>
+									<span class="muted">Sin razón proporcionada</span>
 								}
 							</td>
 							<td>
@@ -865,7 +865,7 @@ templ AdminProjectsPage(controls []cloudstore.ProjectSyncControl) {
 								if control.UpdatedAt != "" {
 									{ formatTimestamp(control.UpdatedAt) }
 								} else {
-									<span class="muted">Default</span>
+									<span class="muted">Por defecto</span>
 								}
 							</td>
 							<td>
@@ -955,7 +955,7 @@ templ AdminUsersPage() {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">ADMIN SURFACE</p>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
 				<h2>Usuarios</h2>
 			</div>
 		</div>
@@ -1005,17 +1005,17 @@ templ AdminHealthPage(health *cloudstore.DashboardSystemHealth) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">ADMIN SURFACE</p>
-				<h2>Admin Health</h2>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>Salud del sistema</h2>
 			</div>
 		</div>
 		@adminNav("health")
-		<h3 class="section-block-title">System Health</h3>
+		<h3 class="section-block-title">Salud del Sistema</h3>
 		if health != nil {
 			<table class="data-table">
 				<tbody>
 					<tr>
-						<th>Database</th>
+						<th>Base de datos</th>
 						<td>
 							if health.DBConnected {
 								@StatusBadge("Connected", "success")
@@ -1025,11 +1025,11 @@ templ AdminHealthPage(health *cloudstore.DashboardSystemHealth) {
 						</td>
 					</tr>
 					<tr>
-						<th>Projects</th>
+						<th>Proyectos</th>
 						<td>{ fmt.Sprint(health.Projects) }</td>
 					</tr>
 					<tr>
-						<th>Contributors</th>
+						<th>Colaboradores</th>
 						<td>{ fmt.Sprint(health.Contributors) }</td>
 					</tr>
 					<tr>
@@ -1087,7 +1087,7 @@ templ SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []
 				if session != nil {
 					<h2>{ session.Project }</h2>
 				} else {
-					<h2>Session</h2>
+					<h2>Sesión</h2>
 				}
 			</div>
 		</div>
@@ -1105,18 +1105,18 @@ templ SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []
 				</div>
 				<div class="stat-card">
 					<span class="stat-value stat-copy">{ formatTimestamp(session.StartedAt) }</span>
-					<span class="stat-label">Started</span>
+					<span class="stat-label">Iniciado</span>
 				</div>
 			</div>
 			<div class="data-frame session-meta">
 				<table>
 					<tbody>
-						<tr><th>Session ID</th><td>{ session.SessionID }</td></tr>
+						<tr><th>ID Sesión</th><td>{ session.SessionID }</td></tr>
 						<tr><th>Proyecto</th><td><a href={ templ.SafeURL("/dashboard/projects/" + url.PathEscape(session.Project)) }>{ session.Project }</a></td></tr>
-						<tr><th>Directory</th><td>{ session.Directory }</td></tr>
-						<tr><th>Started</th><td>{ formatTimestamp(session.StartedAt) }</td></tr>
+						<tr><th>Directorio</th><td>{ session.Directory }</td></tr>
+						<tr><th>Iniciado</th><td>{ formatTimestamp(session.StartedAt) }</td></tr>
 						<tr>
-							<th>Ended</th>
+							<th>Terminó</th>
 							<td>
 								if session.EndedAt != "" {
 									{ formatTimestamp(session.EndedAt) }
@@ -1138,9 +1138,9 @@ templ SessionDetailPage(session *cloudstore.DashboardSessionRow, observations []
 					</tbody>
 				</table>
 			</div>
-			<h3 class="section-block-title">Observations in this Session</h3>
+			<h3 class="section-block-title">Observaciones en esta sesión</h3>
 			@ObservationsPartial(observations, Pagination{})
-			<h3 class="section-block-title">Prompts in this Session</h3>
+			<h3 class="section-block-title">Prompts en esta sesión</h3>
 			@PromptsPartial(prompts, Pagination{})
 		}
 	</section>
@@ -1152,11 +1152,11 @@ templ ObservationDetailPage(observation *cloudstore.DashboardObservationRow, ses
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">OBSERVATION DETAIL</p>
+				<p class="section-kicker">DETALLE OBSERVACIÓN</p>
 				if observation != nil {
 					<h2>{ observation.Title }</h2>
 				} else {
-					<h2>Observation</h2>
+					<h2>Observación</h2>
 				}
 			</div>
 		</div>
@@ -1170,11 +1170,11 @@ templ ObservationDetailPage(observation *cloudstore.DashboardObservationRow, ses
 			<div class="data-frame observation-detail-body">
 				<table>
 					<tbody>
-						<tr><th>Chunk ID</th><td>{ observation.ChunkID }</td></tr>
-						<tr><th>Session</th><td><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(observation.Project) + "/" + url.PathEscape(observation.SessionID)) }>{ observation.SessionID }</a></td></tr>
+						<tr><th>ID Chunk</th><td>{ observation.ChunkID }</td></tr>
+						<tr><th>Sesión</th><td><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(observation.Project) + "/" + url.PathEscape(observation.SessionID)) }>{ observation.SessionID }</a></td></tr>
 						<tr><th>Creado</th><td>{ formatTimestamp(observation.CreatedAt) }</td></tr>
 						<tr>
-							<th>Tool</th>
+							<th>Herramienta</th>
 							<td>
 								if observation.ToolName != "" {
 									{ observation.ToolName }
@@ -1189,20 +1189,20 @@ templ ObservationDetailPage(observation *cloudstore.DashboardObservationRow, ses
 								if observation.TopicKey != "" {
 									{ observation.TopicKey }
 								} else {
-									<span class="muted">None</span>
+									<span class="muted">Ninguno</span>
 								}
 							</td>
 						</tr>
 					</tbody>
 				</table>
 				<div class="observation-content-block">
-					<p class="section-kicker">CONTENT</p>
+					<p class="section-kicker">CONTENIDO</p>
 					@templ.Raw(renderStructuredContent(observation.Content))
 				</div>
 			</div>
 			if session != nil {
 				<div class="data-frame linked-session-panel">
-					<p class="section-kicker">LINKED SESSION</p>
+					<p class="section-kicker">SESIÓN VINCULADA</p>
 					<h3><a href={ templ.SafeURL("/dashboard/sessions/" + url.PathEscape(session.Project) + "/" + url.PathEscape(session.SessionID)) }>{ session.Project }</a></h3>
 					<p class="muted">Started { formatTimestamp(session.StartedAt) }</p>
 					if session.Summary != "" {
@@ -1211,7 +1211,7 @@ templ ObservationDetailPage(observation *cloudstore.DashboardObservationRow, ses
 				</div>
 			}
 			if len(related) > 0 {
-				<h3 class="section-block-title">More from this Session</h3>
+				<h3 class="section-block-title">Más de esta sesión</h3>
 				@ObservationsPartial(related, Pagination{})
 			}
 		}
@@ -1228,8 +1228,8 @@ templ AdminAuditLogPage(displayName string, filter cloudstore.AuditFilter) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
-				<p class="section-kicker">ADMIN SURFACE</p>
-				<h2>Audit Log</h2>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>Bitácora de Auditoría</h2>
 			</div>
 		</div>
 		@adminNav("audit-log")
@@ -1253,7 +1253,7 @@ templ AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Pagina
 			<input id="audit-contributor" type="text" name="contributor" placeholder="Contributor" value={ filter.Contributor }/>
 			<input id="audit-project" type="text" name="project" placeholder="Project" value={ filter.Project }/>
 			<select id="audit-outcome" name="outcome">
-				<option value="">All Outcomes</option>
+				<option value="">Todos los resultados</option>
 				if filter.Outcome == cloudstore.AuditOutcomeRejectedProjectPaused {
 					<option value={ cloudstore.AuditOutcomeRejectedProjectPaused } selected>Rejected (Paused)</option>
 				} else {
@@ -1262,7 +1262,7 @@ templ AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Pagina
 			</select>
 			<input id="audit-from" type="text" name="from" placeholder="From (RFC3339)" value={ auditTimeValue(filter.OccurredAtFrom) }/>
 			<input id="audit-to" type="text" name="to" placeholder="To (RFC3339)" value={ auditTimeValue(filter.OccurredAtTo) }/>
-			<button type="submit">Filter</button>
+			<button type="submit">Filtrar</button>
 		</form>
 		if len(entries) == 0 {
 			@EmptyState("No Audit Entries", "No audit log entries match the current filter.")
@@ -1271,12 +1271,12 @@ templ AdminAuditLogListPartial(entries []cloudstore.DashboardAuditRow, pg Pagina
 				<thead>
 					<tr>
 						<th>Time</th>
-						<th>Contributor</th>
+						<th>Colaborador</th>
 						<th>Proyecto</th>
 						<th>Acción</th>
-						<th>Outcome</th>
-						<th>Entries</th>
-						<th>Reason</th>
+						<th>Resultado</th>
+						<th>Entradas</th>
+						<th>Razón</th>
 					</tr>
 				</thead>
 				<tbody>

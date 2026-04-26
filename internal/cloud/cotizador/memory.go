@@ -392,8 +392,8 @@ func (s *Store) SearchLessons(ctx context.Context, query, tag string, limit int)
 		rows, err = s.db.QueryContext(ctx, `
 			SELECT id::text, quote_id::text, lead_id::text, text, tags, created_by_uid::text, created_by_role, created_at
 			FROM cotizador_lessons
-			WHERE text_tsv @@ plainto_tsquery('spanish', $1)
-			ORDER BY ts_rank(text_tsv, plainto_tsquery('spanish', $1)) DESC, created_at DESC
+			WHERE to_tsvector('spanish', unaccent(text)) @@ plainto_tsquery('spanish', unaccent($1))
+			ORDER BY ts_rank(to_tsvector('spanish', unaccent(text)), plainto_tsquery('spanish', unaccent($1))) DESC, created_at DESC
 			LIMIT $2
 		`, query, limit)
 	case query == "" && tag != "":
@@ -405,8 +405,8 @@ func (s *Store) SearchLessons(ctx context.Context, query, tag string, limit int)
 		rows, err = s.db.QueryContext(ctx, `
 			SELECT id::text, quote_id::text, lead_id::text, text, tags, created_by_uid::text, created_by_role, created_at
 			FROM cotizador_lessons
-			WHERE text_tsv @@ plainto_tsquery('spanish', $1) AND $2 = ANY(tags)
-			ORDER BY ts_rank(text_tsv, plainto_tsquery('spanish', $1)) DESC, created_at DESC
+			WHERE to_tsvector('spanish', unaccent(text)) @@ plainto_tsquery('spanish', unaccent($1)) AND $2 = ANY(tags)
+			ORDER BY ts_rank(to_tsvector('spanish', unaccent(text)), plainto_tsquery('spanish', unaccent($1))) DESC, created_at DESC
 			LIMIT $3
 		`, query, tag, limit)
 	}
@@ -434,17 +434,19 @@ func (s *Store) SearchSimilarItems(ctx context.Context, query string, limit int)
 	if strings.TrimSpace(query) == "" {
 		return nil, fmt.Errorf("query is required")
 	}
+	// Accent-insensitive: comparamos tsvector de la descripción "sin acentos" contra
+	// tsquery del query "sin acentos". Así "implementacion" matchea "implementación".
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT
 			q.id::text as quote_id, q.version, q.status,
 			q.lead_id::text, l.name, l.company,
 			i.id::text as item_id, i.sku, i.description, i.qty::float8, i.unit_price::float8, i.subtotal::float8,
 			q.currency, q.created_at,
-			ts_rank(i.description_tsv, plainto_tsquery('spanish', $1)) as rank
+			ts_rank(to_tsvector('spanish', unaccent(i.description)), plainto_tsquery('spanish', unaccent($1))) as rank
 		FROM cotizador_quote_items i
 		JOIN cotizador_quotes q ON q.id = i.quote_id
 		JOIN cotizador_leads l ON l.id = q.lead_id
-		WHERE i.description_tsv @@ plainto_tsquery('spanish', $1)
+		WHERE to_tsvector('spanish', unaccent(i.description)) @@ plainto_tsquery('spanish', unaccent($1))
 		ORDER BY rank DESC, q.created_at DESC
 		LIMIT $2
 	`, query, limit)

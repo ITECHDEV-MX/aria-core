@@ -32,7 +32,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" data-theme=\"dark\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Login — ARIA Core</title><link rel=\"stylesheet\" href=\"/dashboard/static/pico.min.css\"><link rel=\"stylesheet\" href=\"/dashboard/static/styles.css\"></head><body class=\"shell-body\"><div class=\"shell-backdrop\"><main class=\"login-shell\"><section class=\"login-sidepanel\"><p class=\"section-kicker\">ARIA CORE</p><h1>ARIA Core</h1><p class=\"login-lead\">Motor de memoria persistente multi-tenant para agentes de IA — iTechDev.</p><div class=\"hero-console login-console\"><p><span class=\"console-key\">mode</span> multi-tenant</p><p><span class=\"console-key\">auth</span> JWT HS256 + bcrypt</p><p><span class=\"console-key\">roles</span> admin / dev</p></div></section><section class=\"login-container\"><p class=\"section-kicker\">SIGN IN</p><h2>Sign In</h2><p class=\"login-copy\">Inicia sesión con tu email y contraseña.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"es\" data-theme=\"dark\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Iniciar sesión — ARIA Core</title><link rel=\"stylesheet\" href=\"/dashboard/static/pico.min.css\"><link rel=\"stylesheet\" href=\"/dashboard/static/styles.css\"></head><body class=\"shell-body\"><div class=\"shell-backdrop\"><main class=\"login-shell\"><section class=\"login-sidepanel\"><p class=\"section-kicker\">ARIA CORE</p><h1>ARIA Core</h1><p class=\"login-lead\">Motor de memoria persistente multi-tenant para agentes de IA — iTechDev.</p><div class=\"hero-console login-console\"><p><span class=\"console-key\">mode</span> multi-tenant</p><p><span class=\"console-key\">auth</span> JWT HS256 + bcrypt</p><p><span class=\"console-key\">roles</span> admin · dev · cotizador · project_admin</p></div></section><section class=\"login-container\"><p class=\"section-kicker\">INICIAR SESIÓN</p><h2>Iniciar sesión</h2><p class=\"login-copy\">Inicia sesión con tu email y contraseña.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -78,7 +78,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Email <input type=\"email\" name=\"email\" placeholder=\"you@itechdev.com.mx\" required autocomplete=\"email\"></label> <label>Password <input type=\"password\" name=\"password\" placeholder=\"••••••••\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"shell-button\">Sign In</button></form><details class=\"login-recovery\"><summary>Recovery con admin token</summary><form method=\"post\" action=\"/dashboard/login\" class=\"login-form\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Email <input type=\"email\" name=\"email\" placeholder=\"you@itechdev.com.mx\" required autocomplete=\"email\"></label> <label>Password <input type=\"password\" name=\"password\" placeholder=\"••••••••\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"shell-button\">Iniciar sesión</button></form><details class=\"login-recovery\"><summary>Recuperación con token admin</summary><form method=\"post\" action=\"/dashboard/login\" class=\"login-form\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -101,7 +101,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<label>Admin recovery token <input type=\"password\" name=\"token\" placeholder=\"ARIA_CORE_CLOUD_ADMIN\" autocomplete=\"off\"></label> <button type=\"submit\" class=\"shell-button\">Recovery Login</button></form></details></section></main></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<label>Token de recuperación admin <input type=\"password\" name=\"token\" placeholder=\"ARIA_CORE_CLOUD_ADMIN\" autocomplete=\"off\"></label> <button type=\"submit\" class=\"shell-button\">Acceder con token</button></form></details></section></main></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

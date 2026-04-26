@@ -590,6 +590,11 @@ func scanQuote(s scanner) (*Quote, error) {
 	return &q, nil
 }
 
+// pqStringArrayValue expone pq.Array sin obligar a templates.go a importar pq.
+func pqStringArrayValue(v []string) any {
+	return pq.Array(v)
+}
+
 func roundTo(v float64, decimals int) float64 {
 	mul := 1.0
 	for i := 0; i < decimals; i++ {

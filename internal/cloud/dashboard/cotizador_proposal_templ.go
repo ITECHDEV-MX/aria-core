@@ -811,160 +811,173 @@ func CotizadorProposalEditor(q *CotizadorQuoteView, sections []CotizadorQuoteSec
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\"></label> <button type=\"submit\" class=\"shell-button\">Guardar cabecera</button></form><h3 class=\"section-block-title\">Secciones de la propuesta (")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 72, "\"></label> <button type=\"submit\" class=\"shell-button\">Guardar cabecera</button></form><h3 class=\"section-block-title\">Aplicar plantilla pre-fabricada</h3><p class=\"muted\">Las plantillas insertan secciones markdown estilo iTechDev. <strong>Si una sección con la misma clave ya existe, se sobrescribe.</strong> Datos de header (producto, tipo, tags) solo se aplican si están vacíos.</p><form method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var51 string
-		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(len(sections)))
+		var templ_7745c5c3_Var51 templ.SafeURL
+		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/apply-template"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 191, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 193, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, ")</h3><p class=\"muted\">Las secciones se guardan en Markdown y se renderean automáticamente en la vista propuesta. Reordena con sort_order (más bajo = más arriba).</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 73, "\" class=\"login-form\" style=\"max-width:760px\"><label>Plantilla <select name=\"template_key\"><option value=\"itechdev_implementation_v1\">Propuesta de Implementación iTechDev (13 secciones)</option> <option value=\"itechdev_commercial_v1\">Propuesta Comercial iTechDev — corta (6 secciones)</option> <option value=\"itechdev_service_v1\">Propuesta de Servicio iTechDev — custom dev (7 secciones)</option></select></label> <button type=\"submit\" class=\"shell-button\">Aplicar plantilla</button></form><h3 class=\"section-block-title\">Secciones de la propuesta (")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var52 string
+		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(len(sections)))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 205, Col: 90}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, ")</h3><p class=\"muted\">Las secciones se guardan en Markdown y se renderean automáticamente en la vista propuesta. Reordena con sort_order (más bajo = más arriba).</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, s := range sections {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 74, "<details style=\"margin: 0.5rem 0; padding: 0.75rem; background: #161616; border-radius: 4px\"><summary><strong>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var52 string
-			templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(s.SortOrder))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 196, Col: 48}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, ". ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 75, "<details style=\"margin: 0.5rem 0; padding: 0.75rem; background: #161616; border-radius: 4px\"><summary><strong>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var53 string
-			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(s.Title)
+			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(s.SortOrder))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 196, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 210, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "</strong> <span class=\"muted\">(")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, ". ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var54 string
-			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(s.Key)
+			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(s.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 196, Col: 101}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 210, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, ")</span></summary><form method=\"post\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "</strong> <span class=\"muted\">(")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var55 templ.SafeURL
-			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert"))
+			var templ_7745c5c3_Var55 string
+			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(s.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 197, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 210, Col: 101}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, "\" class=\"login-form\" style=\"margin-top:0.5rem\"><input type=\"hidden\" name=\"key\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 78, ")</span></summary><form method=\"post\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var56 string
-			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(s.Key)
+			var templ_7745c5c3_Var56 templ.SafeURL
+			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 198, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 211, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\"> <label>Título <input type=\"text\" name=\"title\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 79, "\" class=\"login-form\" style=\"margin-top:0.5rem\"><input type=\"hidden\" name=\"key\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var57 string
-			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(s.Title)
+			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(s.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 199, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 212, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "\" required></label> <label>Orden <input type=\"number\" name=\"sort_order\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "\"> <label>Título <input type=\"text\" name=\"title\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var58 string
-			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(s.SortOrder))
+			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(s.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 200, Col: 90}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 213, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\"></label> <label>Contenido (Markdown) <textarea name=\"content_md\" rows=\"14\" style=\"font-family:monospace;font-size:0.85rem\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "\" required></label> <label>Orden <input type=\"number\" name=\"sort_order\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var59 string
-			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(s.ContentMD)
+			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(s.SortOrder))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 202, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 214, Col: 90}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "</textarea></label><div><button type=\"submit\" class=\"shell-button\">Guardar sección</button> <button type=\"submit\" formaction=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 82, "\"></label> <label>Contenido (Markdown) <textarea name=\"content_md\" rows=\"14\" style=\"font-family:monospace;font-size:0.85rem\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var60 string
-			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/" + s.Key + "/delete"))
+			templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(s.ContentMD)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 206, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 216, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "\" class=\"shell-button\" style=\"background:#522\">Eliminar</button></div></form></details>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 83, "</textarea></label><div><button type=\"submit\" class=\"shell-button\">Guardar sección</button> <button type=\"submit\" formaction=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var61 string
+			templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/" + s.Key + "/delete"))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 220, Col: 128}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "\" class=\"shell-button\" style=\"background:#522\">Eliminar</button></div></form></details>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 84, "<h4 style=\"margin-top:1rem\">Agregar nueva sección</h4><form method=\"post\" action=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<h4 style=\"margin-top:1rem\">Agregar nueva sección</h4><form method=\"post\" action=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var61 templ.SafeURL
-		templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert"))
+		var templ_7745c5c3_Var62 templ.SafeURL
+		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 213, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador_proposal.templ`, Line: 227, Col: 104}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "\" class=\"login-form\" style=\"max-width:760px\"><label>Key (slug, sin espacios) <input type=\"text\" name=\"key\" placeholder=\"alcance, metodologia, inversion...\" required></label> <label>Título <input type=\"text\" name=\"title\" placeholder=\"2. Alcance de la Solución\" required></label> <label>Orden <input type=\"number\" name=\"sort_order\" value=\"100\"></label> <label>Contenido (Markdown) <textarea name=\"content_md\" rows=\"10\" style=\"font-family:monospace;font-size:0.85rem\"></textarea></label> <button type=\"submit\" class=\"shell-button\">Crear sección</button></form></section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "\" class=\"login-form\" style=\"max-width:760px\"><label>Key (slug, sin espacios) <input type=\"text\" name=\"key\" placeholder=\"alcance, metodologia, inversion...\" required></label> <label>Título <input type=\"text\" name=\"title\" placeholder=\"2. Alcance de la Solución\" required></label> <label>Orden <input type=\"number\" name=\"sort_order\" value=\"100\"></label> <label>Contenido (Markdown) <textarea name=\"content_md\" rows=\"10\" style=\"font-family:monospace;font-size:0.85rem\"></textarea></label> <button type=\"submit\" class=\"shell-button\">Crear sección</button></form></section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

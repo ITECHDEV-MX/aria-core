@@ -188,6 +188,20 @@ templ CotizadorProposalEditor(q *CotizadorQuoteView, sections []CotizadorQuoteSe
 			<button type="submit" class="shell-button">Guardar cabecera</button>
 		</form>
 
+		<h3 class="section-block-title">Aplicar plantilla pre-fabricada</h3>
+		<p class="muted">Las plantillas insertan secciones markdown estilo iTechDev. <strong>Si una sección con la misma clave ya existe, se sobrescribe.</strong> Datos de header (producto, tipo, tags) solo se aplican si están vacíos.</p>
+		<form method="post" action={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/apply-template") } class="login-form" style="max-width:760px">
+			<label>
+				Plantilla
+				<select name="template_key">
+					<option value="itechdev_implementation_v1">Propuesta de Implementación iTechDev (13 secciones)</option>
+					<option value="itechdev_commercial_v1">Propuesta Comercial iTechDev — corta (6 secciones)</option>
+					<option value="itechdev_service_v1">Propuesta de Servicio iTechDev — custom dev (7 secciones)</option>
+				</select>
+			</label>
+			<button type="submit" class="shell-button">Aplicar plantilla</button>
+		</form>
+
 		<h3 class="section-block-title">Secciones de la propuesta ({ strconv.Itoa(len(sections)) })</h3>
 		<p class="muted">Las secciones se guardan en Markdown y se renderean automáticamente en la vista propuesta. Reordena con sort_order (más bajo = más arriba).</p>
 

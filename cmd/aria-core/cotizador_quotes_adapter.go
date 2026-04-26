@@ -210,3 +210,23 @@ func (a *cotizadorAdapter) UpdateProposalHeader(ctx context.Context, quoteID str
 		PreparedByEmail: in.PreparedByEmail, PreparedByRole: in.PreparedByRole,
 	})
 }
+
+// === Templates (commit 9) ===
+
+func (a *cotizadorAdapter) ListTemplates() []dashboard.CotizadorTemplateView {
+	tmpls := cotizador.AvailableTemplates()
+	out := make([]dashboard.CotizadorTemplateView, 0, len(tmpls))
+	for _, t := range tmpls {
+		out = append(out, dashboard.CotizadorTemplateView{
+			Key: t.Key, Name: t.Name, Description: t.Description,
+			ProposalType: t.ProposalType, DefaultProduct: t.DefaultProduct,
+			DefaultSubtitle: t.DefaultSubtitle, DefaultTags: t.DefaultTags,
+			SectionCount: len(t.Sections),
+		})
+	}
+	return out
+}
+
+func (a *cotizadorAdapter) ApplyTemplate(ctx context.Context, quoteID, templateKey string) error {
+	return a.store.ApplyTemplate(ctx, quoteID, templateKey)
+}

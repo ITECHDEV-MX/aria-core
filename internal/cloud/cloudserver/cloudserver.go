@@ -302,6 +302,9 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/promote", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorPromoteLead))
 	s.mux.HandleFunc("GET /v1/cotizador/clients", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorClientsList))
 	s.mux.HandleFunc("GET /v1/cotizador/clients/{clientID}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorClientGet))
+	// Templates (commit 9)
+	s.mux.HandleFunc("GET /v1/cotizador/templates", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorTemplatesList))
+	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/apply-template", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorApplyTemplate))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {

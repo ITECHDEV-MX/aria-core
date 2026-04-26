@@ -185,6 +185,17 @@ func RegisterCotizadorCloudTools(srv *server.MCPServer, cfg CotizadorCloudConfig
 		mcp.WithDescription("Detalle de un cliente formal por ID."),
 		mcp.WithString("id", mcp.Required(), mcp.Description("UUID del cliente")),
 	), cli.getClient)
+
+	// === Templates (commit 9) ===
+	srv.AddTool(mcp.NewTool("cotizador_list_templates",
+		mcp.WithDescription("Lista las plantillas pre-fabricadas iTechDev disponibles para aplicar a una quote."),
+	), cli.listTemplates)
+
+	srv.AddTool(mcp.NewTool("cotizador_apply_template",
+		mcp.WithDescription("Aplica una plantilla pre-fabricada a una quote. Upserts secciones markdown + completa header (proposal_type/product/tags) si no estaban seteados. Templates: itechdev_implementation_v1, itechdev_commercial_v1, itechdev_service_v1."),
+		mcp.WithString("quote_id", mcp.Required(), mcp.Description("UUID de la quote")),
+		mcp.WithString("template_key", mcp.Required(), mcp.Description("Key del template")),
+	), cli.applyTemplate)
 }
 
 type cotizadorClient struct {
@@ -540,6 +551,27 @@ func (c *cotizadorClient) getClient(ctx context.Context, req mcp.CallToolRequest
 	}
 	body, code, err2 := c.do(ctx, http.MethodGet, "/v1/cotizador/clients/"+id, nil)
 	return mcpResultFromHTTP("get client", body, code, err2)
+}
+
+// === Templates ===
+
+func (c *cotizadorClient) listTemplates(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	body, code, err := c.do(ctx, http.MethodGet, "/v1/cotizador/templates", nil)
+	return mcpResultFromHTTP("list templates", body, code, err)
+}
+
+func (c *cotizadorClient) applyTemplate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	quoteID, err := req.RequireString("quote_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	templateKey, err := req.RequireString("template_key")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	payload := map[string]string{"template_key": templateKey}
+	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/cotizador/quotes/"+quoteID+"/apply-template", payload)
+	return mcpResultFromHTTP("apply template", body, code, err2)
 }
 
 func optString(req mcp.CallToolRequest, key string) string {
