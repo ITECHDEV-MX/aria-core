@@ -7,9 +7,13 @@ import (
 
 // Principal represents the authenticated dashboard user.
 type Principal struct {
+	uid         string
 	displayName string
 	roles       []string
 }
+
+// UID returns the UID (sub) of the authenticated user, or "" if unknown.
+func (p Principal) UID() string { return p.uid }
 
 // DisplayName returns the display name for this principal.
 func (p Principal) DisplayName() string {
@@ -52,6 +56,10 @@ func (h *handlers) principalFromRequest(r *http.Request) Principal {
 	if h.cfg.GetDisplayName != nil {
 		name = strings.TrimSpace(h.cfg.GetDisplayName(r))
 	}
+	uid := ""
+	if h.cfg.GetUID != nil {
+		uid = strings.TrimSpace(h.cfg.GetUID(r))
+	}
 	var roles []string
 	if h.cfg.GetRoles != nil {
 		roles = h.cfg.GetRoles(r)
@@ -59,5 +67,5 @@ func (h *handlers) principalFromRequest(r *http.Request) Principal {
 		// Backward-compat: si solo IsAdmin, asumir role admin.
 		roles = []string{"admin"}
 	}
-	return Principal{displayName: name, roles: roles}
+	return Principal{uid: uid, displayName: name, roles: roles}
 }

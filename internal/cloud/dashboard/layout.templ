@@ -36,6 +36,7 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 					</div>
 					<nav class="sidebar-nav">
 						@SidebarLink("/dashboard/", "🏠", "Inicio", "dashboard", activeTab)
+						@SidebarLink("/dashboard/me", "🎯", "Mi actividad", "me", activeTab)
 						@SidebarLink("/dashboard/ayuda", "📖", "Guía", "ayuda", activeTab)
 
 						<div class="sidebar-nav-section">Conocimiento</div>
