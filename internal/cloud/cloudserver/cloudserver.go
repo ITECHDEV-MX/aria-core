@@ -269,6 +269,18 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("POST /sync/push", s.withAuth(s.handlePushChunk))
 	s.mux.HandleFunc("POST /sync/mutations/push", s.withAuth(s.handleMutationPush))
 	s.mux.HandleFunc("GET /sync/mutations/pull", s.withAuth(s.handleMutationPull))
+
+	// === /v1 API (JWT user-bound) ===
+	// Auth: login con email+password, devuelve JWT.
+	s.mux.HandleFunc("POST /v1/auth/login", s.handleV1AuthLogin)
+	s.mux.HandleFunc("GET /v1/auth/me", s.withJWTAuth(s.handleV1AuthMe))
+
+	// Cotizador (requiere role admin o cotizador en el JWT)
+	s.mux.HandleFunc("GET /v1/cotizador/leads", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadsList))
+	s.mux.HandleFunc("POST /v1/cotizador/leads", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadCreate))
+	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadGet))
+	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/status", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadStatus))
+	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}/history", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadHistory))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {

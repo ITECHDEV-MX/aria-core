@@ -576,6 +576,12 @@ func main() {
 		cmdCloud(cfg)
 	case "admin":
 		cmdAdmin()
+	case "login":
+		cmdLogin(cfg)
+	case "logout":
+		cmdLogout(cfg)
+	case "whoami":
+		cmdWhoami(cfg)
 	case "obsidian-export":
 		cmdObsidianExport(cfg)
 	case "projects":
@@ -711,15 +717,28 @@ func tryStartAutosync(ctx context.Context, s *store.Store, cfg store.Config) (au
 }
 
 func cmdMCP(cfg store.Config) {
-	// Parse --tools flag. Project is always auto-detected from cwd at call time (JR2-4).
+	// Parse --tools y --profile flags.
 	toolsFilter := ""
+	profile := ""
 	for i := 2; i < len(os.Args); i++ {
-		if strings.HasPrefix(os.Args[i], "--tools=") {
+		switch {
+		case strings.HasPrefix(os.Args[i], "--tools="):
 			toolsFilter = strings.TrimPrefix(os.Args[i], "--tools=")
-		} else if os.Args[i] == "--tools" && i+1 < len(os.Args) {
+		case os.Args[i] == "--tools" && i+1 < len(os.Args):
 			toolsFilter = os.Args[i+1]
 			i++
+		case strings.HasPrefix(os.Args[i], "--profile="):
+			profile = strings.TrimPrefix(os.Args[i], "--profile=")
+		case os.Args[i] == "--profile" && i+1 < len(os.Args):
+			profile = os.Args[i+1]
+			i++
 		}
+	}
+
+	// Profile cloud-bound (no toca DB local). Habilita tools que llaman al cloud REST.
+	if profile == "cotizador" {
+		runCotizadorCloudMCP(cfg)
+		return
 	}
 
 	s, err := storeNew(cfg)
@@ -733,6 +752,33 @@ func cmdMCP(cfg store.Config) {
 	mcpSrv := newMCPServerWithConfig(s, mcpCfg, allowlist)
 
 	if err := serveMCP(mcpSrv); err != nil {
+		fatal(err)
+	}
+}
+
+// runCotizadorCloudMCP arranca un MCP server que expone tools del módulo
+// Cotizador hablando con el cloud REST. Usa el JWT de session.json.
+func runCotizadorCloudMCP(cfg store.Config) {
+	sess, err := loadSession(cfg)
+	if err != nil {
+		fatal(fmt.Errorf("load session: %w", err))
+	}
+	if sess == nil {
+		fmt.Fprintln(os.Stderr, "no active session — corre 'aria-core login' primero")
+		exitFunc(1)
+		return
+	}
+	if time.Now().UTC().After(sess.ExpiresAt) {
+		fmt.Fprintln(os.Stderr, "session expired — corre 'aria-core login' nuevamente")
+		exitFunc(1)
+		return
+	}
+	srv := mcp.NewBareServer("aria-core-cotizador", "0.1.0")
+	mcp.RegisterCotizadorCloudTools(srv, mcp.CotizadorCloudConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	if err := serveMCP(srv); err != nil {
 		fatal(err)
 	}
 }
