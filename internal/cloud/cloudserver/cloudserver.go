@@ -14,6 +14,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/constants"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
 	coreproject "github.com/ITECHDEV-MX/aria-core/internal/project"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -55,6 +56,30 @@ type CloudServer struct {
 	mux            *http.ServeMux
 	syncStatus     dashboard.SyncStatusProvider
 	listenAndServe func(addr string, handler http.Handler) error
+	sessionCodec   *dashboardsession.Codec
+	userStore      DashboardUserService
+}
+
+// DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
+// Lo implementa internal/cloud/cloudusers.Store.
+type DashboardUserService interface {
+	VerifyPassword(ctx context.Context, email, password string) (*UserPrincipal, error)
+	GetByUID(ctx context.Context, uid string) (*UserPrincipal, error)
+	List(ctx context.Context) ([]*UserPrincipal, error)
+	Create(ctx context.Context, email, name, role, password string) (*UserPrincipal, error)
+	SetRole(ctx context.Context, uid, role string) error
+	SetActive(ctx context.Context, uid string, active bool) error
+	ChangePassword(ctx context.Context, uid, newPassword string) error
+}
+
+// UserPrincipal es la representación del usuario autenticado en el dashboard.
+type UserPrincipal struct {
+	UID       string
+	Email     string
+	Name      string
+	Role      string
+	IsActive  bool
+	CreatedAt time.Time
 }
 
 const defaultHost = "127.0.0.1"
@@ -85,6 +110,20 @@ func WithProjectAuthorizer(authorizer ProjectAuthorizer) Option {
 func WithDashboardAdminToken(adminToken string) Option {
 	return func(s *CloudServer) {
 		s.dashboardAdmin = strings.TrimSpace(adminToken)
+	}
+}
+
+// WithSessionCodec inyecta el codec JWT para sesiones del dashboard.
+func WithSessionCodec(codec *dashboardsession.Codec) Option {
+	return func(s *CloudServer) {
+		s.sessionCodec = codec
+	}
+}
+
+// WithUserStore inyecta el store de usuarios para login email+password y CRUD admin.
+func WithUserStore(us DashboardUserService) Option {
+	return func(s *CloudServer) {
+		s.userStore = us
 	}
 }
 
@@ -135,29 +174,41 @@ func (s *CloudServer) routes() {
 	if store, ok := s.store.(dashboard.DashboardStore); ok {
 		dashboardStore = store
 	}
+	validateCredentials := func(email, password string) (*dashboard.LoginPrincipal, error) {
+		if s.userStore == nil {
+			return nil, fmt.Errorf("email/password login is not configured")
+		}
+		u, err := s.userStore.VerifyPassword(context.Background(), email, password)
+		if err != nil {
+			return nil, err
+		}
+		return &dashboard.LoginPrincipal{UID: u.UID, Email: u.Email, Name: u.Name, Role: u.Role}, nil
+	}
 	validateLoginToken := func(token string) error {
 		token = strings.TrimSpace(token)
 		if token == "" {
-			return fmt.Errorf("bearer token is required")
+			return fmt.Errorf("admin recovery token is required")
 		}
-		if adminToken := strings.TrimSpace(s.dashboardAdmin); adminToken != "" && token == adminToken {
-			return nil
+		adminToken := strings.TrimSpace(s.dashboardAdmin)
+		if adminToken == "" {
+			return fmt.Errorf("admin recovery is disabled")
 		}
-		if s.auth == nil {
-			return nil
+		if token != adminToken {
+			return fmt.Errorf("invalid admin recovery token")
 		}
-		req, _ := http.NewRequest(http.MethodGet, "/dashboard/login", nil)
-		req.Header.Set("Authorization", "Bearer "+token)
-		return s.auth.Authorize(req)
+		return nil
 	}
-	createSessionCookie := func(w http.ResponseWriter, r *http.Request, token string) error {
-		sessionToken, err := s.dashboardSessionToken(token)
+	createSessionCookie := func(w http.ResponseWriter, r *http.Request, principal *dashboard.LoginPrincipal) error {
+		if s.sessionCodec == nil {
+			return fmt.Errorf("session codec not configured")
+		}
+		jwt, err := s.sessionCodec.Mint(principal.UID, principal.Email, principal.Role)
 		if err != nil {
 			return err
 		}
 		http.SetCookie(w, &http.Cookie{
 			Name:     dashboardSessionCookieName,
-			Value:    sessionToken,
+			Value:    jwt,
 			Path:     "/dashboard",
 			HttpOnly: true,
 			Secure:   dashboardCookieSecure(r),
@@ -166,12 +217,15 @@ func (s *CloudServer) routes() {
 		})
 		return nil
 	}
-	if s.auth == nil {
-		validateLoginToken = nil
-		createSessionCookie = nil
+
+	var adminUsers dashboard.AdminUserService
+	if s.userStore != nil {
+		adminUsers = userServiceAdapter{us: s.userStore}
 	}
+
 	dashboard.Mount(s.mux, dashboard.MountConfig{
 		RequireSession:      s.authorizeDashboardRequest,
+		ValidateCredentials: validateCredentials,
 		ValidateLoginToken:  validateLoginToken,
 		CreateSessionCookie: createSessionCookie,
 		ClearSessionCookie: func(w http.ResponseWriter, r *http.Request) {
@@ -188,12 +242,13 @@ func (s *CloudServer) routes() {
 		IsAdmin: func(r *http.Request) bool {
 			return s.isDashboardAdmin(r)
 		},
-		// GetDisplayName: returns "OPERATOR" until the session codec surfaces a
-		// display name (out of scope for this change). Satisfies REQ-103 / AD-2.
-		GetDisplayName:    func(r *http.Request) string { return "OPERATOR" },
+		GetDisplayName: func(r *http.Request) string {
+			return s.displayNameFor(r)
+		},
 		Store:             dashboardStore,
 		MaxLoginBodyBytes: maxDashboardLoginBodyBytes,
 		StatusProvider:    s.syncStatus,
+		AdminUsers:        adminUsers,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -227,44 +282,21 @@ func (s *CloudServer) withAuthHandler(next http.Handler) http.Handler {
 }
 
 func (s *CloudServer) authorizeDashboardRequest(r *http.Request) error {
-	if s.auth == nil {
-		return nil
+	if _, err := s.dashboardClaimsFromRequest(r); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *CloudServer) dashboardClaimsFromRequest(r *http.Request) (*dashboardsession.Claims, error) {
+	if s.sessionCodec == nil {
+		return nil, fmt.Errorf("dashboard session codec not configured")
 	}
 	cookie, err := r.Cookie(dashboardSessionCookieName)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	bearerToken, err := s.dashboardBearerToken(cookie.Value)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(bearerToken) == "" {
-		return fmt.Errorf("dashboard session token is empty")
-	}
-	if adminToken := strings.TrimSpace(s.dashboardAdmin); adminToken != "" && bearerToken == adminToken {
-		return nil
-	}
-	req, _ := http.NewRequest(http.MethodGet, "/dashboard", nil)
-	req.Header.Set("Authorization", "Bearer "+bearerToken)
-	return s.auth.Authorize(req)
-}
-
-func (s *CloudServer) dashboardSessionToken(bearerToken string) (string, error) {
-	if codec, ok := s.auth.(dashboardSessionCodec); ok {
-		return codec.MintDashboardSession(bearerToken)
-	}
-	return "", ErrDashboardSessionCodecRequired
-}
-
-func (s *CloudServer) dashboardBearerToken(sessionToken string) (string, error) {
-	sessionToken = strings.TrimSpace(sessionToken)
-	if sessionToken == "" {
-		return "", fmt.Errorf("dashboard session token is empty")
-	}
-	if codec, ok := s.auth.(dashboardSessionCodec); ok {
-		return codec.ParseDashboardSession(sessionToken)
-	}
-	return "", ErrDashboardSessionCodecRequired
+	return s.sessionCodec.Parse(cookie.Value)
 }
 
 func dashboardCookieSecure(r *http.Request) bool {
@@ -285,22 +317,58 @@ func (s *CloudServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *CloudServer) isDashboardAdmin(r *http.Request) bool {
-	if s.auth == nil {
+	claims, err := s.dashboardClaimsFromRequest(r)
+	if err != nil || claims == nil {
 		return false
 	}
-	adminToken := strings.TrimSpace(s.dashboardAdmin)
-	if adminToken == "" {
-		return false
+	return claims.Role == "admin"
+}
+
+func (s *CloudServer) displayNameFor(r *http.Request) string {
+	claims, err := s.dashboardClaimsFromRequest(r)
+	if err != nil || claims == nil {
+		return "OPERATOR"
 	}
-	cookie, err := r.Cookie(dashboardSessionCookieName)
+	if strings.TrimSpace(claims.Email) != "" {
+		return claims.Email
+	}
+	return "OPERATOR"
+}
+
+// userServiceAdapter convierte DashboardUserService al contrato dashboard.AdminUserService.
+type userServiceAdapter struct {
+	us DashboardUserService
+}
+
+func (a userServiceAdapter) ListUsers(ctx context.Context) ([]dashboard.AdminUserView, error) {
+	users, err := a.us.List(ctx)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	token, err := s.dashboardBearerToken(cookie.Value)
-	if err != nil {
-		return false
+	out := make([]dashboard.AdminUserView, 0, len(users))
+	for _, u := range users {
+		out = append(out, dashboard.AdminUserView{
+			UID: u.UID, Email: u.Email, Name: u.Name, Role: u.Role, IsActive: u.IsActive, CreatedAt: u.CreatedAt,
+		})
 	}
-	return token == adminToken
+	return out, nil
+}
+
+func (a userServiceAdapter) CreateUser(ctx context.Context, email, name, role, password string) error {
+	_, err := a.us.Create(ctx, email, name, role, password)
+	return err
+}
+
+func (a userServiceAdapter) SetRole(ctx context.Context, uid, role string) error {
+	return a.us.SetRole(ctx, uid, role)
+}
+
+func (a userServiceAdapter) SetActive(ctx context.Context, uid string, active bool) error {
+	return a.us.SetActive(ctx, uid, active)
+}
+
+func (a userServiceAdapter) ChangePassword(ctx context.Context, uid, newPassword string) error {
+	return a.us.ChangePassword(ctx, uid, newPassword)
 }
 
 func (s *CloudServer) handlePullManifest(w http.ResponseWriter, r *http.Request) {

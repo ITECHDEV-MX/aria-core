@@ -1,15 +1,15 @@
 package dashboard
 
 // LoginPage renders the standalone login page (no layout wrapper).
-// ADAPTED: added next string parameter for post-login redirect; token-only form
-// (integrated dashboard uses ENGRAM_CLOUD_TOKEN, not user/password credentials).
+// Email + password authentication backed by cloud_users (ARIA Core v2).
+// Recovery: el campo "token" sigue aceptando ARIA_CORE_CLOUD_ADMIN.
 templ LoginPage(errorMsg string, next string) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="dark">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>Login — Engram Cloud</title>
+			<title>Login — ARIA Core</title>
 			<link rel="stylesheet" href="/dashboard/static/pico.min.css"/>
 			<link rel="stylesheet" href="/dashboard/static/styles.css"/>
 		</head>
@@ -17,19 +17,19 @@ templ LoginPage(errorMsg string, next string) {
 			<div class="shell-backdrop">
 				<main class="login-shell">
 					<section class="login-sidepanel">
-						<p class="section-kicker">CLOUD ACTIVE</p>
-						<h1>Engram Cloud</h1>
-						<p class="login-lead">Bring Engram memory into a shared browser workspace without losing the local-first model.</p>
+						<p class="section-kicker">ARIA CORE</p>
+						<h1>ARIA Core</h1>
+						<p class="login-lead">Motor de memoria persistente multi-tenant para agentes de IA — iTechDev.</p>
 						<div class="hero-console login-console">
-							<p><span class="console-key">mode</span> enterprise</p>
-							<p><span class="console-key">sync</span> local-first / cloud policy aware</p>
-							<p><span class="console-key">surface</span> shared memory for humans + agents</p>
+							<p><span class="console-key">mode</span> multi-tenant</p>
+							<p><span class="console-key">auth</span> JWT HS256 + bcrypt</p>
+							<p><span class="console-key">roles</span> admin / dev</p>
 						</div>
 					</section>
 					<section class="login-container">
 						<p class="section-kicker">SIGN IN</p>
 						<h2>Sign In</h2>
-						<p class="login-copy">Use your cloud runtime token to open a signed dashboard session.</p>
+						<p class="login-copy">Inicia sesión con tu email y contraseña.</p>
 						if errorMsg != "" {
 							<div class="login-error" role="alert">
 								{ errorMsg }
@@ -40,17 +40,45 @@ templ LoginPage(errorMsg string, next string) {
 								<input type="hidden" name="next" value={ next }/>
 							}
 							<label>
-								Cloud token
+								Email
+								<input
+									type="email"
+									name="email"
+									placeholder="you@itechdev.com.mx"
+									required
+									autocomplete="email"
+								/>
+							</label>
+							<label>
+								Password
 								<input
 									type="password"
-									name="token"
-									placeholder="token"
+									name="password"
+									placeholder="••••••••"
 									required
-									autocomplete="off"
+									autocomplete="current-password"
 								/>
 							</label>
 							<button type="submit" class="shell-button">Sign In</button>
 						</form>
+						<details class="login-recovery">
+							<summary>Recovery con admin token</summary>
+							<form method="post" action="/dashboard/login" class="login-form">
+								if next != "" {
+									<input type="hidden" name="next" value={ next }/>
+								}
+								<label>
+									Admin recovery token
+									<input
+										type="password"
+										name="token"
+										placeholder="ARIA_CORE_CLOUD_ADMIN"
+										autocomplete="off"
+									/>
+								</label>
+								<button type="submit" class="shell-button">Recovery Login</button>
+							</form>
+						</details>
 					</section>
 				</main>
 			</div>

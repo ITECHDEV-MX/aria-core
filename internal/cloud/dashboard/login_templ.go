@@ -9,8 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 // LoginPage renders the standalone login page (no layout wrapper).
-// ADAPTED: added next string parameter for post-login redirect; token-only form
-// (integrated dashboard uses ARIA_CORE_CLOUD_TOKEN, not user/password credentials).
+// Email + password authentication backed by cloud_users (ARIA Core v2).
+// Recovery: el campo "token" sigue aceptando ARIA_CORE_CLOUD_ADMIN.
 func LoginPage(errorMsg string, next string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -32,7 +32,7 @@ func LoginPage(errorMsg string, next string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" data-theme=\"dark\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Login — AriaCore Cloud</title><link rel=\"stylesheet\" href=\"/dashboard/static/pico.min.css\"><link rel=\"stylesheet\" href=\"/dashboard/static/styles.css\"></head><body class=\"shell-body\"><div class=\"shell-backdrop\"><main class=\"login-shell\"><section class=\"login-sidepanel\"><p class=\"section-kicker\">CLOUD ACTIVE</p><h1>AriaCore Cloud</h1><p class=\"login-lead\">Bring AriaCore memory into a shared browser workspace without losing the local-first model.</p><div class=\"hero-console login-console\"><p><span class=\"console-key\">mode</span> enterprise</p><p><span class=\"console-key\">sync</span> local-first / cloud policy aware</p><p><span class=\"console-key\">surface</span> shared memory for humans + agents</p></div></section><section class=\"login-container\"><p class=\"section-kicker\">SIGN IN</p><h2>Sign In</h2><p class=\"login-copy\">Use your cloud runtime token to open a signed dashboard session.</p>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<!doctype html><html lang=\"en\" data-theme=\"dark\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Login — ARIA Core</title><link rel=\"stylesheet\" href=\"/dashboard/static/pico.min.css\"><link rel=\"stylesheet\" href=\"/dashboard/static/styles.css\"></head><body class=\"shell-body\"><div class=\"shell-backdrop\"><main class=\"login-shell\"><section class=\"login-sidepanel\"><p class=\"section-kicker\">ARIA CORE</p><h1>ARIA Core</h1><p class=\"login-lead\">Motor de memoria persistente multi-tenant para agentes de IA — iTechDev.</p><div class=\"hero-console login-console\"><p><span class=\"console-key\">mode</span> multi-tenant</p><p><span class=\"console-key\">auth</span> JWT HS256 + bcrypt</p><p><span class=\"console-key\">roles</span> admin / dev</p></div></section><section class=\"login-container\"><p class=\"section-kicker\">SIGN IN</p><h2>Sign In</h2><p class=\"login-copy\">Inicia sesión con tu email y contraseña.</p>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -78,7 +78,30 @@ func LoginPage(errorMsg string, next string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Cloud token <input type=\"password\" name=\"token\" placeholder=\"token\" required autocomplete=\"off\"></label> <button type=\"submit\" class=\"shell-button\">Sign In</button></form></section></main></div></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<label>Email <input type=\"email\" name=\"email\" placeholder=\"you@itechdev.com.mx\" required autocomplete=\"email\"></label> <label>Password <input type=\"password\" name=\"password\" placeholder=\"••••••••\" required autocomplete=\"current-password\"></label> <button type=\"submit\" class=\"shell-button\">Sign In</button></form><details class=\"login-recovery\"><summary>Recovery con admin token</summary><form method=\"post\" action=\"/dashboard/login\" class=\"login-form\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if next != "" {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<input type=\"hidden\" name=\"next\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var4 string
+			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(next)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/login.templ`, Line: 68, Col: 54}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<label>Admin recovery token <input type=\"password\" name=\"token\" placeholder=\"ARIA_CORE_CLOUD_ADMIN\" autocomplete=\"off\"></label> <button type=\"submit\" class=\"shell-button\">Recovery Login</button></form></details></section></main></div></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

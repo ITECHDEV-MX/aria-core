@@ -24,3 +24,21 @@ func (h *handlers) requireSession(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+
+// requireAdmin envuelve requireSession y agrega chequeo de role=admin.
+// Devuelve 403 con mensaje si el user autenticado no es admin.
+func (h *handlers) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return h.requireSession(func(w http.ResponseWriter, r *http.Request) {
+		if h.cfg.IsAdmin == nil || !h.cfg.IsAdmin(r) {
+			if isHTMXRequest(r) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`<div class="login-error" role="alert">Forbidden — admin role required</div>`))
+				return
+			}
+			http.Error(w, "forbidden: admin role required", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	})
+}

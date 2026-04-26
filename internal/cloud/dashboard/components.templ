@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/Gentleman-Programming/engram/internal/cloud/cloudstore"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
 )
 
 // ─── Shared Components ──────────────────────────────────────────────────────
@@ -881,50 +881,105 @@ templ AdminProjectsPage(controls []cloudstore.ProjectSyncControl) {
 	</section>
 }
 
-// AdminUsersListPartial renders only the admin users table + HtmxPaginationBar (no shell, no outer wrapper).
-// R5-2: used by /dashboard/admin/users/list so HTMX pagination works without full-page nav.
-// R6-1: outer <div id="admin-users-content"> removed — avoids duplicate IDs on HTMX innerHTML swap.
-templ AdminUsersListPartial(contributors []cloudstore.DashboardContributorRow, pg Pagination) {
-	if len(contributors) == 0 {
-		@EmptyState("No Contributors Yet", "No contributors have synced chunks to this cloud workspace yet.")
+// adminUserRow renderea una sola fila de usuario (reutilizable para HTMX outerHTML).
+templ adminUserRow(u AdminUserView) {
+	<tr id={ "user-row-" + u.UID }>
+		<td>{ u.Email }</td>
+		<td>{ u.Name }</td>
+		<td>
+			<form hx-post={ "/dashboard/admin/users/" + u.UID + "/role" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" style="display:inline">
+				<select name="role" onchange="this.form.requestSubmit()">
+					<option value="dev" selected?={ u.Role == "dev" }>dev</option>
+					<option value="admin" selected?={ u.Role == "admin" }>admin</option>
+				</select>
+			</form>
+		</td>
+		<td>
+			if u.IsActive {
+				<button hx-post={ "/dashboard/admin/users/" + u.UID + "/deactivate" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" class="shell-button">Activo</button>
+			} else {
+				<button hx-post={ "/dashboard/admin/users/" + u.UID + "/activate" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" class="shell-button">Inactivo</button>
+			}
+		</td>
+		<td>{ formatTimestampTime(u.CreatedAt) }</td>
+		<td>
+			<details>
+				<summary>Cambiar password</summary>
+				<form hx-post={ "/dashboard/admin/users/" + u.UID + "/password" } hx-target="#admin-users-feedback" hx-swap="innerHTML">
+					<input type="password" name="password" placeholder="nueva password (≥8)" required minlength="8"/>
+					<button type="submit" class="shell-button">Set</button>
+				</form>
+			</details>
+		</td>
+	</tr>
+}
+
+// AdminUsersListPartial renderea solo la tabla de usuarios (sin shell).
+templ AdminUsersListPartial(users []AdminUserView, errorMsg string) {
+	if errorMsg != "" {
+		<div class="login-error" role="alert">{ errorMsg }</div>
+	}
+	if len(users) == 0 {
+		@EmptyState("No Users", "No hay usuarios registrados aún. Crea el primero con el formulario de arriba.")
 	} else {
 		<table class="data-table">
 			<thead>
 				<tr>
-					<th>Contributor</th>
-					<th>Chunks</th>
-					<th>Projects</th>
-					<th>Last Chunk</th>
+					<th>Email</th>
+					<th>Nombre</th>
+					<th>Rol</th>
+					<th>Activo</th>
+					<th>Creado</th>
+					<th>Acciones</th>
 				</tr>
 			</thead>
 			<tbody>
-				for _, c := range contributors {
-					<tr>
-						<td>{ c.CreatedBy }</td>
-						<td>{ fmt.Sprint(c.Chunks) }</td>
-						<td>{ fmt.Sprint(c.Projects) }</td>
-						<td>{ formatTimestampStr(c.LastChunkAt) }</td>
-					</tr>
+				for _, u := range users {
+					@adminUserRow(u)
 				}
 			</tbody>
 		</table>
-		@HtmxPaginationBar(pg, "/dashboard/admin/users/list", "#admin-users-content", "")
 	}
 }
 
-// AdminUsersPage renders the admin users list shell.
-// R6-1: converted to hx-get/load pattern (mirrors ProjectsPage) — inline table removed.
-// The outer #admin-users-content div triggers an HTMX load of /dashboard/admin/users/list.
+// AdminUsersPage renderea la página completa de admin users con form crear + tabla.
 templ AdminUsersPage() {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
 				<p class="section-kicker">ADMIN SURFACE</p>
-				<h2>Admin Users</h2>
+				<h2>Usuarios</h2>
 			</div>
 		</div>
 		@adminNav("users")
-		<h3 class="section-block-title">Contributors</h3>
+
+		<h3 class="section-block-title">Crear usuario</h3>
+		<form hx-post="/dashboard/admin/users/create" hx-target="#admin-users-content" hx-swap="innerHTML" class="login-form" style="max-width:560px">
+			<label>
+				Email
+				<input type="email" name="email" placeholder="user@itechdev.com.mx" required/>
+			</label>
+			<label>
+				Nombre
+				<input type="text" name="name" placeholder="Nombre Completo"/>
+			</label>
+			<label>
+				Rol
+				<select name="role">
+					<option value="dev">dev</option>
+					<option value="admin">admin</option>
+				</select>
+			</label>
+			<label>
+				Password (≥8)
+				<input type="password" name="password" required minlength="8"/>
+			</label>
+			<button type="submit" class="shell-button">Crear</button>
+		</form>
+
+		<div id="admin-users-feedback" class="muted" style="margin-top:0.5rem"></div>
+
+		<h3 class="section-block-title">Lista de usuarios</h3>
 		<div id="admin-users-content"
 			hx-get="/dashboard/admin/users/list"
 			hx-trigger="load"

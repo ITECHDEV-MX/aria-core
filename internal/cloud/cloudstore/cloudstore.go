@@ -60,6 +60,15 @@ func (cs *CloudStore) Close() error {
 	return cs.db.Close()
 }
 
+// DB exposes the underlying *sql.DB. Used by adapters that need direct SQL access
+// (e.g., cloudusers.Store on top of cloud_users table).
+func (cs *CloudStore) DB() *sql.DB {
+	if cs == nil {
+		return nil
+	}
+	return cs.db
+}
+
 func (cs *CloudStore) SetDashboardAllowedProjects(projects []string) {
 	if cs == nil {
 		return
@@ -426,6 +435,7 @@ func (cs *CloudStore) ReadChunk(ctx context.Context, project, chunkID string) ([
 
 func (cs *CloudStore) migrate(ctx context.Context) error {
 	queries := []string{
+		`CREATE EXTENSION IF NOT EXISTS pgcrypto`,
 		`CREATE TABLE IF NOT EXISTS cloud_users (
 			id BIGSERIAL PRIMARY KEY,
 			username TEXT UNIQUE NOT NULL,
@@ -433,6 +443,21 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			password_hash TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS uid UUID UNIQUE`,
+		`UPDATE cloud_users SET uid = gen_random_uuid() WHERE uid IS NULL`,
+		`ALTER TABLE cloud_users ALTER COLUMN uid SET NOT NULL`,
+		`ALTER TABLE cloud_users ALTER COLUMN uid SET DEFAULT gen_random_uuid()`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'dev'`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS client_id UUID`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+		`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_users_role_check') THEN
+				ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev'));
+			END IF;
+		END $$`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_users_email ON cloud_users(lower(email))`,
 		`CREATE TABLE IF NOT EXISTS cloud_chunks (
 			project_name TEXT NOT NULL DEFAULT 'default',
 			chunk_id TEXT NOT NULL,

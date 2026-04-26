@@ -258,6 +258,14 @@ func formatTimestampStr(ts string) string {
 	return formatTimestamp(ts)
 }
 
+// formatTimestampTime formatea time.Time → "02 Jan 2006 15:04" local.
+func formatTimestampTime(t time.Time) string {
+	if t.IsZero() {
+		return "-"
+	}
+	return t.Local().Format("02 Jan 2006 15:04")
+}
+
 // countPausedProjects counts how many controls have SyncEnabled=false.
 // ADAPTED: cloudstore.ProjectSyncControl -> cloudstore.ProjectSyncControl (same name, new file).
 func countPausedProjects(controls []cloudstore.ProjectSyncControl) int {

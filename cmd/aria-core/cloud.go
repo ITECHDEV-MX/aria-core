@@ -18,6 +18,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/constants"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/remote"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -100,6 +101,17 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 		authSvc.SetDashboardSessionTokens([]string{cfg.AdminToken})
 		authenticator = authSvc
 	}
+
+	// JWT codec for dashboard sessions (separate from /sync bearer auth).
+	sessionCodec, err := dashboardsession.NewCodec(cfg.JWTSecret, 8*time.Hour)
+	if err != nil {
+		_ = cs.Close()
+		return nil, fmt.Errorf("dashboard session codec: %w", err)
+	}
+
+	// User store backed by cloudusers package (extends cloud_users table with role/uid/active).
+	userStoreAdapter := newDashboardUserAdapter(cs)
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -108,6 +120,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithHost(cfg.BindHost),
 			cloudserver.WithProjectAuthorizer(projectAuth),
 			cloudserver.WithDashboardAdminToken(cfg.AdminToken),
+			cloudserver.WithSessionCodec(sessionCodec),
+			cloudserver.WithUserStore(userStoreAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

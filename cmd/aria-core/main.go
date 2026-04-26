@@ -574,6 +574,8 @@ func main() {
 		cmdSync(cfg)
 	case "cloud":
 		cmdCloud(cfg)
+	case "admin":
+		cmdAdmin()
 	case "obsidian-export":
 		cmdObsidianExport(cfg)
 	case "projects":

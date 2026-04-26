@@ -38,16 +38,49 @@ type staticSyncStatusProvider struct {
 
 func (s staticSyncStatusProvider) Status() SyncStatus { return s.status }
 
+// LoginPrincipal es el resultado de un login exitoso (email+password o admin token).
+type LoginPrincipal struct {
+	UID   string
+	Email string
+	Name  string
+	Role  string
+}
+
 type MountConfig struct {
-	RequireSession      func(r *http.Request) error
+	RequireSession func(r *http.Request) error
+	// ValidateCredentials recibe email y password. Si OK retorna el principal del usuario.
+	// Si nil, login email+password queda deshabilitado.
+	ValidateCredentials func(email, password string) (*LoginPrincipal, error)
+	// ValidateLoginToken (opcional) — fallback para login con admin token legacy.
+	// Si retorna nil error, el principal es admin recovery.
 	ValidateLoginToken  func(token string) error
-	CreateSessionCookie func(w http.ResponseWriter, r *http.Request, token string) error
+	CreateSessionCookie func(w http.ResponseWriter, r *http.Request, principal *LoginPrincipal) error
 	ClearSessionCookie  func(w http.ResponseWriter, r *http.Request)
 	IsAdmin             func(r *http.Request) bool
 	GetDisplayName      func(r *http.Request) string
 	Store               DashboardStore
 	MaxLoginBodyBytes   int64
 	StatusProvider      SyncStatusProvider
+	// AdminUsers (opcional) — habilita CRUD de usuarios en /dashboard/admin/users.
+	AdminUsers AdminUserService
+}
+
+// AdminUserService expone el CRUD de usuarios al dashboard admin.
+type AdminUserService interface {
+	ListUsers(ctx context.Context) ([]AdminUserView, error)
+	CreateUser(ctx context.Context, email, name, role, password string) error
+	SetRole(ctx context.Context, uid, role string) error
+	SetActive(ctx context.Context, uid string, active bool) error
+	ChangePassword(ctx context.Context, uid, newPassword string) error
+}
+
+type AdminUserView struct {
+	UID       string
+	Email     string
+	Name      string
+	Role      string
+	IsActive  bool
+	CreatedAt time.Time
 }
 
 type DashboardStore interface {
@@ -131,8 +164,13 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/projects/{name}/observations", h.requireSession(h.handleProjectObservationsPartial))
 	mux.HandleFunc("GET /dashboard/projects/{name}/sessions", h.requireSession(h.handleProjectSessionsPartial))
 	mux.HandleFunc("GET /dashboard/projects/{name}/prompts", h.requireSession(h.handleProjectPromptsPartial))
-	mux.HandleFunc("GET /dashboard/admin/users", h.requireSession(h.handleAdminUsers))
-	mux.HandleFunc("GET /dashboard/admin/users/list", h.requireSession(h.handleAdminUsersList))
+	mux.HandleFunc("GET /dashboard/admin/users", h.requireAdmin(h.handleAdminUsers))
+	mux.HandleFunc("GET /dashboard/admin/users/list", h.requireAdmin(h.handleAdminUsersList))
+	mux.HandleFunc("POST /dashboard/admin/users/create", h.requireAdmin(h.handleAdminUserCreate))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/role", h.requireAdmin(h.handleAdminUserSetRole))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/activate", h.requireAdmin(h.handleAdminUserSetActive(true)))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/deactivate", h.requireAdmin(h.handleAdminUserSetActive(false)))
+	mux.HandleFunc("POST /dashboard/admin/users/{uid}/password", h.requireAdmin(h.handleAdminUserChangePassword))
 	mux.HandleFunc("GET /dashboard/admin/health", h.requireSession(h.handleAdminHealth))
 	mux.HandleFunc("POST /dashboard/admin/projects/{name}/sync", h.requireSession(h.handleAdminSyncTogglePost))
 	mux.HandleFunc("GET /dashboard/admin/projects/{name}/sync/form", h.requireSession(h.handleAdminSyncToggleForm))
@@ -253,7 +291,9 @@ func (h *handlers) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid form payload", http.StatusBadRequest)
 		return
 	}
-	token := strings.TrimSpace(r.PostForm.Get("token"))
+	email := strings.TrimSpace(r.PostForm.Get("email"))
+	password := r.PostForm.Get("password")
+	tokenLegacy := strings.TrimSpace(r.PostForm.Get("token"))
 	next := sanitizeDashboardNext(r.PostForm.Get("next"))
 	if next == "" {
 		next = sanitizeDashboardNext(r.URL.Query().Get("next"))
@@ -264,18 +304,30 @@ func (h *handlers) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if token == "" {
-		renderComponent(w, r, LoginPage("token is required", next))
-		return
-	}
-	if h.cfg.ValidateLoginToken != nil {
-		if err := h.cfg.ValidateLoginToken(token); err != nil {
-			renderComponent(w, r, LoginPage("invalid token", next))
+
+	var principal *LoginPrincipal
+
+	switch {
+	case email != "" && password != "" && h.cfg.ValidateCredentials != nil:
+		p, err := h.cfg.ValidateCredentials(email, password)
+		if err != nil || p == nil {
+			renderComponent(w, r, LoginPage("invalid email or password", next))
 			return
 		}
+		principal = p
+	case tokenLegacy != "" && h.cfg.ValidateLoginToken != nil:
+		if err := h.cfg.ValidateLoginToken(tokenLegacy); err != nil {
+			renderComponent(w, r, LoginPage("invalid recovery token", next))
+			return
+		}
+		principal = &LoginPrincipal{UID: "admin-recovery", Email: "admin@recovery.local", Role: "admin"}
+	default:
+		renderComponent(w, r, LoginPage("email and password are required", next))
+		return
 	}
+
 	if h.cfg.CreateSessionCookie != nil {
-		if err := h.cfg.CreateSessionCookie(w, r, token); err != nil {
+		if err := h.cfg.CreateSessionCookie(w, r, principal); err != nil {
 			http.Error(w, "unable to create dashboard session", http.StatusInternalServerError)
 			return
 		}
@@ -774,14 +826,9 @@ func (h *handlers) handleProjectPromptsPartial(w http.ResponseWriter, r *http.Re
 	renderComponent(w, r, PromptsPartial(rows, Pagination{}))
 }
 
-// handleAdminUsers handles GET /dashboard/admin/users.
-// R6-1: serves only the shell; the list is loaded via HTMX from /dashboard/admin/users/list.
+// handleAdminUsers handles GET /dashboard/admin/users — shell only.
 func (h *handlers) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	p := h.principalFromRequest(r)
-	if !p.IsAdmin() {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 	component := AdminUsersPage()
 	if isHTMXRequest(r) {
 		renderComponent(w, r, component)
@@ -790,44 +837,118 @@ func (h *handlers) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 	renderComponent(w, r, Layout("Admin Users", p.DisplayName(), "admin", p.IsAdmin(), component))
 }
 
-// handleAdminUsersList handles GET /dashboard/admin/users/list.
-// R5-2: always returns AdminUsersListPartial (partial only, no full shell wrapper).
-// R6-2: on store error, always renders a fragment (no Layout wrapper) — partial-only contract.
-// Admin-gated.
+// handleAdminUsersList handles GET /dashboard/admin/users/list — tabla de users desde AdminUsers service.
 func (h *handlers) handleAdminUsersList(w http.ResponseWriter, r *http.Request) {
-	p := h.principalFromRequest(r)
-	if !p.IsAdmin() {
-		http.Error(w, "forbidden", http.StatusForbidden)
+	if h.cfg.AdminUsers == nil {
+		renderComponent(w, r, AdminUsersListPartial(nil, "user management is not configured"))
 		return
 	}
-	reqPage, pageSize := parsePaginationRaw(r)
-	rows := make([]cloudstore.DashboardContributorRow, 0)
-	total := 0
-	if h.cfg.Store != nil {
-		var err error
-		rows, total, err = h.cfg.Store.ListContributorsPaginated("", pageSize, (reqPage-1)*pageSize)
-		if err != nil {
-			log.Printf("dashboard: admin users list store error: %v", err)
-			renderComponentStatus(w, r, http.StatusBadGateway, EmptyState("Service Unavailable", "Dashboard data is temporarily unavailable."))
+	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
+	if err != nil {
+		log.Printf("dashboard: admin users list error: %v", err)
+		renderComponent(w, r, AdminUsersListPartial(nil, "no se pudo cargar la lista de usuarios"))
+		return
+	}
+	renderComponent(w, r, AdminUsersListPartial(users, ""))
+}
+
+// handleAdminUserCreate handles POST /dashboard/admin/users/create.
+func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.AdminUsers == nil {
+		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	email := strings.TrimSpace(r.PostForm.Get("email"))
+	name := strings.TrimSpace(r.PostForm.Get("name"))
+	role := strings.TrimSpace(r.PostForm.Get("role"))
+	password := r.PostForm.Get("password")
+	if err := h.cfg.AdminUsers.CreateUser(r.Context(), email, name, role, password); err != nil {
+		renderComponent(w, r, AdminUsersListPartial(nil, fmt.Sprintf("error: %v", err)))
+		return
+	}
+	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
+	if err != nil {
+		renderComponent(w, r, AdminUsersListPartial(nil, "user creado pero no se pudo recargar la lista"))
+		return
+	}
+	renderComponent(w, r, AdminUsersListPartial(users, ""))
+}
+
+// handleAdminUserSetRole handles POST /dashboard/admin/users/{uid}/role.
+func (h *handlers) handleAdminUserSetRole(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.AdminUsers == nil {
+		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+	uid := r.PathValue("uid")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	role := strings.TrimSpace(r.PostForm.Get("role"))
+	if err := h.cfg.AdminUsers.SetRole(r.Context(), uid, role); err != nil {
+		http.Error(w, fmt.Sprintf("set role: %v", err), http.StatusBadRequest)
+		return
+	}
+	h.renderSingleUserRow(w, r, uid)
+}
+
+// handleAdminUserSetActive returns a handler that toggles is_active.
+func (h *handlers) handleAdminUserSetActive(active bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if h.cfg.AdminUsers == nil {
+			http.Error(w, "user management not configured", http.StatusServiceUnavailable)
+			return
+		}
+		uid := r.PathValue("uid")
+		if err := h.cfg.AdminUsers.SetActive(r.Context(), uid, active); err != nil {
+			http.Error(w, fmt.Sprintf("set active: %v", err), http.StatusBadRequest)
+			return
+		}
+		h.renderSingleUserRow(w, r, uid)
+	}
+}
+
+// handleAdminUserChangePassword handles POST /dashboard/admin/users/{uid}/password.
+func (h *handlers) handleAdminUserChangePassword(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.AdminUsers == nil {
+		http.Error(w, "user management not configured", http.StatusServiceUnavailable)
+		return
+	}
+	uid := r.PathValue("uid")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	password := r.PostForm.Get("password")
+	if err := h.cfg.AdminUsers.ChangePassword(r.Context(), uid, password); err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<div class="login-error" role="alert">%s</div>`, html.EscapeString(err.Error()))
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = fmt.Fprintf(w, `<div class="muted">password actualizado para %s</div>`, html.EscapeString(uid))
+}
+
+// renderSingleUserRow re-fetches the user list and re-renders just the row matching uid.
+// Simplification: re-renders entire table. Lo justo y suficiente para HTMX outerHTML.
+func (h *handlers) renderSingleUserRow(w http.ResponseWriter, r *http.Request, uid string) {
+	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
+	if err != nil {
+		http.Error(w, "list users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, u := range users {
+		if u.UID == uid {
+			renderComponent(w, r, adminUserRow(u))
 			return
 		}
 	}
-	pg, needsRefetch := reclampPagination(reqPage, pageSize, total)
-	if needsRefetch && h.cfg.Store != nil {
-		if refetched, _, err := h.cfg.Store.ListContributorsPaginated("", pageSize, pg.Offset()); err == nil {
-			rows = refetched
-		} else {
-			log.Printf("dashboard: re-fetch admin users list page %d: %v", pg.Page, err)
-			if len(rows) == 0 {
-				if fallback, _, fallbackErr := h.cfg.Store.ListContributorsPaginated("", pageSize, 0); fallbackErr == nil {
-					rows = fallback
-				} else {
-					log.Printf("dashboard: fallback admin users list page 1: %v", fallbackErr)
-				}
-			}
-		}
-	}
-	renderComponent(w, r, AdminUsersListPartial(rows, pg))
+	http.Error(w, "user not found", http.StatusNotFound)
 }
 
 // handleAdminHealth handles GET /dashboard/admin/health.
