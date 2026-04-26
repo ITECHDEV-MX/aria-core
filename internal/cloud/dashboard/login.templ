@@ -5,11 +5,11 @@ package dashboard
 // Recovery: el campo "token" sigue aceptando ARIA_CORE_CLOUD_ADMIN.
 templ LoginPage(errorMsg string, next string) {
 	<!DOCTYPE html>
-	<html lang="en" data-theme="dark">
+	<html lang="es" data-theme="dark">
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>Login — ARIA Core</title>
+			<title>Iniciar sesión — ARIA Core</title>
 			<link rel="stylesheet" href="/dashboard/static/pico.min.css"/>
 			<link rel="stylesheet" href="/dashboard/static/styles.css"/>
 		</head>
@@ -23,12 +23,12 @@ templ LoginPage(errorMsg string, next string) {
 						<div class="hero-console login-console">
 							<p><span class="console-key">mode</span> multi-tenant</p>
 							<p><span class="console-key">auth</span> JWT HS256 + bcrypt</p>
-							<p><span class="console-key">roles</span> admin / dev</p>
+							<p><span class="console-key">roles</span> admin · dev · cotizador · project_admin</p>
 						</div>
 					</section>
 					<section class="login-container">
-						<p class="section-kicker">SIGN IN</p>
-						<h2>Sign In</h2>
+						<p class="section-kicker">INICIAR SESIÓN</p>
+						<h2>Iniciar sesión</h2>
 						<p class="login-copy">Inicia sesión con tu email y contraseña.</p>
 						if errorMsg != "" {
 							<div class="login-error" role="alert">
@@ -59,16 +59,16 @@ templ LoginPage(errorMsg string, next string) {
 									autocomplete="current-password"
 								/>
 							</label>
-							<button type="submit" class="shell-button">Sign In</button>
+							<button type="submit" class="shell-button">Iniciar sesión</button>
 						</form>
 						<details class="login-recovery">
-							<summary>Recovery con admin token</summary>
+							<summary>Recuperación con token admin</summary>
 							<form method="post" action="/dashboard/login" class="login-form">
 								if next != "" {
 									<input type="hidden" name="next" value={ next }/>
 								}
 								<label>
-									Admin recovery token
+									Token de recuperación admin
 									<input
 										type="password"
 										name="token"
@@ -76,7 +76,7 @@ templ LoginPage(errorMsg string, next string) {
 										autocomplete="off"
 									/>
 								</label>
-								<button type="submit" class="shell-button">Recovery Login</button>
+								<button type="submit" class="shell-button">Acceder con token</button>
 							</form>
 						</details>
 					</section>

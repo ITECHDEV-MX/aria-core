@@ -392,8 +392,8 @@ func (s *Store) SearchLessons(ctx context.Context, query, tag string, limit int)
 		rows, err = s.db.QueryContext(ctx, `
 			SELECT id::text, quote_id::text, lead_id::text, text, tags, created_by_uid::text, created_by_role, created_at
 			FROM cotizador_lessons
-			WHERE text_tsv @@ plainto_tsquery('simple', $1)
-			ORDER BY ts_rank(text_tsv, plainto_tsquery('simple', $1)) DESC, created_at DESC
+			WHERE text_tsv @@ plainto_tsquery('spanish', $1)
+			ORDER BY ts_rank(text_tsv, plainto_tsquery('spanish', $1)) DESC, created_at DESC
 			LIMIT $2
 		`, query, limit)
 	case query == "" && tag != "":
@@ -405,8 +405,8 @@ func (s *Store) SearchLessons(ctx context.Context, query, tag string, limit int)
 		rows, err = s.db.QueryContext(ctx, `
 			SELECT id::text, quote_id::text, lead_id::text, text, tags, created_by_uid::text, created_by_role, created_at
 			FROM cotizador_lessons
-			WHERE text_tsv @@ plainto_tsquery('simple', $1) AND $2 = ANY(tags)
-			ORDER BY ts_rank(text_tsv, plainto_tsquery('simple', $1)) DESC, created_at DESC
+			WHERE text_tsv @@ plainto_tsquery('spanish', $1) AND $2 = ANY(tags)
+			ORDER BY ts_rank(text_tsv, plainto_tsquery('spanish', $1)) DESC, created_at DESC
 			LIMIT $3
 		`, query, tag, limit)
 	}
@@ -440,11 +440,11 @@ func (s *Store) SearchSimilarItems(ctx context.Context, query string, limit int)
 			q.lead_id::text, l.name, l.company,
 			i.id::text as item_id, i.sku, i.description, i.qty::float8, i.unit_price::float8, i.subtotal::float8,
 			q.currency, q.created_at,
-			ts_rank(i.description_tsv, plainto_tsquery('simple', $1)) as rank
+			ts_rank(i.description_tsv, plainto_tsquery('spanish', $1)) as rank
 		FROM cotizador_quote_items i
 		JOIN cotizador_quotes q ON q.id = i.quote_id
 		JOIN cotizador_leads l ON l.id = q.lead_id
-		WHERE i.description_tsv @@ plainto_tsquery('simple', $1)
+		WHERE i.description_tsv @@ plainto_tsquery('spanish', $1)
 		ORDER BY rank DESC, q.created_at DESC
 		LIMIT $2
 	`, query, limit)

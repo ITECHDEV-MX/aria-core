@@ -695,6 +695,20 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			UNIQUE(quote_id, section_key)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_sections_quote ON cotizador_quote_sections(quote_id, sort_order)`,
+
+		// === Cotizador commit 8: FTS spanish + plantillas pre-fabricadas ===
+		// Migrar tsvector existente a 'spanish' para mejor lematización (acentos, plurales).
+		`ALTER TABLE cotizador_quote_items DROP COLUMN IF EXISTS description_tsv`,
+		`ALTER TABLE cotizador_quote_items ADD COLUMN description_tsv tsvector
+		 GENERATED ALWAYS AS (to_tsvector('spanish', coalesce(description,''))) STORED`,
+		`DROP INDEX IF EXISTS idx_cotizador_quote_items_fts`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_items_fts ON cotizador_quote_items USING GIN (description_tsv)`,
+
+		`ALTER TABLE cotizador_lessons DROP COLUMN IF EXISTS text_tsv`,
+		`ALTER TABLE cotizador_lessons ADD COLUMN text_tsv tsvector
+		 GENERATED ALWAYS AS (to_tsvector('spanish', coalesce(text,''))) STORED`,
+		`DROP INDEX IF EXISTS idx_cotizador_lessons_fts`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_fts ON cotizador_lessons USING GIN (text_tsv)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,
