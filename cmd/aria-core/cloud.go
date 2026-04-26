@@ -166,6 +166,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	passwordSelf := newPasswordSelfAdapter(usersStore)
 	passwordResetMailer := newPasswordResetMailerAdapter(emailService, publicURL)
 	personalCockpit := newPersonalCockpitAdapter(cs)
+	profile := newProfileAdapter(usersStore)
 
 	// ROI: métricas de Return-On-Investment + hook LogSearch en /v1/memory/search.
 	roiRuntimeAdapter := newROIAdapter(cs)
@@ -263,6 +264,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPasswordSelf(passwordSelf),
 			cloudserver.WithPasswordResetMailer(passwordResetMailer),
 			cloudserver.WithPersonalCockpit(personalCockpit),
+			cloudserver.WithProfile(profile),
 			cloudserver.WithRedactor(redactorDashSvc),
 			cloudserver.WithScrubGate(redactorScrubGate),
 			cloudserver.WithPublicURL(publicURL),

@@ -1,0 +1,199 @@
+package dashboard
+
+// meTabs renderiza la barra de tabs común a todas las páginas /dashboard/me/*.
+templ meTabs(active string) {
+	<div class="card" style="margin-bottom:1rem">
+		<div class="admin-nav">
+			if active == "activity" {
+				<a href="/dashboard/me" class="active">📊 Mi actividad</a>
+			} else {
+				<a href="/dashboard/me">📊 Mi actividad</a>
+			}
+			if active == "profile" {
+				<a href="/dashboard/me/profile" class="active">👤 Perfil</a>
+			} else {
+				<a href="/dashboard/me/profile">👤 Perfil</a>
+			}
+			if active == "security" {
+				<a href="/dashboard/me/security" class="active">🔒 Seguridad</a>
+			} else {
+				<a href="/dashboard/me/security">🔒 Seguridad</a>
+			}
+			if active == "notifications" {
+				<a href="/dashboard/me/notifications" class="active">🔔 Notificaciones</a>
+			} else {
+				<a href="/dashboard/me/notifications">🔔 Notificaciones</a>
+			}
+		</div>
+	</div>
+}
+
+// ProfilePage — /dashboard/me/profile
+templ ProfilePage(p *UserProfileView, errorMsg, successMsg string) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">MI CUENTA</p>
+			<h1>👤 Perfil</h1>
+			<p class="lead">Tus datos personales y de contacto. Visibles al equipo según el contexto.</p>
+		</div>
+	</div>
+
+	@meTabs("profile")
+
+	if errorMsg != "" {
+		<div class="login-error" role="alert" style="margin-bottom:1rem">{ errorMsg }</div>
+	}
+	if successMsg != "" {
+		<div style="background:var(--success);color:#fff;padding:0.6rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.875rem">✓ { successMsg }</div>
+	}
+
+	if p == nil {
+		<div class="card">
+			<p class="muted">No se pudo cargar el perfil.</p>
+		</div>
+	} else {
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Información básica</div>
+				<p class="card-description">Email no es editable — pedile a un admin si necesitás cambiarlo.</p>
+			</div>
+			<form hx-post="/dashboard/me/profile" hx-target="closest .card" hx-swap="outerHTML">
+				<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0.75rem">
+					<label style="margin:0">
+						Nombre completo *
+						<input type="text" name="name" value={ p.Name } required maxlength="100"/>
+					</label>
+					<label style="margin:0">
+						Email
+						<input type="email" value={ p.Email } disabled style="opacity:0.7"/>
+					</label>
+					<label style="margin:0">
+						Cargo / Título
+						<input type="text" name="job_title" value={ p.JobTitle } placeholder="Senior Backend Engineer" maxlength="100"/>
+					</label>
+					<label style="margin:0">
+						Teléfono
+						<input type="text" name="phone" value={ p.Phone } placeholder="+52 81 1234 5678" maxlength="50"/>
+					</label>
+					<label style="margin:0">
+						Timezone
+						<select name="timezone">
+							<option value="America/Mexico_City" selected?={ p.Timezone == "America/Mexico_City" }>America/Mexico_City</option>
+							<option value="America/Monterrey" selected?={ p.Timezone == "America/Monterrey" }>America/Monterrey</option>
+							<option value="America/Tijuana" selected?={ p.Timezone == "America/Tijuana" }>America/Tijuana</option>
+							<option value="America/New_York" selected?={ p.Timezone == "America/New_York" }>America/New_York</option>
+							<option value="America/Los_Angeles" selected?={ p.Timezone == "America/Los_Angeles" }>America/Los_Angeles</option>
+							<option value="America/Bogota" selected?={ p.Timezone == "America/Bogota" }>America/Bogota</option>
+							<option value="America/Buenos_Aires" selected?={ p.Timezone == "America/Buenos_Aires" }>America/Buenos_Aires</option>
+							<option value="Europe/Madrid" selected?={ p.Timezone == "Europe/Madrid" }>Europe/Madrid</option>
+							<option value="UTC" selected?={ p.Timezone == "UTC" }>UTC</option>
+						</select>
+					</label>
+					<label style="margin:0">
+						Idioma
+						<select name="language">
+							<option value="es" selected?={ p.Language == "es" }>Español</option>
+							<option value="en" selected?={ p.Language == "en" }>English</option>
+						</select>
+					</label>
+				</div>
+				<label style="display:block;margin-top:0.75rem">
+					Bio
+					<textarea name="bio" rows="3" maxlength="500" placeholder="Una línea sobre vos: especialidad, intereses, lo que te apasiona del producto.">{ p.Bio }</textarea>
+				</label>
+				<label style="display:block;margin-top:0.75rem">
+					URL de avatar (opcional)
+					<input type="url" name="avatar_url" value={ p.AvatarURL } placeholder="https://... o vacío para usar iniciales"/>
+				</label>
+				<button type="submit" class="btn btn-primary" style="margin-top:1rem">Guardar cambios</button>
+			</form>
+		</div>
+
+		<div class="card" style="margin-top:1rem">
+			<div class="card-header">
+				<div class="card-title">Identidad del sistema</div>
+				<p class="card-description">Datos read-only, gestionados por admins.</p>
+			</div>
+			<table class="data-table" style="margin-top:0.5rem">
+				<tbody>
+					<tr><th>UID</th><td><code>{ p.UID }</code></td></tr>
+					<tr><th>Roles</th><td>
+						for _, r := range p.Roles {
+							<span class={ "badge badge-" + roleBadgeVariant(r) } style="margin-right:0.3rem">{ r }</span>
+						}
+					</td></tr>
+					<tr><th>Cuenta creada</th><td>{ formatTimestampTime(p.CreatedAt) }</td></tr>
+					if p.LastActive != nil {
+						<tr><th>Última actividad</th><td>{ formatTimestampTime(*p.LastActive) }</td></tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// NotificationsPage — /dashboard/me/notifications
+templ NotificationsPage(prefs map[string]any, errorMsg, successMsg string) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">MI CUENTA</p>
+			<h1>🔔 Notificaciones</h1>
+			<p class="lead">Decidí qué te llega por email y cuándo.</p>
+		</div>
+	</div>
+
+	@meTabs("notifications")
+
+	if errorMsg != "" {
+		<div class="login-error" role="alert" style="margin-bottom:1rem">{ errorMsg }</div>
+	}
+	if successMsg != "" {
+		<div style="background:var(--success);color:#fff;padding:0.6rem 1rem;border-radius:var(--radius-md);margin-bottom:1rem;font-size:0.875rem">✓ { successMsg }</div>
+	}
+
+	<div class="card" style="max-width:680px">
+		<div class="card-header">
+			<div class="card-title">Email</div>
+		</div>
+		<form hx-post="/dashboard/me/notifications" hx-target="closest .card" hx-swap="outerHTML">
+			<div style="display:flex;flex-direction:column;gap:0.85rem">
+				<label style="display:flex;align-items:start;gap:0.6rem;margin:0">
+					<input type="checkbox" name="notif_mentions" value="on" checked?={ prefBool(prefs, "notifications.mentions", true) } style="margin-top:0.25rem;width:auto"/>
+					<div>
+						<strong>Mentions (@usuario)</strong>
+						<p class="muted" style="margin:0.15rem 0 0;font-size:0.8rem">Cuando alguien te menciona en un comentario de página o cotización.</p>
+					</div>
+				</label>
+				<label style="display:flex;align-items:start;gap:0.6rem;margin:0">
+					<input type="checkbox" name="notif_quote_events" value="on" checked?={ prefBool(prefs, "notifications.quote_events", true) } style="margin-top:0.25rem;width:auto"/>
+					<div>
+						<strong>Eventos de cotización</strong>
+						<p class="muted" style="margin:0.15rem 0 0;font-size:0.8rem">Cotización aprobada, rechazada o por vencer.</p>
+					</div>
+				</label>
+				<label style="display:flex;align-items:start;gap:0.6rem;margin:0">
+					<input type="checkbox" name="notif_share_links" value="on" checked?={ prefBool(prefs, "notifications.share_links", true) } style="margin-top:0.25rem;width:auto"/>
+					<div>
+						<strong>Share links accedidos</strong>
+						<p class="muted" style="margin:0.15rem 0 0;font-size:0.8rem">Cuando un share link de tus páginas se abre.</p>
+					</div>
+				</label>
+				<label style="display:flex;align-items:start;gap:0.6rem;margin:0">
+					<input type="checkbox" name="notif_weekly_digest" value="on" checked?={ prefBool(prefs, "notifications.weekly_digest", false) } style="margin-top:0.25rem;width:auto"/>
+					<div>
+						<strong>Resumen semanal</strong>
+						<p class="muted" style="margin:0.15rem 0 0;font-size:0.8rem">Cada lunes: tu actividad de la semana, top contribuciones del equipo, lessons learned.</p>
+					</div>
+				</label>
+				<label style="display:flex;align-items:start;gap:0.6rem;margin:0">
+					<input type="checkbox" name="notif_zombie_sessions" value="on" checked?={ prefBool(prefs, "notifications.zombie_sessions", false) } style="margin-top:0.25rem;width:auto"/>
+					<div>
+						<strong>Sesiones abandonadas</strong>
+						<p class="muted" style="margin:0.15rem 0 0;font-size:0.8rem">Aviso si dejaste sesiones abiertas más de 24h sin cerrar.</p>
+					</div>
+				</label>
+			</div>
+			<button type="submit" class="btn btn-primary" style="margin-top:1.25rem">Guardar preferencias</button>
+		</form>
+	</div>
+}

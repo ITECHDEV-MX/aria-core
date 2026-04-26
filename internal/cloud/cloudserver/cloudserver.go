@@ -84,6 +84,7 @@ type CloudServer struct {
 	passwordSelf     dashboard.PasswordSelfService
 	passwordResetMailer dashboard.PasswordResetMailerService
 	personalCockpit  dashboard.PersonalCockpitService
+	profile          dashboard.ProfileService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -337,6 +338,13 @@ func WithPasswordResetMailer(m dashboard.PasswordResetMailerService) Option {
 func WithPersonalCockpit(p dashboard.PersonalCockpitService) Option {
 	return func(s *CloudServer) {
 		s.personalCockpit = p
+	}
+}
+
+// WithProfile inyecta el servicio self-service de perfil.
+func WithProfile(p dashboard.ProfileService) Option {
+	return func(s *CloudServer) {
+		s.profile = p
 	}
 }
 
@@ -683,6 +691,7 @@ func (s *CloudServer) routes() {
 		PasswordSelf:        s.passwordSelf,
 		PasswordResetMailer: s.passwordResetMailer,
 		PersonalCockpit:     s.personalCockpit,
+		Profile:             s.profile,
 		Redactor:          s.redactor,
 		Vault:             s.vaultDash,
 		ROI:               s.roiDash,

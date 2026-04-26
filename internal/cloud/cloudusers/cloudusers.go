@@ -67,6 +67,26 @@ type User struct {
 	PasswordHash string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	// Profile fields (self-service)
+	Phone        string
+	Timezone     string
+	Language     string
+	JobTitle     string
+	Bio          string
+	AvatarURL    string
+	Preferences  []byte // raw JSON
+	LastActiveAt sql.NullTime
+}
+
+// ProfileUpdate carries the editable profile fields for self-service.
+type ProfileUpdate struct {
+	Name      string
+	Phone     string
+	Timezone  string
+	Language  string
+	JobTitle  string
+	Bio       string
+	AvatarURL string
 }
 
 // HasRole retorna true si el usuario tiene el rol dado en su set.
@@ -477,6 +497,99 @@ func (s *Store) ConsumePasswordResetToken(ctx context.Context, token, newPasswor
 		return "", err
 	}
 	return uid, tx.Commit()
+}
+
+// GetProfile carga User con TODOS los campos de perfil (incluye phone, bio, etc).
+// El path "normal" (GetByUID) solo trae los core fields; este es para /dashboard/me/profile.
+func (s *Store) GetProfile(ctx context.Context, uid string) (*User, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT uid::text, email, name, role, is_active, client_id, password_hash, created_at, updated_at,
+		       COALESCE(phone,''), COALESCE(timezone,'America/Mexico_City'), COALESCE(language,'es'),
+		       COALESCE(job_title,''), COALESCE(bio,''), COALESCE(avatar_url,''),
+		       COALESCE(preferences::text, '{}'), last_active_at
+		FROM cloud_users WHERE uid::text = $1
+	`, uid)
+	var u User
+	var prefs string
+	err := row.Scan(&u.UID, &u.Email, &u.Name, &u.Role, &u.IsActive, &u.ClientID, &u.PasswordHash,
+		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Timezone, &u.Language, &u.JobTitle, &u.Bio, &u.AvatarURL,
+		&prefs, &u.LastActiveAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	u.Preferences = []byte(prefs)
+	// Cargar roles
+	roles, err := s.ListRoles(ctx, u.UID)
+	if err == nil {
+		u.Roles = roles
+	}
+	return &u, nil
+}
+
+// UpdateProfile actualiza los campos editables de perfil del propio usuario.
+// Solo el dueño del UID puede llamar esto (verifica el caller).
+func (s *Store) UpdateProfile(ctx context.Context, uid string, p ProfileUpdate) error {
+	name := strings.TrimSpace(p.Name)
+	if name == "" {
+		return fmt.Errorf("name is required")
+	}
+	tz := strings.TrimSpace(p.Timezone)
+	if tz == "" {
+		tz = "America/Mexico_City"
+	}
+	lang := strings.TrimSpace(p.Language)
+	if lang == "" {
+		lang = "es"
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cloud_users
+		SET name = $1,
+		    phone = NULLIF($2,''),
+		    timezone = $3,
+		    language = $4,
+		    job_title = NULLIF($5,''),
+		    bio = NULLIF($6,''),
+		    avatar_url = NULLIF($7,''),
+		    updated_at = NOW()
+		WHERE uid::text = $8
+	`, name, strings.TrimSpace(p.Phone), tz, lang, strings.TrimSpace(p.JobTitle), strings.TrimSpace(p.Bio), strings.TrimSpace(p.AvatarURL), uid)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// UpdatePreferences actualiza el JSONB de preferencias (notification toggles, etc).
+// Recibe el JSON completo. Caller responsable de validar shape.
+func (s *Store) UpdatePreferences(ctx context.Context, uid string, prefsJSON []byte) error {
+	if len(prefsJSON) == 0 {
+		prefsJSON = []byte(`{}`)
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cloud_users SET preferences = $1::jsonb, updated_at = NOW()
+		WHERE uid::text = $2
+	`, string(prefsJSON), uid)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// MarkActive actualiza last_active_at del user (llamado en cada login/operation).
+func (s *Store) MarkActive(ctx context.Context, uid string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE cloud_users SET last_active_at = NOW() WHERE uid::text = $1`, uid)
+	return err
 }
 
 // Count devuelve total de usuarios (útil para detectar bootstrap inicial).

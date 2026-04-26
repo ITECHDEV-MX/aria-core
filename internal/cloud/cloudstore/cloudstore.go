@@ -455,6 +455,15 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
 		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS client_id UUID`,
 		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
+		// Profile fields (self-service en /dashboard/me/profile)
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS phone TEXT`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'America/Mexico_City'`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'es'`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS job_title TEXT`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS bio TEXT`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS preferences JSONB NOT NULL DEFAULT '{}'::jsonb`,
+		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
 		`DO $$ BEGIN
 			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_users_role_check') THEN
 				ALTER TABLE cloud_users DROP CONSTRAINT cloud_users_role_check;

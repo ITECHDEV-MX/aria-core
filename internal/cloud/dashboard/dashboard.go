@@ -81,6 +81,8 @@ type MountConfig struct {
 	// PasswordSelf (opcional) — habilita /dashboard/me/security (cambiar pwd) y
 	// /dashboard/forgot-password + /dashboard/reset-password/{token}.
 	PasswordSelf PasswordSelfService
+	// Profile (opcional) — habilita /dashboard/me/profile y /me/notifications.
+	Profile ProfileService
 	// PasswordResetMailer (opcional) — envía email con magic link de reset.
 	PasswordResetMailer PasswordResetMailerService
 	// PersonalCockpit (opcional) — habilita /dashboard/me cockpit del dev.
@@ -798,6 +800,42 @@ type AdminUserService interface {
 	ChangePassword(ctx context.Context, uid, newPassword string) error
 }
 
+// ProfileService es el contrato self-service para que el dev gestione
+// su propio perfil (nombre, datos personales, preferencias).
+type ProfileService interface {
+	GetProfile(ctx context.Context, uid string) (*UserProfileView, error)
+	UpdateProfile(ctx context.Context, uid string, p UserProfileUpdate) error
+	UpdatePreferences(ctx context.Context, uid string, prefsJSON []byte) error
+}
+
+// UserProfileView espeja cloudusers.User con los campos editables.
+type UserProfileView struct {
+	UID         string
+	Email       string
+	Name        string
+	Phone       string
+	Timezone    string
+	Language    string
+	JobTitle    string
+	Bio         string
+	AvatarURL   string
+	Roles       []string
+	Preferences map[string]any // shape: {notifications: {mentions: bool, quotes: bool, weekly_digest: bool}}
+	CreatedAt   time.Time
+	LastActive  *time.Time
+}
+
+// UserProfileUpdate es el body que el handler pasa al store en POST profile.
+type UserProfileUpdate struct {
+	Name      string
+	Phone     string
+	Timezone  string
+	Language  string
+	JobTitle  string
+	Bio       string
+	AvatarURL string
+}
+
 // PasswordSelfService es el contrato para self-service password change +
 // forgot-password flow. Separado de AdminUserService para mantener admin clean
 // (admin no necesita verify-with-current; agente no debe poder triggerar resets).
@@ -987,6 +1025,12 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	// Mi cuenta · Seguridad (cambiar password self-service)
 	mux.HandleFunc("GET /dashboard/me/security", h.requireSession(h.handleAccountSecurityPage))
 	mux.HandleFunc("POST /dashboard/me/security/password", h.requireSession(h.handleAccountPasswordChange))
+
+	// Mi cuenta · Perfil + Notificaciones
+	mux.HandleFunc("GET /dashboard/me/profile", h.requireSession(h.handleProfilePage))
+	mux.HandleFunc("POST /dashboard/me/profile", h.requireSession(h.handleProfileUpdate))
+	mux.HandleFunc("GET /dashboard/me/notifications", h.requireSession(h.handleNotificationsPage))
+	mux.HandleFunc("POST /dashboard/me/notifications", h.requireSession(h.handleNotificationsUpdate))
 
 	// Forgot/reset password (rutas públicas, sin auth)
 	mux.HandleFunc("GET /dashboard/forgot-password", h.handleForgotPasswordPage)
