@@ -586,6 +586,8 @@ func main() {
 		cmdRecipe()
 	case "pages":
 		cmdPages()
+	case "comments":
+		cmdComments()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":

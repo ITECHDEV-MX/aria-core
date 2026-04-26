@@ -1,6 +1,6 @@
-// CLI for `aria-core pages <subcommand>`.
+// CLI for `aria-core pages <subcommand>` and `aria-core comments <subcommand>`.
 //
-// Subcommands:
+// Pages subcommands:
 //   list                       Lista páginas (filtrable por --project).
 //   create                     Crea una página (--title, --parent-id, --template, etc.).
 //   export PAGE_ID             Exporta a md|html.
@@ -10,6 +10,15 @@
 //   share PAGE_ID              Crea un public share link (--expires, --password).
 //   shares list                Lista share links activos (--page=ID).
 //   shares revoke SHARE_ID     Revoca un share link.
+//   db create PAGE_ID          Inicializa inline database (--schema=schema.json).
+//   db rows list PAGE_ID       Lista rows (--filter, --sort).
+//   db rows add  PAGE_ID       Agrega row (--props='{...}').
+//   db rows del  ROW_ID        Borra row.
+//
+// Comments subcommands (separate dispatcher):
+//   list PAGE_ID [--unresolved]
+//   resolve COMMENT_ID --uid=UUID
+//   delete COMMENT_ID
 package main
 
 import (
@@ -32,6 +41,8 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/attachments"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/comments"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/databases"
 )
 
 func cmdPages() {
@@ -74,6 +85,8 @@ func cmdPages() {
 			printPagesUsage()
 			exitFunc(2)
 		}
+	case "db":
+		cmdPagesDB(args)
 	case "help", "--help", "-h":
 		printPagesUsage()
 	default:
@@ -86,26 +99,25 @@ func cmdPages() {
 func printPagesUsage() {
 	fmt.Println(`aria-core pages — mini-Notion (wiki) CLI
 
-Subcommands:
+Page subcommands:
   list [--project=X] [--scope=S] [--json]
-                              Lista páginas no archivadas.
   create --title="..." [--parent-id=UUID] [--template=KEY] [--project=P]
          [--scope=team] [--icon="📄"] [--by-uid=UUID]
-                              Crea una página. Si --template, hidrata body.
   export PAGE_ID [--format=md|html]
-                              Imprime el contenido renderizado a stdout.
   seed-templates --by-uid=UUID
-                              Carga los 5 templates builtin (idempotente).
-  import-notion ZIP_FILE      (TODO) Importa export Notion preservando jerarquía.
+  import-notion ZIP_FILE                              (TODO)
 
+Attachment + share subcommands:
   attach FILE PAGE_ID [--description="..."] [--uid=UUID]
-                              Upload archivo a una página. MIME validated.
   share PAGE_ID [--expires=24h] [--password=...] [--copy-to-clipboard] [--uid=UUID]
-                              Crea un public share link. --expires: 1h|24h|7d|30d|never
   shares list --page=ID [--include-revoked]
-                              Lista share links de una página.
   shares revoke SHARE_ID [--uid=UUID]
-                              Revoca un share link.
+
+Inline database subcommands:
+  db create PAGE_ID --schema=schema.json [--default-view=table|kanban|gallery|list] [--uid=UUID]
+  db rows list PAGE_ID [--filter=key:op:value] [--sort=key:asc|desc] [--limit=50]
+  db rows add  PAGE_ID --props='{"k":"v"}' [--uid=UUID]
+  db rows del  ROW_ID
 
 Templates builtin: prd-v1 | incident-v1 | one-on-one-v1 | adr-v1 | client-onboarding-v1
 
@@ -113,8 +125,7 @@ Requiere ARIA_CORE_DATABASE_URL=postgres://...
 Storage de attachments: ARIA_CORE_ATTACHMENTS_DIR (default: /var/lib/aria-core/attachments).`)
 }
 
-// pagesCmdContext es el contexto compartido por todos los handlers; carga
-// ambos stores (PgStore para pages CRUD y attachment/share stores para uploads).
+// pagesCmdContext es el contexto compartido por handlers de pages (CRUD + att/share).
 type pagesCmdContext struct {
 	db          *sql.DB
 	pgStore     *pages.PgStore
@@ -123,7 +134,6 @@ type pagesCmdContext struct {
 	storageRoot string
 }
 
-// runPagesCmd abre DB y entrega un pagesCmdContext al handler.
 func runPagesCmd(args []string, fn func(ctx context.Context, c *pagesCmdContext, args []string) error) {
 	dsn := strings.TrimSpace(os.Getenv("ARIA_CORE_DATABASE_URL"))
 	if dsn == "" {
@@ -172,7 +182,7 @@ func runPagesCmd(args []string, fn func(ctx context.Context, c *pagesCmdContext,
 	}
 }
 
-// ─── PAGES subcommand handlers (CRUD) ───────────────────────────────────────
+// ─── PAGES handlers (CRUD) ──────────────────────────────────────────────────
 
 func pagesList(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("pages list", flag.ExitOnError)
@@ -316,7 +326,7 @@ func pagesSeedTemplates(ctx context.Context, c *pagesCmdContext, args []string) 
 	return nil
 }
 
-// ─── ATTACH/SHARE subcommand handlers ──────────────────────────────────────
+// ─── ATTACH/SHARE handlers ─────────────────────────────────────────────────
 
 func pagesAttach(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
@@ -475,6 +485,348 @@ func pagesSharesRevoke(ctx context.Context, c *pagesCmdContext, args []string) e
 	return nil
 }
 
+// ─── DB inline databases handlers ──────────────────────────────────────────
+
+func cmdPagesDB(args []string) {
+	if len(args) < 1 {
+		printPagesUsage()
+		exitFunc(2)
+		return
+	}
+	sub := args[0]
+	rest := args[1:]
+	switch sub {
+	case "create":
+		runPagesDBCmd(rest, dbCreate)
+	case "rows":
+		if len(rest) < 1 {
+			printPagesUsage()
+			exitFunc(2)
+			return
+		}
+		switch rest[0] {
+		case "list":
+			runPagesDBCmd(rest[1:], dbRowsList)
+		case "add":
+			runPagesDBCmd(rest[1:], dbRowsAdd)
+		case "del":
+			runPagesDBCmd(rest[1:], dbRowsDel)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown rows subcommand: %s\n", rest[0])
+			exitFunc(2)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "unknown db subcommand: %s\n", sub)
+		exitFunc(2)
+	}
+}
+
+func runPagesDBCmd(args []string, fn func(ctx context.Context, s *databases.Store, args []string) error) {
+	dsn := strings.TrimSpace(os.Getenv("ARIA_CORE_DATABASE_URL"))
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "ARIA_CORE_DATABASE_URL is required")
+		exitFunc(1)
+		return
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "ping db:", err)
+		exitFunc(1)
+		return
+	}
+	store := databases.New(db)
+	if err := fn(ctx, store, args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+	}
+}
+
+func dbCreate(ctx context.Context, s *databases.Store, args []string) error {
+	fs := flag.NewFlagSet("db create", flag.ContinueOnError)
+	schemaFile := fs.String("schema", "", "path to JSON file with array of PropDef")
+	defaultView := fs.String("default-view", "table", "default view: table|kanban|gallery|list")
+	creator := fs.String("uid", "", "creator UID (UUID)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 1 {
+		return fmt.Errorf("PAGE_ID required")
+	}
+	pageID := fs.Arg(0)
+	if *schemaFile == "" {
+		return fmt.Errorf("--schema is required")
+	}
+	raw, err := os.ReadFile(*schemaFile)
+	if err != nil {
+		return err
+	}
+	var schema []databases.PropDef
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return fmt.Errorf("parse schema: %w", err)
+	}
+	uid := strings.TrimSpace(*creator)
+	if uid == "" {
+		uid = "00000000-0000-0000-0000-000000000000"
+	}
+	out, err := s.Create(ctx, databases.CreateParams{
+		PageID: pageID, Schema: schema, DefaultView: *defaultView, CreatedByUID: uid,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("database created: id=%s page_id=%s\n", out.ID, out.PageID)
+	return nil
+}
+
+func dbRowsList(ctx context.Context, s *databases.Store, args []string) error {
+	fs := flag.NewFlagSet("rows list", flag.ContinueOnError)
+	filter := fs.String("filter", "", "filter spec key:op:value (CSV)")
+	sortSpec := fs.String("sort", "", "sort spec key:asc (CSV)")
+	limit := fs.Int("limit", 50, "max rows")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 1 {
+		return fmt.Errorf("PAGE_ID required")
+	}
+	db, err := s.GetByPage(ctx, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	opts := databases.ListRowsOpts{Limit: *limit}
+	if *filter != "" {
+		opts.Filters = parseCLIFilters(*filter)
+	}
+	if *sortSpec != "" {
+		opts.Sorts = parseCLISorts(*sortSpec)
+	}
+	rows, err := s.ListRows(ctx, db.ID, opts)
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	defer tw.Flush()
+	headers := []string{"ROW_ID"}
+	for _, def := range db.Schema {
+		headers = append(headers, def.Name)
+	}
+	fmt.Fprintln(tw, strings.Join(headers, "\t"))
+	for _, r := range rows {
+		cells := []string{shortID(r.ID)}
+		for _, def := range db.Schema {
+			v := ""
+			if x, ok := r.Props[def.Key]; ok && x != nil {
+				if s, ok := x.(string); ok {
+					v = s
+				} else {
+					b, _ := json.Marshal(x)
+					v = string(b)
+				}
+			}
+			cells = append(cells, v)
+		}
+		fmt.Fprintln(tw, strings.Join(cells, "\t"))
+	}
+	return nil
+}
+
+func dbRowsAdd(ctx context.Context, s *databases.Store, args []string) error {
+	fs := flag.NewFlagSet("rows add", flag.ContinueOnError)
+	propsFlag := fs.String("props", "{}", "props JSON")
+	creator := fs.String("uid", "", "creator UID")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() < 1 {
+		return fmt.Errorf("PAGE_ID required")
+	}
+	db, err := s.GetByPage(ctx, fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	var props map[string]any
+	if err := json.Unmarshal([]byte(*propsFlag), &props); err != nil {
+		return fmt.Errorf("parse props: %w", err)
+	}
+	uid := strings.TrimSpace(*creator)
+	if uid == "" {
+		uid = "00000000-0000-0000-0000-000000000000"
+	}
+	row, err := s.CreateRow(ctx, databases.CreateRowParams{
+		DatabaseID: db.ID, Props: props, CreatedByUID: uid,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("row added: %s\n", row.ID)
+	return nil
+}
+
+func dbRowsDel(ctx context.Context, s *databases.Store, args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("ROW_ID required")
+	}
+	if err := s.DeleteRow(ctx, args[0]); err != nil {
+		return err
+	}
+	fmt.Println("row deleted")
+	return nil
+}
+
+func parseCLIFilters(raw string) []databases.Filter {
+	parts := strings.Split(raw, ",")
+	out := []databases.Filter{}
+	for _, p := range parts {
+		segs := strings.SplitN(p, ":", 3)
+		if len(segs) < 2 {
+			continue
+		}
+		f := databases.Filter{Key: segs[0], Op: databases.FilterOp(segs[1])}
+		if len(segs) == 3 {
+			f.Value = segs[2]
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func parseCLISorts(raw string) []databases.Sort {
+	parts := strings.Split(raw, ",")
+	out := []databases.Sort{}
+	for _, p := range parts {
+		segs := strings.SplitN(p, ":", 2)
+		s := databases.Sort{Key: segs[0], Direction: "asc"}
+		if len(segs) == 2 {
+			s.Direction = segs[1]
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// ─── COMMENTS dispatcher (`aria-core comments <subcommand>`) ────────────────
+
+func cmdComments() {
+	if len(os.Args) < 3 {
+		fmt.Println(`aria-core comments — page comments
+
+Subcommands:
+  list PAGE_ID [--unresolved] [--limit=N]
+  resolve COMMENT_ID --uid=UUID
+  delete COMMENT_ID
+
+Requires ARIA_CORE_DATABASE_URL.`)
+		return
+	}
+	dsn := strings.TrimSpace(os.Getenv("ARIA_CORE_DATABASE_URL"))
+	if dsn == "" {
+		fmt.Fprintln(os.Stderr, "ARIA_CORE_DATABASE_URL is required")
+		exitFunc(1)
+		return
+	}
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, "ping db:", err)
+		exitFunc(1)
+		return
+	}
+	store := comments.New(db)
+	switch os.Args[2] {
+	case "list":
+		commentsList(ctx, store, os.Args[3:])
+	case "resolve":
+		commentsResolve(ctx, store, os.Args[3:])
+	case "delete":
+		commentsDelete(ctx, store, os.Args[3:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown subcommand: %s\n", os.Args[2])
+		exitFunc(2)
+	}
+}
+
+func commentsList(ctx context.Context, s *comments.Store, args []string) {
+	fs := flag.NewFlagSet("comments list", flag.ContinueOnError)
+	unresolved := fs.Bool("unresolved", false, "only unresolved")
+	limit := fs.Int("limit", 50, "max rows")
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	if fs.NArg() < 1 {
+		fmt.Fprintln(os.Stderr, "PAGE_ID required")
+		exitFunc(2)
+		return
+	}
+	cs, err := s.ListPage(ctx, fs.Arg(0), comments.ListPageOpts{
+		OnlyUnresolved: *unresolved,
+		Limit:          *limit,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	defer tw.Flush()
+	fmt.Fprintln(tw, "ID\tAUTHOR\tRESOLVED\tREPLIES\tCONTENT")
+	for _, c := range cs {
+		fmt.Fprintf(tw, "%s\t%s\t%v\t%d\t%s\n",
+			shortID(c.ID), shortID(c.AuthorUID), c.IsResolved, c.ReplyCount, truncateString(c.ContentMD, 40))
+	}
+}
+
+func commentsResolve(ctx context.Context, s *comments.Store, args []string) {
+	fs := flag.NewFlagSet("comments resolve", flag.ContinueOnError)
+	uid := fs.String("uid", "", "resolver UID")
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	if fs.NArg() < 1 || *uid == "" {
+		fmt.Fprintln(os.Stderr, "COMMENT_ID and --uid required")
+		exitFunc(2)
+		return
+	}
+	if err := s.Resolve(ctx, fs.Arg(0), *uid); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	fmt.Println("resolved")
+}
+
+func commentsDelete(ctx context.Context, s *comments.Store, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "COMMENT_ID required")
+		exitFunc(2)
+		return
+	}
+	if err := s.Delete(ctx, args[0]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitFunc(1)
+		return
+	}
+	fmt.Println("deleted")
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 func truncatePages(s string, max int) string {
@@ -527,8 +879,7 @@ func truncToken(t string) string {
 	return t[:8] + "…" + t[len(t)-4:]
 }
 
-// tryCopyToClipboard pipes url to pbcopy/xclip/wl-copy depending on OS. Best
-// effort — returns the underlying error so the user can switch tools.
+// tryCopyToClipboard pipes url to pbcopy/xclip/wl-copy depending on OS.
 func tryCopyToClipboard(url string) error {
 	candidates := [][]string{
 		{"pbcopy"},

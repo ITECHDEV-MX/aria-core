@@ -77,6 +77,8 @@ type CloudServer struct {
 	pageAttachments  PageAttachmentService
 	pageShares       PageShareService
 	pagePublicView   PagePublicViewService
+	pageDB           PageDatabaseService
+	pageComments     PageCommentsService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -728,6 +730,30 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("GET /v1/recipes/executions", s.withJWTAuth(s.handleV1RecipeExecutionList))
 	s.mux.HandleFunc("GET /v1/recipes/executions/{id}", s.withJWTAuth(s.handleV1RecipeExecutionGet))
 
+	// === ARIA Pages: inline databases + comments + mentions ===
+	// Inline databases (Notion-style): schema tipado, multi-view, filters/sort.
+	s.mux.HandleFunc("POST /v1/pages/{pageID}/database", s.withJWTAuth(s.handleV1PageDBInit))
+	s.mux.HandleFunc("GET /v1/pages/{pageID}/database", s.withJWTAuth(s.handleV1PageDBGet))
+	s.mux.HandleFunc("PUT /v1/pages/{pageID}/database/schema", s.withJWTAuth(s.handleV1PageDBSchemaUpdate))
+	s.mux.HandleFunc("POST /v1/pages/{pageID}/database/rows", s.withJWTAuth(s.handleV1PageDBRowCreate))
+	s.mux.HandleFunc("GET /v1/pages/{pageID}/database/rows", s.withJWTAuth(s.handleV1PageDBRowsList))
+	s.mux.HandleFunc("PATCH /v1/database-rows/{rowID}", s.withJWTAuth(s.handleV1PageDBRowUpdate))
+	s.mux.HandleFunc("DELETE /v1/database-rows/{rowID}", s.withJWTAuth(s.handleV1PageDBRowDelete))
+	s.mux.HandleFunc("POST /v1/pages/{pageID}/database/views", s.withJWTAuth(s.handleV1PageDBViewCreate))
+	s.mux.HandleFunc("PATCH /v1/database-views/{viewID}", s.withJWTAuth(s.handleV1PageDBViewUpdate))
+	s.mux.HandleFunc("DELETE /v1/database-views/{viewID}", s.withJWTAuth(s.handleV1PageDBViewDelete))
+
+	// Comments threading + @mentions.
+	s.mux.HandleFunc("POST /v1/pages/{pageID}/comments", s.withJWTAuth(s.handleV1CommentCreate))
+	s.mux.HandleFunc("GET /v1/pages/{pageID}/comments", s.withJWTAuth(s.handleV1CommentsList))
+	s.mux.HandleFunc("GET /v1/comments/{id}/replies", s.withJWTAuth(s.handleV1CommentRepliesList))
+	s.mux.HandleFunc("PATCH /v1/comments/{id}", s.withJWTAuth(s.handleV1CommentUpdate))
+	s.mux.HandleFunc("POST /v1/comments/{id}/resolve", s.withJWTAuth(s.handleV1CommentResolve))
+	s.mux.HandleFunc("POST /v1/comments/{id}/unresolve", s.withJWTAuth(s.handleV1CommentUnresolve))
+	s.mux.HandleFunc("DELETE /v1/comments/{id}", s.withJWTAuth(s.handleV1CommentDelete))
+	s.mux.HandleFunc("GET /v1/mentions", s.withJWTAuth(s.handleV1MentionsList))
+	s.mux.HandleFunc("POST /v1/pages/{pageID}/mentions/mark-read", s.withJWTAuth(s.handleV1MentionsMarkRead))
+
 	// Dashboard mounts (only when adapter is configured).
 	if s.recipes != nil {
 		dashRecipes := newDashboardRecipeAdapter(s.recipes)
@@ -743,7 +769,6 @@ func (s *CloudServer) routes() {
 		s.mux.HandleFunc("GET /v1/attachments/{id}/thumbnail", s.withJWTAuth(s.handleV1AttachmentThumbnail))
 		s.mux.HandleFunc("DELETE /v1/attachments/{id}", s.withJWTAuth(s.handleV1AttachmentDelete))
 
-		// Dashboard mounts for attachments + shares.
 		if mountFn := newPageAttachmentsDashboard(s); mountFn != nil {
 			mountFn(s.mux, s.authorizeDashboardRequest, s.displayNameFor, s.dashboardRolesFromRequest)
 		}
@@ -759,6 +784,11 @@ func (s *CloudServer) routes() {
 		if s.pageAttachments != nil {
 			s.mux.HandleFunc("GET /p/{token}/files/{id}", s.handlePublicAttachmentDownload)
 		}
+	}
+
+	// === Page databases + comments (DB module) ===
+	if s.pageDB != nil || s.pageComments != nil {
+		s.mountPagesDashboard()
 	}
 }
 

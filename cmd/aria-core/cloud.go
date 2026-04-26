@@ -201,6 +201,11 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 		pagePublicView = newPagePublicViewAdapter(cs, pageAttsAdapter)
 	}
 
+	// Pages: inline databases + comments + @mentions.
+	pageDBAdapter := newPageDatabaseAdapter(cs)
+	pageCommentsAdapter := newPageCommentsAdapter(cs, emailService, userStoreAdapter)
+	log.Printf("[aria-core-cloud] page databases + comments ready")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -230,6 +235,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPageAttachments(pageAttachmentsServiceOrNil(pageAttsAdapter)),
 			cloudserver.WithPageShares(pageSharesAdpt),
 			cloudserver.WithPagePublicView(pagePublicViewServiceOrNil(pagePublicView)),
+			cloudserver.WithPageDatabases(pageDBAdapter),
+			cloudserver.WithPageComments(pageCommentsAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,
