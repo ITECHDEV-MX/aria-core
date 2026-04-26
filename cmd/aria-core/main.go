@@ -873,7 +873,8 @@ func cmdSave(cfg store.Config) {
 	if project != "" {
 		sessionID = "manual-save-" + project
 	}
-	s.CreateSession(sessionID, project, "")
+	cwd, _ := os.Getwd()
+	s.CreateSession(sessionID, project, cwd)
 	id, err := storeAddObservation(s, store.AddObservationParams{
 		SessionID: sessionID,
 		Type:      typ,

@@ -789,7 +789,7 @@ func handleSave(s *store.Store, cfg MCPConfig, activity *SessionActivity) server
 		}
 
 		// Ensure the session exists
-		s.CreateSession(sessionID, project, "")
+		cwdSess, _ := os.Getwd(); s.CreateSession(sessionID, project, cwdSess)
 
 		truncated := len(content) > s.MaxObservationLength()
 
@@ -944,7 +944,7 @@ func handleSavePrompt(s *store.Store, cfg MCPConfig) server.ToolHandlerFunc {
 		}
 
 		// Ensure the session exists
-		s.CreateSession(sessionID, project, "")
+		cwdSess, _ := os.Getwd(); s.CreateSession(sessionID, project, cwdSess)
 
 		_, err = s.AddPrompt(store.AddPromptParams{
 			SessionID: sessionID,
@@ -1185,7 +1185,7 @@ func handleSessionSummary(s *store.Store, cfg MCPConfig, activity *SessionActivi
 		}
 
 		// Ensure the session exists
-		s.CreateSession(sessionID, project, "")
+		cwdSess, _ := os.Getwd(); s.CreateSession(sessionID, project, cwdSess)
 
 		_, err = s.AddObservation(store.AddObservationParams{
 			SessionID: sessionID,
@@ -1289,7 +1289,8 @@ func handleCapturePassive(s *store.Store, cfg MCPConfig, activity *SessionActivi
 
 		if sessionID == "" {
 			sessionID = defaultSessionID(project)
-			_ = s.CreateSession(sessionID, project, "")
+			cwdSess, _ := os.Getwd()
+			_ = s.CreateSession(sessionID, project, cwdSess)
 		}
 
 		if source == "" {
