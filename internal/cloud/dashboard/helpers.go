@@ -383,6 +383,14 @@ func formatDateOrDash(t *time.Time) string {
 	return t.Local().Format("02 Jan 2006")
 }
 
+// formatDateForInput formatea time para <input type=date> (YYYY-MM-DD).
+func formatDateForInput(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return ""
+	}
+	return t.Format("2006-01-02")
+}
+
 // truncateString recorta a max chars con "...".
 func truncateString(s string, max int) string {
 	s = strings.ReplaceAll(s, "\n", " ")

@@ -221,6 +221,8 @@ templ CotizadorQuoteDetail(q *CotizadorQuoteView, items []CotizadorQuoteItemView
 			</div>
 			<div>
 				<a href={ templ.SafeURL("/dashboard/cotizador/leads/" + q.LeadID) } class="shell-button">← Lead</a>
+				<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/proposal") } class="shell-button">📄 Vista propuesta</a>
+				<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/edit-header") } class="shell-button">✏️ Editar propuesta</a>
 			</div>
 		</div>
 

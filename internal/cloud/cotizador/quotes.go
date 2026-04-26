@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 const (
@@ -91,6 +93,31 @@ type Quote struct {
 	CreatedByRole string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	// Header propuesta (commit 7)
+	Folio                   sql.NullString
+	ProposalType            string
+	ProductName             string
+	ProductSubtitle         string
+	Tags                    []string
+	PreparedForCompany      string
+	PreparedForArea         string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	IssueDate               sql.NullTime
+	PreparedByName          string
+	PreparedByEmail         string
+	PreparedByRole          string
+}
+
+type QuoteSection struct {
+	ID         string
+	QuoteID    string
+	Key        string
+	Title      string
+	ContentMD  string
+	SortOrder  int
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type QuoteItem struct {
@@ -280,7 +307,10 @@ func (s *Store) CreateQuote(ctx context.Context, p CreateQuoteParams) (*Quote, e
 		RETURNING id::text, lead_id::text, rfp_id::text, version, status, currency,
 		          subtotal::float8, taxes::float8, total::float8,
 		          valid_until, terms, justification, approved_at, approved_by_uid::text,
-		          created_by_uid::text, created_by_role, created_at, updated_at
+		          created_by_uid::text, created_by_role, created_at, updated_at,
+		          folio, proposal_type, product_name, product_subtitle, tags,
+		          prepared_for_company, prepared_for_area, prepared_for_contact_name, prepared_for_contact_email,
+		          issue_date, prepared_by_name, prepared_by_email, prepared_by_role
 	`, p.LeadID, strings.TrimSpace(p.RFPID), nextVersion, currency, subtotal, total,
 		validUntil, p.Terms, p.Justification, strings.TrimSpace(p.CreatedByUID), role)
 	q, err := scanQuote(row)
@@ -313,7 +343,10 @@ func (s *Store) GetQuote(ctx context.Context, id string) (*Quote, error) {
 		SELECT id::text, lead_id::text, rfp_id::text, version, status, currency,
 		       subtotal::float8, taxes::float8, total::float8,
 		       valid_until, terms, justification, approved_at, approved_by_uid::text,
-		       created_by_uid::text, created_by_role, created_at, updated_at
+		       created_by_uid::text, created_by_role, created_at, updated_at,
+		       folio, proposal_type, product_name, product_subtitle, tags,
+		       prepared_for_company, prepared_for_area, prepared_for_contact_name, prepared_for_contact_email,
+		       issue_date, prepared_by_name, prepared_by_email, prepared_by_role
 		FROM cotizador_quotes WHERE id::text = $1
 	`, id)
 	q, err := scanQuote(row)
@@ -331,7 +364,10 @@ func (s *Store) ListQuotesByLead(ctx context.Context, leadID string) ([]*Quote, 
 		SELECT id::text, lead_id::text, rfp_id::text, version, status, currency,
 		       subtotal::float8, taxes::float8, total::float8,
 		       valid_until, terms, justification, approved_at, approved_by_uid::text,
-		       created_by_uid::text, created_by_role, created_at, updated_at
+		       created_by_uid::text, created_by_role, created_at, updated_at,
+		       folio, proposal_type, product_name, product_subtitle, tags,
+		       prepared_for_company, prepared_for_area, prepared_for_contact_name, prepared_for_contact_email,
+		       issue_date, prepared_by_name, prepared_by_email, prepared_by_role
 		FROM cotizador_quotes WHERE lead_id::text = $1 ORDER BY version DESC
 	`, leadID)
 	if err != nil {
@@ -435,6 +471,96 @@ func (s *Store) QuoteHistory(ctx context.Context, quoteID string, limit int) ([]
 	return out, rows.Err()
 }
 
+// === Sections (commit 7) ===
+
+// ListSections retorna las secciones de una quote ordenadas.
+func (s *Store) ListSections(ctx context.Context, quoteID string) ([]*QuoteSection, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id::text, quote_id::text, section_key, title, content_md, sort_order, created_at, updated_at
+		FROM cotizador_quote_sections WHERE quote_id::text = $1 ORDER BY sort_order, created_at
+	`, quoteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*QuoteSection
+	for rows.Next() {
+		var sec QuoteSection
+		if err := rows.Scan(&sec.ID, &sec.QuoteID, &sec.Key, &sec.Title, &sec.ContentMD, &sec.SortOrder, &sec.CreatedAt, &sec.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, &sec)
+	}
+	return out, rows.Err()
+}
+
+// UpsertSection inserta o actualiza una sección por (quote_id, section_key).
+func (s *Store) UpsertSection(ctx context.Context, quoteID, key, title, contentMD string, sortOrder int) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO cotizador_quote_sections (quote_id, section_key, title, content_md, sort_order)
+		VALUES ($1::uuid, $2, $3, $4, $5)
+		ON CONFLICT (quote_id, section_key) DO UPDATE
+		SET title = EXCLUDED.title, content_md = EXCLUDED.content_md,
+		    sort_order = EXCLUDED.sort_order, updated_at = NOW()
+	`, quoteID, key, title, contentMD, sortOrder)
+	return err
+}
+
+func (s *Store) DeleteSection(ctx context.Context, quoteID, key string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM cotizador_quote_sections WHERE quote_id::text = $1 AND section_key = $2`, quoteID, key)
+	return err
+}
+
+// === Header propuesta ===
+
+type UpdateProposalHeaderParams struct {
+	Folio                   string
+	ProposalType            string
+	ProductName             string
+	ProductSubtitle         string
+	Tags                    []string
+	PreparedForCompany      string
+	PreparedForArea         string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	IssueDate               *time.Time
+	PreparedByName          string
+	PreparedByEmail         string
+	PreparedByRole          string
+}
+
+// UpdateProposalHeader actualiza los campos de cabecera de la propuesta.
+// Folio se valida UNIQUE; los strings vacíos quedan como ''.
+func (s *Store) UpdateProposalHeader(ctx context.Context, quoteID string, p UpdateProposalHeaderParams) error {
+	var folio any
+	if strings.TrimSpace(p.Folio) != "" {
+		folio = p.Folio
+	}
+	var issueDate any
+	if p.IssueDate != nil {
+		issueDate = p.IssueDate.UTC()
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE cotizador_quotes
+		SET folio = $1, proposal_type = $2, product_name = $3, product_subtitle = $4, tags = $5,
+		    prepared_for_company = $6, prepared_for_area = $7,
+		    prepared_for_contact_name = $8, prepared_for_contact_email = $9,
+		    issue_date = $10::date, prepared_by_name = $11, prepared_by_email = $12, prepared_by_role = $13,
+		    updated_at = NOW()
+		WHERE id::text = $14
+	`, folio, strings.TrimSpace(p.ProposalType), p.ProductName, p.ProductSubtitle, pq.Array(p.Tags),
+		p.PreparedForCompany, p.PreparedForArea, p.PreparedForContactName, p.PreparedForContactEmail,
+		issueDate, p.PreparedByName, p.PreparedByEmail, p.PreparedByRole, quoteID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrQuoteNotFound
+	}
+	return nil
+}
+
 // === scanners ===
 
 func scanRFP(s scanner) (*RFP, error) {
@@ -449,13 +575,18 @@ func scanRFP(s scanner) (*RFP, error) {
 func scanQuote(s scanner) (*Quote, error) {
 	var q Quote
 	var rfpID sql.NullString
+	var tags pq.StringArray
 	if err := s.Scan(&q.ID, &q.LeadID, &rfpID, &q.Version, &q.Status, &q.Currency,
 		&q.Subtotal, &q.Taxes, &q.Total,
 		&q.ValidUntil, &q.Terms, &q.Justification, &q.ApprovedAt, &q.ApprovedByUID,
-		&q.CreatedByUID, &q.CreatedByRole, &q.CreatedAt, &q.UpdatedAt); err != nil {
+		&q.CreatedByUID, &q.CreatedByRole, &q.CreatedAt, &q.UpdatedAt,
+		&q.Folio, &q.ProposalType, &q.ProductName, &q.ProductSubtitle, &tags,
+		&q.PreparedForCompany, &q.PreparedForArea, &q.PreparedForContactName, &q.PreparedForContactEmail,
+		&q.IssueDate, &q.PreparedByName, &q.PreparedByEmail, &q.PreparedByRole); err != nil {
 		return nil, err
 	}
 	q.RFPID = rfpID
+	q.Tags = []string(tags)
 	return &q, nil
 }
 

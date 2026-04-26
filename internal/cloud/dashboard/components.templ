@@ -13,19 +13,19 @@ import (
 // activeTab should be one of: "dashboard", "browser", "projects", "contributors", "admin".
 templ NavTabs(activeTab string, roles []string) {
 	<div role="tablist">
-		@navTab("/dashboard/", "Dashboard", "dashboard", activeTab)
+		@navTab("/dashboard/", "Inicio", "dashboard", activeTab)
 		if hasAnyRole(roles, "admin", "dev") {
-			@navTab("/dashboard/browser", "Browser", "browser", activeTab)
+			@navTab("/dashboard/browser", "Memorias", "browser", activeTab)
 		}
 		if hasAnyRole(roles, "admin", "dev", "project_admin") {
-			@navTab("/dashboard/projects", "Projects", "projects", activeTab)
+			@navTab("/dashboard/projects", "Proyectos", "projects", activeTab)
 		}
 		if hasAnyRole(roles, "admin", "cotizador") {
 			@navTab("/dashboard/cotizador", "Cotizaciones", "cotizador", activeTab)
 		}
 		if hasAnyRole(roles, "admin") {
-			@navTab("/dashboard/contributors", "Contributors", "contributors", activeTab)
-			@navTab("/dashboard/admin", "Admin", "admin", activeTab)
+			@navTab("/dashboard/contributors", "Colaboradores", "contributors", activeTab)
+			@navTab("/dashboard/admin", "Administración", "admin", activeTab)
 		}
 	</div>
 }

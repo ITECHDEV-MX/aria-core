@@ -663,6 +663,38 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`ALTER TABLE cotizador_lessons ADD COLUMN IF NOT EXISTS text_tsv tsvector
 		 GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text,''))) STORED`,
 		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_fts ON cotizador_lessons USING GIN (text_tsv)`,
+
+		// === Cotizador commit 7: formato propuesta completa ===
+		// Header info para portada estilo iTechDev: folio, tipo de propuesta, producto,
+		// preparado para, preparado por.
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS folio TEXT`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS proposal_type TEXT NOT NULL DEFAULT 'commercial'`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS product_name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS product_subtitle TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_for_company TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_for_area TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_for_contact_name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_for_contact_email TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS issue_date DATE`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_by_name TEXT NOT NULL DEFAULT 'Juan Carlos Guajardo'`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_by_email TEXT NOT NULL DEFAULT 'jcguajardo@itechdev.com.mx'`,
+		`ALTER TABLE cotizador_quotes ADD COLUMN IF NOT EXISTS prepared_by_role TEXT NOT NULL DEFAULT 'CEO & Founder'`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS cotizador_quotes_folio_uidx ON cotizador_quotes(folio) WHERE folio IS NOT NULL`,
+
+		// Secciones markdown ordenables que componen el cuerpo de la propuesta.
+		`CREATE TABLE IF NOT EXISTS cotizador_quote_sections (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			quote_id UUID NOT NULL REFERENCES cotizador_quotes(id) ON DELETE CASCADE,
+			section_key TEXT NOT NULL,
+			title TEXT NOT NULL,
+			content_md TEXT NOT NULL DEFAULT '',
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			UNIQUE(quote_id, section_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_sections_quote ON cotizador_quote_sections(quote_id, sort_order)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

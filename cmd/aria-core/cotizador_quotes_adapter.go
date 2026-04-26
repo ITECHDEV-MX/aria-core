@@ -143,9 +143,23 @@ func toQuoteView(q *cotizador.Quote) dashboard.CotizadorQuoteView {
 		Currency: q.Currency, Subtotal: q.Subtotal, Taxes: q.Taxes, Total: q.Total,
 		Terms: q.Terms, Justification: q.Justification,
 		CreatedByRole: q.CreatedByRole, CreatedAt: q.CreatedAt, UpdatedAt: q.UpdatedAt,
+		ProposalType:            q.ProposalType,
+		ProductName:             q.ProductName,
+		ProductSubtitle:         q.ProductSubtitle,
+		Tags:                    q.Tags,
+		PreparedForCompany:      q.PreparedForCompany,
+		PreparedForArea:         q.PreparedForArea,
+		PreparedForContactName:  q.PreparedForContactName,
+		PreparedForContactEmail: q.PreparedForContactEmail,
+		PreparedByName:          q.PreparedByName,
+		PreparedByEmail:         q.PreparedByEmail,
+		PreparedByRole:          q.PreparedByRole,
 	}
 	if q.RFPID.Valid {
 		v.RFPID = q.RFPID.String
+	}
+	if q.Folio.Valid {
+		v.Folio = q.Folio.String
 	}
 	if q.ValidUntil.Valid {
 		t := q.ValidUntil.Time
@@ -155,5 +169,44 @@ func toQuoteView(q *cotizador.Quote) dashboard.CotizadorQuoteView {
 		t := q.ApprovedAt.Time
 		v.ApprovedAt = &t
 	}
+	if q.IssueDate.Valid {
+		t := q.IssueDate.Time
+		v.IssueDate = &t
+	}
 	return v
+}
+
+// === Proposal sections (commit 7) ===
+
+func (a *cotizadorAdapter) ListSections(ctx context.Context, quoteID string) ([]dashboard.CotizadorQuoteSectionView, error) {
+	secs, err := a.store.ListSections(ctx, quoteID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dashboard.CotizadorQuoteSectionView, 0, len(secs))
+	for _, s := range secs {
+		out = append(out, dashboard.CotizadorQuoteSectionView{
+			ID: s.ID, Key: s.Key, Title: s.Title, ContentMD: s.ContentMD, SortOrder: s.SortOrder,
+		})
+	}
+	return out, nil
+}
+
+func (a *cotizadorAdapter) UpsertSection(ctx context.Context, quoteID, key, title, contentMD string, sortOrder int) error {
+	return a.store.UpsertSection(ctx, quoteID, key, title, contentMD, sortOrder)
+}
+
+func (a *cotizadorAdapter) DeleteSection(ctx context.Context, quoteID, key string) error {
+	return a.store.DeleteSection(ctx, quoteID, key)
+}
+
+func (a *cotizadorAdapter) UpdateProposalHeader(ctx context.Context, quoteID string, in dashboard.UpdateProposalHeaderInput) error {
+	return a.store.UpdateProposalHeader(ctx, quoteID, cotizador.UpdateProposalHeaderParams{
+		Folio: in.Folio, ProposalType: in.ProposalType,
+		ProductName: in.ProductName, ProductSubtitle: in.ProductSubtitle, Tags: in.Tags,
+		PreparedForCompany: in.PreparedForCompany, PreparedForArea: in.PreparedForArea,
+		PreparedForContactName: in.PreparedForContactName, PreparedForContactEmail: in.PreparedForContactEmail,
+		IssueDate: in.IssueDate, PreparedByName: in.PreparedByName,
+		PreparedByEmail: in.PreparedByEmail, PreparedByRole: in.PreparedByRole,
+	})
 }

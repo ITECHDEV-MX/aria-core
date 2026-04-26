@@ -47,6 +47,8 @@ func cmdAdmin() {
 		runAdmin(args, adminDeactivate)
 	case "activate":
 		runAdmin(args, adminActivate)
+	case "import-proposals":
+		adminImportProposals(args)
 	case "help", "--help", "-h":
 		printAdminUsage()
 	default:
@@ -68,6 +70,7 @@ Subcommands:
   set-password  --uid UUID --password P
   activate      --uid UUID
   deactivate    --uid UUID
+  import-proposals    Importa las 3 propuestas histórico iTechDev (idempotente por folio)
 
 Roles soportados: admin, dev, cotizador, project_admin
 Requiere ARIA_CORE_DATABASE_URL apuntando al Postgres cloud.`)

@@ -1,0 +1,251 @@
+package dashboard
+
+import (
+	"strconv"
+	"strings"
+)
+
+// CotizadorProposalView — render formato propuesta iTechDev (portada + secciones + inversión + firmas).
+templ CotizadorProposalView(q *CotizadorQuoteView, items []CotizadorQuoteItemView, sections []renderedSection) {
+	<style>
+		.proposal { max-width: 880px; margin: 0 auto; padding: 2rem; background: #0d0d0d; color: #e0e0e0; }
+		.proposal h1, .proposal h2, .proposal h3 { color: #fff; }
+		.proposal-cover { border-bottom: 2px solid #2a2a2a; padding-bottom: 2rem; margin-bottom: 2rem; }
+		.proposal-cover .kicker { font-size: 0.75rem; letter-spacing: 0.4em; text-transform: uppercase; color: #888; margin-bottom: 0.5rem; }
+		.proposal-cover h1 { font-size: 2.5rem; font-weight: 600; margin: 0; }
+		.proposal-cover .subtitle { font-size: 1.1rem; color: #aaa; margin-top: 0.5rem; }
+		.proposal-cover .tags { color: #6a6; font-size: 0.85rem; margin-top: 0.5rem; }
+		.proposal-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; margin: 2rem 0; padding: 1.5rem; background: #161616; border-radius: 6px; }
+		.proposal-meta .label { font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase; color: #888; margin-bottom: 0.3rem; }
+		.proposal-meta .value { font-size: 0.95rem; }
+		.proposal-section { margin: 2rem 0; }
+		.proposal-section h2 { border-bottom: 1px solid #2a2a2a; padding-bottom: 0.5rem; margin-bottom: 1rem; }
+		.proposal-section .body { font-size: 0.95rem; line-height: 1.7; }
+		.proposal-section .body table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+		.proposal-section .body th, .proposal-section .body td { padding: 0.5rem; border: 1px solid #2a2a2a; text-align: left; }
+		.proposal-section .body th { background: #1a1a1a; }
+		.proposal-section .body ul, .proposal-section .body ol { padding-left: 1.5rem; }
+		.proposal-investment { background: #161616; padding: 1.5rem; border-radius: 6px; margin: 2rem 0; }
+		.proposal-investment table { width: 100%; }
+		.proposal-investment .total { font-size: 1.4rem; font-weight: 600; }
+		.proposal-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #2a2a2a; }
+		.proposal-actions { margin: 1rem 0; padding: 0.75rem; background: #1a1a1a; border-radius: 4px; }
+		@media print { .proposal-actions { display: none; } body { background: #fff; color: #000; } .proposal { background: #fff; color: #000; } }
+	</style>
+	<section class="proposal">
+		<div class="proposal-actions">
+			<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID) } class="shell-button">← Detalle</a>
+			<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/edit-header") } class="shell-button">Editar propuesta</a>
+			<button onclick="window.print()" class="shell-button">Imprimir / PDF</button>
+		</div>
+		<div class="proposal-cover">
+			<p class="kicker">{ proposalTypeLabel(q.ProposalType) }</p>
+			if q.ProductName != "" {
+				<h1>{ q.ProductName }</h1>
+			}
+			if q.ProductSubtitle != "" {
+				<p class="subtitle">{ q.ProductSubtitle }</p>
+			}
+			if len(q.Tags) > 0 {
+				<p class="tags">{ strings.Join(q.Tags, " · ") }</p>
+			}
+			<div class="proposal-meta">
+				<div>
+					<div class="label">Preparado para</div>
+					<div class="value"><strong>{ q.PreparedForCompany }</strong></div>
+					if q.PreparedForArea != "" {
+						<div class="value">{ q.PreparedForArea }</div>
+					}
+					if q.PreparedForContactName != "" {
+						<div class="value">{ q.PreparedForContactName }</div>
+					}
+					if q.PreparedForContactEmail != "" {
+						<div class="value">{ q.PreparedForContactEmail }</div>
+					}
+				</div>
+				<div>
+					<div class="label">Preparado por</div>
+					<div class="value"><strong>ITECHDEV MX</strong></div>
+					<div class="value">{ q.PreparedByName }</div>
+					<div class="value">{ q.PreparedByRole }</div>
+					<div class="value">{ q.PreparedByEmail }</div>
+				</div>
+				<div>
+					<div class="label">Datos del documento</div>
+					<div class="value">Folio: <strong>{ q.Folio }</strong></div>
+					<div class="value">Fecha: { formatDateOrDash(q.IssueDate) }</div>
+					<div class="value">Vigencia: { formatDateOrDash(q.ValidUntil) }</div>
+					<div class="value">Versión: v{ strconv.Itoa(q.Version) } · { cotizadorQuoteStatusLabel(q.Status) }</div>
+				</div>
+			</div>
+		</div>
+
+		for _, sec := range sections {
+			<div class="proposal-section">
+				<h2>{ sec.Title }</h2>
+				<div class="body">
+					@sec.HTML
+				</div>
+			</div>
+		}
+
+		if len(items) > 0 {
+			<div class="proposal-section">
+				<h2>Inversión — Desglose</h2>
+				<div class="proposal-investment">
+					<table>
+						<thead><tr><th>SKU</th><th>Concepto</th><th>Cant</th><th>P. Unitario</th><th>Subtotal</th></tr></thead>
+						<tbody>
+							for _, it := range items {
+								<tr>
+									<td>{ it.SKU }</td>
+									<td>{ it.Description }</td>
+									<td>{ formatFloat(it.Qty, 3) }</td>
+									<td>{ formatMoney(it.UnitPrice, q.Currency) }</td>
+									<td>{ formatMoney(it.Subtotal, q.Currency) }</td>
+								</tr>
+							}
+							<tr><td colspan="4" style="text-align:right">Subtotal</td><td>{ formatMoney(q.Subtotal, q.Currency) }</td></tr>
+							<tr class="total"><td colspan="4" style="text-align:right"><strong>TOTAL</strong></td><td><strong>{ formatMoney(q.Total, q.Currency) }</strong></td></tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		}
+
+		if q.Terms != "" {
+			<div class="proposal-section">
+				<h2>Términos comerciales</h2>
+				<div class="body">
+					@templ.Raw(textToHTMLParagraphs(q.Terms))
+				</div>
+			</div>
+		}
+
+		<div class="proposal-signatures">
+			<div>
+				<div style="border-bottom: 1px solid #444; height: 60px"></div>
+				<div style="margin-top: 0.5rem">
+					<strong>ITECHDEV MX, S.A. de C.V.</strong><br/>
+					{ q.PreparedByName }<br/>
+					{ q.PreparedByRole }
+				</div>
+			</div>
+			<div>
+				<div style="border-bottom: 1px solid #444; height: 60px"></div>
+				<div style="margin-top: 0.5rem">
+					<strong>{ q.PreparedForCompany }</strong><br/>
+					{ q.PreparedForContactName }<br/>
+					Cliente
+				</div>
+			</div>
+		</div>
+	</section>
+}
+
+// CotizadorProposalEditor — editor de header + secciones markdown.
+templ CotizadorProposalEditor(q *CotizadorQuoteView, sections []CotizadorQuoteSectionView) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">EDITOR DE PROPUESTA</p>
+				<h2>{ q.ProductName }</h2>
+				<p class="muted">v{ strconv.Itoa(q.Version) } · { cotizadorQuoteStatusLabel(q.Status) }</p>
+			</div>
+			<div>
+				<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID) } class="shell-button">← Detalle</a>
+				<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/proposal") } class="shell-button">Ver propuesta</a>
+			</div>
+		</div>
+
+		<h3 class="section-block-title">Cabecera de la propuesta</h3>
+		<form method="post" action={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/header") } class="login-form" style="max-width:760px">
+			<label>Folio (único) <input type="text" name="folio" value={ q.Folio } placeholder="ITD-2026-CLIENTE-001"/></label>
+			<label>
+				Tipo
+				<select name="proposal_type">
+					<option value="commercial" selected?={ q.ProposalType == "commercial" }>Propuesta Comercial</option>
+					<option value="implementation" selected?={ q.ProposalType == "implementation" }>Propuesta de Implementación</option>
+					<option value="service" selected?={ q.ProposalType == "service" }>Propuesta de Servicio</option>
+				</select>
+			</label>
+			<label>Producto / Solución <input type="text" name="product_name" value={ q.ProductName } placeholder="Salesforce Sales Cloud Enterprise"/></label>
+			<label>Subtítulo <input type="text" name="product_subtitle" value={ q.ProductSubtitle } placeholder="Modernización de la operación comercial"/></label>
+			<label>Tags (separados por coma) <input type="text" name="tags" value={ strings.Join(q.Tags, ", ") } placeholder="CRM Enterprise, Pipeline, Cotizaciones"/></label>
+			<label>Fecha de emisión <input type="date" name="issue_date" value={ formatDateForInput(q.IssueDate) }/></label>
+
+			<h4 style="margin-top:1rem">Preparado para (cliente)</h4>
+			<label>Empresa <input type="text" name="prepared_for_company" value={ q.PreparedForCompany }/></label>
+			<label>Área / División <input type="text" name="prepared_for_area" value={ q.PreparedForArea }/></label>
+			<label>Contacto <input type="text" name="prepared_for_contact_name" value={ q.PreparedForContactName }/></label>
+			<label>Email contacto <input type="email" name="prepared_for_contact_email" value={ q.PreparedForContactEmail }/></label>
+
+			<h4 style="margin-top:1rem">Preparado por (iTechDev)</h4>
+			<label>Nombre <input type="text" name="prepared_by_name" value={ q.PreparedByName }/></label>
+			<label>Rol <input type="text" name="prepared_by_role" value={ q.PreparedByRole }/></label>
+			<label>Email <input type="email" name="prepared_by_email" value={ q.PreparedByEmail }/></label>
+
+			<button type="submit" class="shell-button">Guardar cabecera</button>
+		</form>
+
+		<h3 class="section-block-title">Secciones de la propuesta ({ strconv.Itoa(len(sections)) })</h3>
+		<p class="muted">Las secciones se guardan en Markdown y se renderean automáticamente en la vista propuesta. Reordena con sort_order (más bajo = más arriba).</p>
+
+		for _, s := range sections {
+			<details style="margin: 0.5rem 0; padding: 0.75rem; background: #161616; border-radius: 4px">
+				<summary><strong>{ strconv.Itoa(s.SortOrder) }. { s.Title }</strong> <span class="muted">({ s.Key })</span></summary>
+				<form method="post" action={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert") } class="login-form" style="margin-top:0.5rem">
+					<input type="hidden" name="key" value={ s.Key }/>
+					<label>Título <input type="text" name="title" value={ s.Title } required/></label>
+					<label>Orden <input type="number" name="sort_order" value={ strconv.Itoa(s.SortOrder) }/></label>
+					<label>Contenido (Markdown)
+						<textarea name="content_md" rows="14" style="font-family:monospace;font-size:0.85rem">{ s.ContentMD }</textarea>
+					</label>
+					<div>
+						<button type="submit" class="shell-button">Guardar sección</button>
+						<button type="submit" formaction={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/" + s.Key + "/delete") } class="shell-button" style="background:#522">Eliminar</button>
+					</div>
+				</form>
+			</details>
+		}
+
+		<h4 style="margin-top:1rem">Agregar nueva sección</h4>
+		<form method="post" action={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/sections/upsert") } class="login-form" style="max-width:760px">
+			<label>Key (slug, sin espacios) <input type="text" name="key" placeholder="alcance, metodologia, inversion..." required/></label>
+			<label>Título <input type="text" name="title" placeholder="2. Alcance de la Solución" required/></label>
+			<label>Orden <input type="number" name="sort_order" value="100"/></label>
+			<label>Contenido (Markdown)
+				<textarea name="content_md" rows="10" style="font-family:monospace;font-size:0.85rem"></textarea>
+			</label>
+			<button type="submit" class="shell-button">Crear sección</button>
+		</form>
+	</section>
+}
+
+// proposalTypeLabel mapea el code a label visible.
+func proposalTypeLabel(t string) string {
+	switch t {
+	case "implementation":
+		return "Propuesta de Implementación"
+	case "service":
+		return "Propuesta de Servicio"
+	default:
+		return "Propuesta Comercial"
+	}
+}
+
+// textToHTMLParagraphs convierte texto plano en <p> separados por blank lines.
+func textToHTMLParagraphs(s string) string {
+	var sb strings.Builder
+	for _, p := range strings.Split(s, "\n\n") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		sb.WriteString("<p>")
+		sb.WriteString(strings.ReplaceAll(p, "\n", "<br/>"))
+		sb.WriteString("</p>")
+	}
+	return sb.String()
+}
+

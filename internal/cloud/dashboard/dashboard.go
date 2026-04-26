@@ -101,6 +101,11 @@ type CotizadorService interface {
 	PromoteLeadToClient(ctx context.Context, p PromoteLeadInput) (*CotizadorClientView, error)
 	ListClients(ctx context.Context) ([]CotizadorClientView, error)
 	GetClient(ctx context.Context, id string) (*CotizadorClientView, error)
+	// Proposal sections (commit 7)
+	ListSections(ctx context.Context, quoteID string) ([]CotizadorQuoteSectionView, error)
+	UpsertSection(ctx context.Context, quoteID, key, title, contentMD string, sortOrder int) error
+	DeleteSection(ctx context.Context, quoteID, key string) error
+	UpdateProposalHeader(ctx context.Context, quoteID string, p UpdateProposalHeaderInput) error
 }
 
 type CotizadorClientView struct {
@@ -218,6 +223,44 @@ type CotizadorQuoteView struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	ApprovedAt    *time.Time
+	// Header propuesta (commit 7)
+	Folio                   string
+	ProposalType            string
+	ProductName             string
+	ProductSubtitle         string
+	Tags                    []string
+	PreparedForCompany      string
+	PreparedForArea         string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	IssueDate               *time.Time
+	PreparedByName          string
+	PreparedByEmail         string
+	PreparedByRole          string
+}
+
+type CotizadorQuoteSectionView struct {
+	ID        string
+	Key       string
+	Title     string
+	ContentMD string
+	SortOrder int
+}
+
+type UpdateProposalHeaderInput struct {
+	Folio                   string
+	ProposalType            string
+	ProductName             string
+	ProductSubtitle         string
+	Tags                    []string
+	PreparedForCompany      string
+	PreparedForArea         string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	IssueDate               *time.Time
+	PreparedByName          string
+	PreparedByEmail         string
+	PreparedByRole          string
 }
 
 type CotizadorQuoteItemView struct {
@@ -426,6 +469,12 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/quotes/create", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteCreate))
 	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteDetail))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/status", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteStatusChange))
+	// Proposal vista completa + edit header + sections (commit 7)
+	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}/proposal", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteProposal))
+	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}/edit-header", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteEditHeader))
+	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/header", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteUpdateHeader))
+	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/upsert", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionUpsert))
+	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/{key}/delete", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionDelete))
 }
 
 func Handler() http.Handler {
@@ -593,7 +642,7 @@ func (h *handlers) handleDashboardHome(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, DashboardHome(p.DisplayName()))
 		return
 	}
-	renderComponent(w, r, Layout("Dashboard", p.DisplayName(), "dashboard", p.Roles(), DashboardHome(p.DisplayName())))
+	renderComponent(w, r, Layout("Inicio", p.DisplayName(), "dashboard", p.Roles(), DashboardHome(p.DisplayName())))
 }
 
 func (h *handlers) handleDashboardStats(w http.ResponseWriter, r *http.Request) {
@@ -616,7 +665,7 @@ func (h *handlers) handleDashboardStats(w http.ResponseWriter, r *http.Request) 
 		renderHTML(w, body)
 		return
 	}
-	renderComponent(w, r, Layout("Stats", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(body)))
+	renderComponent(w, r, Layout("Estadísticas", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(body)))
 }
 
 func (h *handlers) handleDashboardActivity(w http.ResponseWriter, r *http.Request) {
@@ -649,7 +698,7 @@ func (h *handlers) handleDashboardActivity(w http.ResponseWriter, r *http.Reques
 		renderHTML(w, b.String())
 		return
 	}
-	renderComponent(w, r, Layout("Activity", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(b.String())))
+	renderComponent(w, r, Layout("Actividad", p.DisplayName(), "dashboard", p.Roles(), templ.Raw(b.String())))
 }
 
 func (h *handlers) handleBrowser(w http.ResponseWriter, r *http.Request) {
@@ -675,7 +724,7 @@ func (h *handlers) handleBrowser(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), component))
+	renderComponent(w, r, Layout("Memorias", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 func (h *handlers) handleBrowserObservations(w http.ResponseWriter, r *http.Request) {
@@ -718,7 +767,7 @@ func (h *handlers) handleBrowserObservations(w http.ResponseWriter, r *http.Requ
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, obsType)))
+	renderComponent(w, r, Layout("Memorias", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, obsType)))
 }
 
 func (h *handlers) handleBrowserSessions(w http.ResponseWriter, r *http.Request) {
@@ -760,7 +809,7 @@ func (h *handlers) handleBrowserSessions(w http.ResponseWriter, r *http.Request)
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
+	renderComponent(w, r, Layout("Memorias", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
 }
 
 func (h *handlers) handleBrowserPrompts(w http.ResponseWriter, r *http.Request) {
@@ -802,7 +851,7 @@ func (h *handlers) handleBrowserPrompts(w http.ResponseWriter, r *http.Request) 
 		renderComponent(w, r, partial)
 		return
 	}
-	renderComponent(w, r, Layout("Browser", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
+	renderComponent(w, r, Layout("Memorias", p.DisplayName(), "browser", p.Roles(), BrowserPage(nil, nil, project, query, "")))
 }
 
 // handleBrowserSessionDetail handles GET /dashboard/browser/sessions/{sessionID}.
@@ -812,7 +861,7 @@ func (h *handlers) handleBrowserSessionDetail(w http.ResponseWriter, r *http.Req
 	p := h.principalFromRequest(r)
 	sessionID := strings.TrimSpace(r.PathValue("sessionID"))
 	if sessionID == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Session Detail", p.DisplayName(), "browser", p.Roles(), EmptyState("Session Not Found", "No dashboard data exists for that session identifier.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Detalle de Sesión", p.DisplayName(), "browser", p.Roles(), EmptyState("Session Not Found", "No dashboard data exists for that session identifier.")))
 		return
 	}
 	// Clone the request before mutating URL so the original request is not modified.
@@ -829,14 +878,14 @@ func (h *handlers) handleProjects(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Projects", p.DisplayName(), "projects", p.Roles(), component))
+	renderComponent(w, r, Layout("Proyectos", p.DisplayName(), "projects", p.Roles(), component))
 }
 
 func (h *handlers) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 	p := h.principalFromRequest(r)
 	project := strings.TrimSpace(r.PathValue("project"))
 	if project == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Project Detail", p.DisplayName(), "projects", p.Roles(), EmptyState("Project Not Found", "No replicated dashboard data exists for that project.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Detalle de Proyecto", p.DisplayName(), "projects", p.Roles(), EmptyState("Project Not Found", "No replicated dashboard data exists for that project.")))
 		return
 	}
 	var stats *cloudstore.DashboardProjectRow
@@ -855,7 +904,7 @@ func (h *handlers) handleProjectDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	component := ProjectDetailPage(project, stats, ctrl)
-	renderComponent(w, r, Layout("Project Detail", p.DisplayName(), "projects", p.Roles(), component))
+	renderComponent(w, r, Layout("Detalle de Proyecto", p.DisplayName(), "projects", p.Roles(), component))
 }
 
 func (h *handlers) handleContributors(w http.ResponseWriter, r *http.Request) {
@@ -868,7 +917,7 @@ func (h *handlers) handleContributors(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Contributors", p.DisplayName(), "contributors", p.Roles(), component))
+	renderComponent(w, r, Layout("Colaboradores", p.DisplayName(), "contributors", p.Roles(), component))
 }
 
 // handleContributorsList handles GET /dashboard/contributors/list.
@@ -911,11 +960,11 @@ func (h *handlers) handleContributorDetail(w http.ResponseWriter, r *http.Reques
 	p := h.principalFromRequest(r)
 	contributor := strings.TrimSpace(r.PathValue("contributor"))
 	if contributor == "" {
-		renderComponentStatus(w, r, http.StatusNotFound, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), EmptyState("Contributor Not Found", "No dashboard data exists for that contributor.")))
+		renderComponentStatus(w, r, http.StatusNotFound, Layout("Detalle de Colaborador", p.DisplayName(), "contributors", p.Roles(), EmptyState("Contributor Not Found", "No dashboard data exists for that contributor.")))
 		return
 	}
 	if h.cfg.Store == nil {
-		renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), ContributorDetailPage(nil, nil, nil, nil)))
+		renderComponent(w, r, Layout("Detalle de Colaborador", p.DisplayName(), "contributors", p.Roles(), ContributorDetailPage(nil, nil, nil, nil)))
 		return
 	}
 	row, sessions, observations, prompts, err := h.cfg.Store.GetContributorDetail(contributor)
@@ -924,7 +973,7 @@ func (h *handlers) handleContributorDetail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	component := ContributorDetailPage(&row, sessions, observations, prompts)
-	renderComponent(w, r, Layout("Contributor Detail", p.DisplayName(), "contributors", p.Roles(), component))
+	renderComponent(w, r, Layout("Detalle de Colaborador", p.DisplayName(), "contributors", p.Roles(), component))
 }
 
 func (h *handlers) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -948,7 +997,7 @@ func (h *handlers) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Administración", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminProjectControls handles GET /dashboard/admin/projects.
@@ -1079,7 +1128,7 @@ func (h *handlers) handleAdminUsers(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin Users", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Usuarios", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminUsersList handles GET /dashboard/admin/users/list — tabla de users desde AdminUsers service.
@@ -1229,7 +1278,7 @@ func (h *handlers) handleAdminHealth(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Admin Health", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Salud del Sistema", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminSyncTogglePost handles POST /dashboard/admin/projects/{name}/sync.
@@ -1311,7 +1360,7 @@ func (h *handlers) handleSessionDetail(w http.ResponseWriter, r *http.Request) {
 		prompts = pr
 	}
 	component := SessionDetailPage(sess, obs, prompts)
-	renderComponent(w, r, Layout("Session Detail", p.DisplayName(), "browser", p.Roles(), component))
+	renderComponent(w, r, Layout("Detalle de Sesión", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // handleObservationDetail handles GET /dashboard/observations/{project}/{sessionID}/{syncID}.
@@ -1338,7 +1387,7 @@ func (h *handlers) handleObservationDetail(w http.ResponseWriter, r *http.Reques
 		related = rel
 	}
 	component := ObservationDetailPage(obs, sess, related)
-	renderComponent(w, r, Layout("Observation Detail", p.DisplayName(), "browser", p.Roles(), component))
+	renderComponent(w, r, Layout("Detalle de Observación", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // handlePromptDetail handles GET /dashboard/prompts/{project}/{sessionID}/{syncID}.
@@ -1365,7 +1414,7 @@ func (h *handlers) handlePromptDetail(w http.ResponseWriter, r *http.Request) {
 		related = rel
 	}
 	component := PromptDetailPage(prompt, sess, related)
-	renderComponent(w, r, Layout("Prompt Detail", p.DisplayName(), "browser", p.Roles(), component))
+	renderComponent(w, r, Layout("Detalle de Prompt", p.DisplayName(), "browser", p.Roles(), component))
 }
 
 // renderObservationsTable removed in Batch 6 REFACTOR — replaced by ObservationsPartial templ component.
@@ -1457,7 +1506,7 @@ func (h *handlers) handleAdminAuditLog(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Audit Log", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Bitácora de Auditoría", p.DisplayName(), "admin", p.Roles(), component))
 }
 
 // handleAdminAuditLogList handles GET /dashboard/admin/audit-log/list (partial, admin-gated, HTMX).
