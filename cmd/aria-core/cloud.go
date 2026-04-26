@@ -249,7 +249,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	if systemUID == "" {
 		// Fallback: lookup primer admin from cloud_users.
 		var fallback string
-		_ = cs.DB().QueryRow(`SELECT uid::text FROM cloud_users WHERE 'admin' = ANY(roles) AND is_active = TRUE ORDER BY created_at ASC LIMIT 1`).Scan(&fallback)
+		_ = cs.DB().QueryRow(`SELECT uid::text FROM cloud_users WHERE role = 'admin' AND is_active = TRUE ORDER BY created_at ASC LIMIT 1`).Scan(&fallback)
 		systemUID = fallback
 	}
 	teamProjectsAdpt := newTeamProjectsAdapter(cs, vaultAdpt, systemUID)
