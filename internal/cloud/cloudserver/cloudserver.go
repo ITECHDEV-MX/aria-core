@@ -73,6 +73,7 @@ type CloudServer struct {
 	roi              ROIService
 	roiDash          dashboard.ROIService
 	recipes          RecipeRunnerService
+	pagesDash        dashboard.PagesDashboardService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -344,6 +345,14 @@ func WithROI(r ROIService) Option {
 func WithROIDashboard(r dashboard.ROIService) Option {
 	return func(s *CloudServer) {
 		s.roiDash = r
+	}
+}
+
+// WithPagesDashboard inyecta el servicio dashboard del módulo de páginas
+// (mini-Notion). Si nil, /dashboard/pages y Cmd+K quedan deshabilitados.
+func WithPagesDashboard(p dashboard.PagesDashboardService) Option {
+	return func(s *CloudServer) {
+		s.pagesDash = p
 	}
 }
 
@@ -626,6 +635,7 @@ func (s *CloudServer) routes() {
 		Redactor:          s.redactor,
 		Vault:             s.vaultDash,
 		ROI:               s.roiDash,
+		Pages:             s.pagesDash,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -668,6 +678,12 @@ func (s *CloudServer) routes() {
 	// Templates (commit 9)
 	s.mux.HandleFunc("GET /v1/cotizador/templates", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorTemplatesList))
 	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/apply-template", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorApplyTemplate))
+
+	// === Pages (mini-Notion): JWT user-bound. Cualquier rol autenticado lee/escribe.
+	s.mux.HandleFunc("POST /v1/pages", s.withJWTAuth(s.handleV1PageCreate))
+	s.mux.HandleFunc("GET /v1/pages/{id}", s.withJWTAuth(s.handleV1PageGet))
+	s.mux.HandleFunc("GET /v1/pages/search", s.withJWTAuth(s.handleV1PagesSearch))
+	s.mux.HandleFunc("GET /v1/pages/tree", s.withJWTAuth(s.handleV1PagesTree))
 
 	// === Magic-link invites ===
 	// Admin crea invite (auth admin, JWT bearer).

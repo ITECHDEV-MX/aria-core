@@ -1,0 +1,386 @@
+package dashboard
+
+import (
+	"fmt"
+	"strings"
+)
+
+// PagesHome — split-pane: tree sidebar (300px) + editor pane.
+// El tree se carga via HTMX (hx-trigger=load) para no bloquear render inicial.
+// El editor pane se carga vacío (placeholder); cuando se selecciona página
+// vía link, hx-get /dashboard/pages/editor?id=X reemplaza el pane derecho.
+templ PagesHome(activeID string, projectFilter string, scopeFilter string, templates []PageTemplateView) {
+	<div class="pages-shell">
+		<aside class="pages-sidebar">
+			<div class="pages-sidebar-header">
+				<div class="pages-sidebar-title">
+					<span style="font-size:1.1rem">📄</span>
+					<strong>Wiki</strong>
+				</div>
+				<button type="button"
+					class="btn btn-sm btn-primary"
+					title="Nueva página"
+					hx-get="/dashboard/pages/editor?new=1"
+					hx-target="#pages-editor-pane"
+					hx-swap="innerHTML">+ Nueva</button>
+			</div>
+
+			<div class="pages-sidebar-filters">
+				<input type="search"
+					class="pages-tree-search"
+					placeholder="🔍 Filtrar tree..."
+					hx-get="/dashboard/pages/tree"
+					hx-target="#pages-tree"
+					hx-swap="innerHTML"
+					hx-trigger="keyup changed delay:300ms"
+					name="q"/>
+			</div>
+
+			<div id="pages-tree"
+				class="pages-tree"
+				hx-get={ pagesTreeURL(projectFilter, scopeFilter) }
+				hx-trigger="load"
+				hx-swap="innerHTML">
+				<p class="muted" style="padding:1rem">Cargando tree...</p>
+			</div>
+		</aside>
+
+		<div id="pages-editor-pane" class="pages-editor-pane">
+			if activeID != "" {
+				<div hx-get={ "/dashboard/pages/editor?id=" + activeID }
+					hx-trigger="load"
+					hx-swap="outerHTML">
+					<p class="muted">Cargando página...</p>
+				</div>
+			} else {
+				@PagesEmptyEditor(templates)
+			}
+		</div>
+	</div>
+}
+
+// PagesEmptyEditor — placeholder cuando no hay página seleccionada.
+// Muestra los 5 templates builtin como botones Quick Start.
+templ PagesEmptyEditor(templates []PageTemplateView) {
+	<div class="pages-empty-editor">
+		<div class="pages-empty-content">
+			<h2>📄 Wiki ARIA</h2>
+			<p class="muted">Selecciona una página del tree o crea una nueva desde un template.</p>
+
+			if len(templates) > 0 {
+				<h3 style="margin-top:2rem;font-size:0.95rem">Templates</h3>
+				<div class="pages-templates-grid">
+					for _, t := range templates {
+						<form method="post" action="/dashboard/pages/create" class="pages-template-card">
+							<input type="hidden" name="template_key" value={ t.Key }/>
+							<input type="hidden" name="title" value={ t.Name }/>
+							<input type="hidden" name="scope" value="team"/>
+							<button type="submit" class="pages-template-btn">
+								<span class="pages-template-icon">{ t.Icon }</span>
+								<strong>{ t.Name }</strong>
+								<span class="muted" style="font-size:0.8rem">{ t.Description }</span>
+							</button>
+						</form>
+					}
+				</div>
+			}
+		</div>
+	</div>
+}
+
+// PagesTreePartial — render recursivo del árbol. Cada nodo tiene + hover button
+// para crear hijo + drag handles para reorder.
+templ PagesTreePartial(allPages []PageView, activeID string) {
+	if len(allPages) == 0 {
+		<p class="muted" style="padding:1rem">Sin páginas. Crea la primera con + Nueva.</p>
+	} else {
+		<ul class="pages-tree-root">
+			for _, p := range pagesFilterByParent(allPages, "") {
+				@PagesTreeNode(p, allPages, activeID, 0)
+			}
+		</ul>
+	}
+}
+
+// PagesTreeNode — un nodo recursivo. depth limita expansión (max 6).
+templ PagesTreeNode(node PageView, all []PageView, activeID string, depth int) {
+	{{ children := pagesFilterByParent(all, node.ID) }}
+	<li class="pages-tree-node" data-page-id={ node.ID }>
+		<div class={ pagesTreeNodeClass(node.ID, activeID) } style={ fmt.Sprintf("padding-left:%dpx", 8+depth*16) }>
+			if len(children) > 0 {
+				<span class="pages-tree-toggle" data-toggle-children="1">▾</span>
+			} else {
+				<span class="pages-tree-toggle pages-tree-toggle-empty">·</span>
+			}
+			<a href={ templ.SafeURL("/dashboard/pages?id=" + node.ID) }
+				class="pages-tree-link"
+				hx-get={ "/dashboard/pages/editor?id=" + node.ID }
+				hx-target="#pages-editor-pane"
+				hx-swap="innerHTML"
+				hx-push-url={ "/dashboard/pages?id=" + node.ID }>
+				if node.Icon != "" {
+					<span class="pages-tree-icon">{ node.Icon }</span>
+				} else {
+					<span class="pages-tree-icon">📄</span>
+				}
+				<span class="pages-tree-title">{ node.Title }</span>
+			</a>
+			<button type="button"
+				class="pages-tree-add"
+				title="Crear página hija"
+				hx-get={ fmt.Sprintf("/dashboard/pages/editor?new=1&parent_id=%s", node.ID) }
+				hx-target="#pages-editor-pane"
+				hx-swap="innerHTML">+</button>
+		</div>
+		if len(children) > 0 && depth < 6 {
+			<ul class="pages-tree-children">
+				for _, c := range children {
+					@PagesTreeNode(c, all, activeID, depth+1)
+				}
+			</ul>
+		}
+	</li>
+}
+
+// PagesEditor — pane derecho con editor markdown split (textarea + preview).
+templ PagesEditor(page PageView, isNew bool, templates []PageTemplateView) {
+	<div class="pages-editor" id="pages-editor-pane">
+		@PagesBreadcrumbs(page)
+
+		<div class="pages-editor-toolbar">
+			<div class="pages-editor-toolbar-left">
+				if isNew {
+					<span class="badge badge-warning">Nueva</span>
+				} else {
+					<span class="badge badge-muted">{ page.PageType }</span>
+					<span class={ "badge badge-" + scopeVariant(page.Scope) }>{ scopeLabel(page.Scope) }</span>
+				}
+			</div>
+			<div class="pages-editor-toolbar-right">
+				if !isNew {
+					<a href={ templ.SafeURL("/dashboard/pages/" + page.ID + "/revisions") }
+						class="btn btn-sm btn-outline"
+						hx-get={ "/dashboard/pages/" + page.ID + "/revisions" }
+						hx-target="#pages-editor-pane"
+						hx-swap="innerHTML">📜 Revisiones</a>
+					if !page.IsArchived {
+						<form method="post" action={ templ.SafeURL("/dashboard/pages/" + page.ID + "/archive") } style="display:inline;margin:0">
+							<button type="submit" class="btn btn-sm btn-outline" onclick="return confirm('Archivar esta página?')">🗄️ Archivar</button>
+						</form>
+					} else {
+						<form method="post" action={ templ.SafeURL("/dashboard/pages/" + page.ID + "/restore") } style="display:inline;margin:0">
+							<button type="submit" class="btn btn-sm btn-outline">↩ Restaurar</button>
+						</form>
+					}
+				}
+			</div>
+		</div>
+
+		if page.PageType == "database" {
+			// Hook para el agente DB (otro wave). Inyecta la vista database via JS.
+			<div id="page-database-mount" data-page-id={ page.ID }>
+				<p class="muted" style="padding:2rem;text-align:center">Vista database (agente DB no montado)</p>
+			</div>
+		} else {
+			<form class="pages-editor-form"
+				if isNew {
+					hx-post="/dashboard/pages/create"
+				} else {
+					hx-post={ "/dashboard/pages/" + page.ID + "/update" }
+				}
+				hx-target="#pages-editor-pane"
+				hx-swap="innerHTML">
+
+				<div class="pages-editor-meta">
+					<input type="text"
+						name="title"
+						class="pages-editor-title"
+						value={ page.Title }
+						placeholder="Título de la página..."
+						required/>
+					<input type="text"
+						name="icon"
+						class="pages-editor-icon-input"
+						value={ page.Icon }
+						placeholder="📄"
+						maxlength="4"/>
+				</div>
+
+				if isNew {
+					<div class="pages-editor-newmeta">
+						<input type="hidden" name="parent_id" value={ page.ParentID }/>
+						<input type="text" name="project" value={ page.Project } placeholder="proyecto (opcional)"/>
+						<select name="scope">
+							<option value="personal" selected?={ page.Scope == "personal" }>Personal</option>
+							<option value="project" selected?={ page.Scope == "project" }>Proyecto</option>
+							<option value="team" selected?={ page.Scope == "team" }>Equipo</option>
+							<option value="client_knowledge" selected?={ page.Scope == "client_knowledge" }>Cliente</option>
+						</select>
+						<select name="sensitivity">
+							<option value="internal" selected?={ page.Sensitivity == "internal" }>Internal</option>
+							<option value="public" selected?={ page.Sensitivity == "public" }>Public</option>
+							<option value="client" selected?={ page.Sensitivity == "client" }>Client</option>
+							<option value="confidential" selected?={ page.Sensitivity == "confidential" }>Confidential</option>
+						</select>
+					</div>
+				}
+
+				<div class="pages-editor-split">
+					<textarea name="content_md"
+						class="pages-editor-textarea"
+						placeholder="# Empieza con un título..."
+						hx-post="/dashboard/pages/preview"
+						hx-trigger="keyup changed delay:300ms"
+						hx-target="#pages-preview"
+						hx-swap="innerHTML"
+						hx-include="this">{ page.ContentMD }</textarea>
+					<div id="pages-preview" class="pages-editor-preview">
+						@PagesPreviewRender(page.ContentMD)
+					</div>
+				</div>
+
+				<div class="pages-editor-actions">
+					<input type="text" name="edit_summary" placeholder="Resumen del cambio (opcional)" class="pages-editor-summary"/>
+					<button type="submit" class="btn btn-primary">💾 Guardar</button>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+// PagesBreadcrumbs renderiza el path raíz→hoja arriba del editor.
+templ PagesBreadcrumbs(page PageView) {
+	<nav class="pages-breadcrumbs" aria-label="breadcrumb">
+		<a href="/dashboard/pages" class="pages-breadcrumb-link">Wiki</a>
+		for _, b := range page.Path {
+			<span class="pages-breadcrumb-sep">/</span>
+			if b.ID == page.ID {
+				<span class="pages-breadcrumb-current">
+					if b.Icon != "" {
+						{ b.Icon } { " " }
+					}
+					{ b.Title }
+				</span>
+			} else {
+				<a href={ templ.SafeURL("/dashboard/pages?id=" + b.ID) }
+					class="pages-breadcrumb-link"
+					hx-get={ "/dashboard/pages/editor?id=" + b.ID }
+					hx-target="#pages-editor-pane"
+					hx-swap="innerHTML">
+					if b.Icon != "" {
+						{ b.Icon } { " " }
+					}
+					{ b.Title }
+				</a>
+			}
+		}
+	</nav>
+}
+
+// PagesPreviewRender renderiza markdown a HTML. Usado en initial load (server-side).
+// Para live preview (HTMX) hay un endpoint separado /dashboard/pages/preview.
+templ PagesPreviewRender(md string) {
+	if strings.TrimSpace(md) == "" {
+		<p class="muted">Empieza a escribir markdown — la previsualización aparece acá.</p>
+	} else {
+		@templ.Raw(renderMarkdownPagesHTML(md))
+	}
+}
+
+// PagesRevisionsList — lista de revisiones de una página con acción revert.
+templ PagesRevisionsList(page PageView, revisions []PageRevisionView) {
+	<div class="pages-editor">
+		<div class="pages-editor-toolbar">
+			<div class="pages-editor-toolbar-left">
+				<a href={ templ.SafeURL("/dashboard/pages?id=" + page.ID) }
+					class="btn btn-sm btn-outline"
+					hx-get={ "/dashboard/pages/editor?id=" + page.ID }
+					hx-target="#pages-editor-pane"
+					hx-swap="innerHTML">← Volver al editor</a>
+			</div>
+		</div>
+
+		<h2 style="margin:1rem 1.5rem">📜 Revisiones — { page.Title }</h2>
+
+		if len(revisions) == 0 {
+			<p class="muted" style="padding:1.5rem">Sin revisiones registradas.</p>
+		} else {
+			<table class="data-table" style="margin:0 1.5rem 1.5rem">
+				<thead>
+					<tr>
+						<th>Fecha</th>
+						<th>Editor</th>
+						<th>Resumen</th>
+						<th>Acciones</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, rev := range revisions {
+						<tr>
+							<td>{ formatTimestampTime(rev.CreatedAt) }</td>
+							<td><code style="font-size:0.78rem">{ rev.EditedByUID }</code></td>
+							<td>{ rev.EditSummary }</td>
+							<td>
+								<form method="post" action={ templ.SafeURL("/dashboard/pages/" + page.ID + "/revisions/" + rev.ID + "/revert") } style="display:inline;margin:0">
+									<button type="submit"
+										class="btn btn-sm btn-outline"
+										onclick="return confirm('Revertir a esta revisión? Se creará una nueva entry de historial.')">↺ Revertir</button>
+								</form>
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+	</div>
+}
+
+// QuickSearchResults — fragment para Cmd+K modal. Agrupado por tipo.
+templ QuickSearchResults(query string, result *QuickSearchView) {
+	if result == nil || (len(result.Pages)+len(result.Observations)+len(result.Skills)+len(result.Recipes)+len(result.Leads)+len(result.Quotes)) == 0 {
+		<p class="aria-qs-hint">
+			if query == "" {
+				Empezá a escribir... Esc para cerrar.
+			} else {
+				Sin resultados para "{ query }"
+			}
+		</p>
+	} else {
+		if len(result.Pages) > 0 {
+			@quickSearchGroup("📄 Páginas", result.Pages)
+		}
+		if len(result.Observations) > 0 {
+			@quickSearchGroup("💡 Memorias", result.Observations)
+		}
+		if len(result.Skills) > 0 {
+			@quickSearchGroup("🎯 Skills", result.Skills)
+		}
+		if len(result.Recipes) > 0 {
+			@quickSearchGroup("📋 Recipes", result.Recipes)
+		}
+		if len(result.Leads) > 0 {
+			@quickSearchGroup("👤 Leads", result.Leads)
+		}
+		if len(result.Quotes) > 0 {
+			@quickSearchGroup("💼 Cotizaciones", result.Quotes)
+		}
+	}
+}
+
+templ quickSearchGroup(label string, hits []QuickHitView) {
+	<div class="aria-qs-group">
+		<div class="aria-qs-group-label">{ label }</div>
+		<ul class="aria-qs-group-items">
+			for _, h := range hits {
+				<li class="aria-qs-item" data-url={ h.URL }>
+					<a href={ templ.SafeURL(h.URL) } class="aria-qs-item-link">
+						<span class="aria-qs-item-title">{ h.Title }</span>
+						if h.Subtitle != "" {
+							<span class="aria-qs-item-subtitle">{ h.Subtitle }</span>
+						}
+					</a>
+				</li>
+			}
+		</ul>
+	</div>
+}

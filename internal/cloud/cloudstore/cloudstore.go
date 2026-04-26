@@ -13,6 +13,7 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/chunkcodec"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1045,6 +1046,14 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		return fmt.Errorf("cloudstore: vault migrate: %w", err)
 	}
 	// END VAULT MIGRATIONS
+
+	// BEGIN PAGES MIGRATIONS
+	// Mini-Notion fundación: aria_pages (jerarquía padre-hijo) + aria_page_revisions
+	// (versionado por save) + FTS spanish para búsqueda cross-everything Cmd+K.
+	if err := pages.Migrate(ctx, cs.db); err != nil {
+		return fmt.Errorf("cloudstore: pages migrate: %w", err)
+	}
+	// END PAGES MIGRATIONS
 	return nil
 }
 

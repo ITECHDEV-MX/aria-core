@@ -186,6 +186,10 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	recipeRunner := newRecipeRunner(cs, vaultAdpt, ariaMemSvc)
 	log.Printf("[aria-core-cloud] recipe runner ready")
 
+	// Pages (mini-Notion): tree padre-hijo + markdown editor + Cmd+K cross-everything.
+	pagesAdpt := newPagesDashboardAdapter(cs)
+	log.Printf("[aria-core-cloud] pages module ready (mini-Notion)")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -211,6 +215,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithROI(roiRuntimeAdapter),
 			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithRecipeRunner(recipeRunner),
+			cloudserver.WithPagesDashboard(pagesAdpt),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,
