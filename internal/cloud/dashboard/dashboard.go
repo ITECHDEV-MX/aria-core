@@ -59,6 +59,9 @@ type MountConfig struct {
 	IsAdmin             func(r *http.Request) bool
 	GetRoles            func(r *http.Request) []string
 	GetDisplayName      func(r *http.Request) string
+	// GetUID (opcional) — retorna el UID del usuario autenticado (sub del JWT/session).
+	// Necesario para el cockpit personal /dashboard/me y handlers ACL-by-owner.
+	GetUID func(r *http.Request) string
 	Store               DashboardStore
 	MaxLoginBodyBytes   int64
 	StatusProvider      SyncStatusProvider
@@ -72,6 +75,8 @@ type MountConfig struct {
 	PDFClient PDFClient
 	// Invites (opcional) — habilita invitar usuario por email.
 	Invites InviteDashboardService
+	// PersonalCockpit (opcional) — habilita /dashboard/me cockpit del dev.
+	PersonalCockpit PersonalCockpitService
 }
 
 // PDFClient es el contrato dashboard para conversiones HTML→PDF (gotenberg).
@@ -618,6 +623,11 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/toggle", h.requireAdmin(h.handleAdminSkillToggle))
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/delete", h.requireAdmin(h.handleAdminSkillDelete))
 	mux.HandleFunc("GET /dashboard/admin/mcp", h.requireAdmin(h.handleAdminMCPView))
+
+	// Personal cockpit (/dashboard/me) — vista personal del dev autenticado.
+	mux.HandleFunc("GET /dashboard/me", h.requireSession(h.handlePersonalCockpit))
+	mux.HandleFunc("POST /dashboard/sessions/{id}/resume", h.requireSession(h.handleSessionResume))
+	mux.HandleFunc("POST /dashboard/sessions/{id}/close", h.requireSession(h.handleSessionClose))
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {

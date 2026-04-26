@@ -1,0 +1,381 @@
+package dashboard
+
+import (
+	"fmt"
+	"strings"
+)
+
+// PersonalCockpitPage — vista /dashboard/me. Cockpit personal del dev autenticado.
+templ PersonalCockpitPage(vm PersonalCockpitVM) {
+	<section class="frame-section cockpit">
+		<div class="main-header">
+			<div>
+				<p class="section-kicker">MI ACTIVIDAD</p>
+				<h1>Hola, { strings.ToUpper(vm.Username) }</h1>
+				<p class="lead">{ formatDateES(vm.Today) }</p>
+			</div>
+			<div>
+				<a href="/dashboard/memorias" class="btn btn-outline">💡 Memoria</a>
+				<a href="/dashboard/ayuda" class="btn btn-outline">📖 Guía</a>
+			</div>
+		</div>
+
+		if !vm.HasService {
+			<div class="card" style="margin-bottom:1rem">
+				<div class="card-header">
+					<div class="card-title">⚠️ Cockpit en construcción</div>
+					<p class="card-description">{ vm.Notice }</p>
+				</div>
+			</div>
+		}
+
+		@CockpitStatCards(vm.Stats)
+		@CockpitOpenSessions(vm.OpenSessions)
+		@CockpitHeatmap(vm.Heatmap)
+		@CockpitTimeline(vm.Timeline)
+		@CockpitPending(vm.Pending)
+		@CockpitContributions(vm.Contributions)
+	</section>
+}
+
+// CockpitStatCards — 4 stat cards (sesiones, observaciones, skills, tiempo activo).
+templ CockpitStatCards(s PersonalCockpitStats) {
+	<div class="stat-grid">
+		<div class="stat-card">
+			<div class="stat-label">Sesiones esta semana</div>
+			<div class="stat-value">{ fmt.Sprint(s.SessionsThisWeek) }</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.75rem">
+				<span class={ "badge", "badge-" + deltaVariant(s.SessionsDelta()) }>{ signedDelta(s.SessionsDelta()) }</span>
+				vs { fmt.Sprint(s.SessionsLastWeek) } semana pasada
+			</p>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Observaciones esta semana</div>
+			<div class="stat-value">{ fmt.Sprint(s.ObservationsWeek) }</div>
+			if len(s.ObservationsByType) > 0 {
+				<div style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-top:0.5rem">
+					for k, v := range s.ObservationsByType {
+						<span class={ "badge", "badge-" + typeBadgeVariant(k) }>{ observationTypeLabel(k) } · { fmt.Sprint(v) }</span>
+					}
+				</div>
+			}
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Skills usados (30d)</div>
+			if len(s.TopSkills) == 0 {
+				<div class="stat-value" style="font-size:1rem;color:var(--muted-foreground)">Sin uso aún</div>
+			} else {
+				<div class="stat-value" style="font-size:1.1rem">{ s.TopSkills[0].Name }</div>
+				<div class="muted" style="font-size:0.75rem;margin-top:0.4rem">
+					for i, sk := range s.TopSkills {
+						if i > 0 {
+							<span>{ sk.Name } · </span>
+						}
+					}
+				</div>
+			}
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Tiempo activo</div>
+			<div class="stat-value">{ fmt.Sprintf("%.1f", s.ActiveHours()) } h</div>
+			<p class="muted" style="margin:0.4rem 0 0;font-size:0.75rem">basado en duración de sesiones</p>
+		</div>
+	</div>
+}
+
+// CockpitOpenSessions — lista de sesiones abiertas con resume/close.
+templ CockpitOpenSessions(sessions []OpenSessionView) {
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Sesiones abiertas / Resume from interrupt</div>
+			<p class="card-description">Sesiones donde ended_at IS NULL — retomá o cerrá con summary.</p>
+		</div>
+		if len(sessions) == 0 {
+			@EmptyState("Sin sesiones abiertas", "Todas tus sesiones están cerradas. Cuando inicies una nueva desde Claude, aparecerá acá.")
+		} else {
+			<div class="cockpit-sessions">
+				for _, sess := range sessions {
+					@SessionResumeCard(sess)
+				}
+			</div>
+		}
+	</div>
+}
+
+// SessionResumeCard — sub-componente con goal + buttons resume/close.
+templ SessionResumeCard(sess OpenSessionView) {
+	<div class={ "session-resume-card", templ.KV("session-zombi", sess.Zombi) }>
+		<div class="session-resume-header">
+			<div>
+				<strong>{ sess.Project }</strong>
+				<span class="muted" style="margin-left:0.5rem">Sesión iniciada { sess.StartedRelative() }</span>
+				if sess.Zombi {
+					<span class="badge badge-warning" style="margin-left:0.5rem">⚠️ Zombi candidate</span>
+				}
+			</div>
+			<div class="muted" style="font-size:0.75rem">{ sess.LastRelative() }</div>
+		</div>
+		if strings.TrimSpace(sess.Goal) != "" {
+			<p class="session-resume-goal">{ sess.Goal }</p>
+		}
+		if strings.TrimSpace(sess.LastFileTouched) != "" {
+			<p class="muted" style="font-size:0.75rem">Último archivo: <code>{ sess.LastFileTouched }</code></p>
+		}
+		<div class="session-resume-actions">
+			<form method="post" action={ templ.SafeURL("/dashboard/sessions/" + sess.ID + "/resume") } style="display:inline;margin:0">
+				<button type="submit" class="btn btn-primary">Retomar</button>
+			</form>
+			<button type="button" class="btn btn-outline"
+				onclick={ templ.JSFuncCall("toggleSessionCloseForm", sess.ID) }>
+				Cerrar con summary
+			</button>
+		</div>
+		<form method="post"
+			id={ "close-form-" + sess.ID }
+			action={ templ.SafeURL("/dashboard/sessions/" + sess.ID + "/close") }
+			class="session-close-form" style="display:none;margin-top:0.75rem">
+			<label style="display:block;margin-bottom:0.3rem">
+				<span class="muted" style="font-size:0.75rem">Resumen breve de la sesión:</span>
+				<textarea name="summary" rows="3" required
+					placeholder="Qué dejaste hecho, qué quedó pendiente, decisiones clave..."
+					style="width:100%;font-family:var(--font-sans);font-size:0.875rem"></textarea>
+			</label>
+			<div style="display:flex;gap:0.5rem;justify-content:flex-end">
+				<button type="button" class="btn btn-outline"
+					onclick={ templ.JSFuncCall("toggleSessionCloseForm", sess.ID) }>Cancelar</button>
+				<button type="submit" class="btn btn-primary">Cerrar sesión</button>
+			</div>
+		</form>
+	</div>
+	<script>
+		// Idempotente: solo definir una vez aunque haya múltiples cards.
+		if (typeof window.toggleSessionCloseForm !== 'function') {
+			window.toggleSessionCloseForm = function(id) {
+				var f = document.getElementById('close-form-' + id);
+				if (!f) return;
+				f.style.display = (f.style.display === 'none' || !f.style.display) ? 'block' : 'none';
+			};
+		}
+	</script>
+}
+
+// CockpitHeatmap — SVG heatmap estilo GitHub contributions (53×7).
+templ CockpitHeatmap(days []HeatmapDay) {
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Actividad últimos 12 meses</div>
+			<p class="card-description">Saves + sesiones por día — más oscuro = más actividad.</p>
+		</div>
+		<div class="cockpit-heatmap-wrap">
+			@heatmapSVG(days)
+		</div>
+	</div>
+}
+
+// heatmapSVG renders an SVG grid 53 cols × 7 rows.
+templ heatmapSVG(days []HeatmapDay) {
+	<svg class="cockpit-heatmap" viewBox="0 0 742 110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Heatmap de actividad últimos 12 meses">
+		for i, d := range days {
+			@heatmapCell(i, d)
+		}
+	</svg>
+}
+
+templ heatmapCell(idx int, d HeatmapDay) {
+	{{ col := idx / 7 }}
+	{{ row := idx % 7 }}
+	{{ x := col * 14 }}
+	{{ y := row * 14 + 4 }}
+	<rect x={ fmt.Sprint(x) } y={ fmt.Sprint(y) } width="12" height="12" rx="2" ry="2"
+		class={ fmt.Sprintf("heatmap-cell heatmap-bucket-%d", d.Bucket()) }>
+		<title>{ d.Label() }</title>
+	</rect>
+}
+
+// CockpitTimeline — eventos cronológicos agrupados por día.
+templ CockpitTimeline(events []TimelineEvent) {
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Timeline reciente</div>
+			<p class="card-description">Últimas 50 actividades agrupadas por día.</p>
+		</div>
+		if len(events) == 0 {
+			@EmptyState("Sin actividad reciente", "Cuando inicies una sesión o guardes una observación aparecerán acá en orden cronológico.")
+		} else {
+			<div class="cockpit-timeline">
+				for _, g := range groupTimelineByDay(events) {
+					<div class="timeline-day">
+						<div class="timeline-day-label">{ g.Label }</div>
+						<div class="timeline-day-events">
+							for _, e := range g.Events {
+								@TimelineEventRow(e)
+							}
+						</div>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+templ TimelineEventRow(e TimelineEvent) {
+	if strings.TrimSpace(e.Href) != "" {
+		<a class="timeline-event" href={ templ.SafeURL(e.Href) }>
+			<span class="timeline-event-icon">{ e.Icon }</span>
+			<div class="timeline-event-body">
+				<div class="timeline-event-action">
+					<span>{ e.Action }</span>
+					if strings.TrimSpace(e.Subtitle) != "" {
+						<span class={ "badge", "badge-" + e.Variant }>{ e.Subtitle }</span>
+					}
+				</div>
+				<div class="timeline-event-title">{ e.Title }</div>
+			</div>
+			<span class="timeline-event-time">{ e.Relative() }</span>
+		</a>
+	} else {
+		<div class="timeline-event">
+			<span class="timeline-event-icon">{ e.Icon }</span>
+			<div class="timeline-event-body">
+				<div class="timeline-event-action">
+					<span>{ e.Action }</span>
+					if strings.TrimSpace(e.Subtitle) != "" {
+						<span class={ "badge", "badge-" + e.Variant }>{ e.Subtitle }</span>
+					}
+				</div>
+				<div class="timeline-event-title">{ e.Title }</div>
+			</div>
+			<span class="timeline-event-time">{ e.Relative() }</span>
+		</div>
+	}
+}
+
+// CockpitPending — items pendientes (sesiones zombi, leads, quotes, obs draft).
+templ CockpitPending(p PendingItems) {
+	{{ total := len(p.ZombieSessions) + len(p.InactiveLeads) + len(p.DraftQuotes) + len(p.DraftObservations) }}
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Lo que dejaste pendiente</div>
+			<p class="card-description">Items abiertos que vale la pena revisar.</p>
+		</div>
+		if total == 0 {
+			@EmptyState("Todo en orden", "No hay sesiones zombi, leads inactivos ni quotes en draft a tu nombre.")
+		} else {
+			<div class="cockpit-pending-grid">
+				if len(p.ZombieSessions) > 0 {
+					<div class="cockpit-pending-block">
+						<h4>⚠️ Sesiones &gt;24h sin actividad</h4>
+						<ul>
+							for _, s := range p.ZombieSessions {
+								<li>
+									<strong>{ s.Project }</strong> · { s.LastRelative() }
+									if strings.TrimSpace(s.Goal) != "" {
+										<div class="muted" style="font-size:0.75rem">{ s.Goal }</div>
+									}
+								</li>
+							}
+						</ul>
+					</div>
+				}
+				if len(p.InactiveLeads) > 0 {
+					<div class="cockpit-pending-block">
+						<h4>📞 Leads inactivos &gt;7d</h4>
+						<ul>
+							for _, l := range p.InactiveLeads {
+								<li>
+									<a href={ templ.SafeURL("/dashboard/cotizador/leads/" + l.ID) }>
+										<strong>{ l.Name }</strong>
+									</a>
+									if strings.TrimSpace(l.Company) != "" {
+										<span class="muted">— { l.Company }</span>
+									}
+									<span class={ "badge", "badge-" + cotizadorStatusVariant(l.Status) } style="margin-left:0.4rem">{ cotizadorStatusLabel(l.Status) }</span>
+								</li>
+							}
+						</ul>
+					</div>
+				}
+				if len(p.DraftQuotes) > 0 {
+					<div class="cockpit-pending-block">
+						<h4>📄 Quotes en draft</h4>
+						<ul>
+							for _, q := range p.DraftQuotes {
+								<li>
+									<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID) }>{ q.LeadName }</a>
+									<span class="muted">— { fmt.Sprintf("%.2f %s", q.Total, q.Currency) }</span>
+								</li>
+							}
+						</ul>
+					</div>
+				}
+				if len(p.DraftObservations) > 0 {
+					<div class="cockpit-pending-block">
+						<h4>💡 Observaciones en draft</h4>
+						<ul>
+							for _, o := range p.DraftObservations {
+								<li>
+									<a href={ templ.SafeURL("/dashboard/memorias/" + o.ID) }>{ o.Title }</a>
+									if strings.TrimSpace(o.Project) != "" {
+										<span class="muted"> · { o.Project }</span>
+									}
+								</li>
+							}
+						</ul>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+// CockpitContributions — top canon obs, top skills, ranking.
+templ CockpitContributions(c ContributionsView) {
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Tus contribuciones</div>
+			<p class="card-description">Memoria canon que creaste, skills más usados y tu ranking entre devs.</p>
+		</div>
+		<div class="cockpit-contributions-grid">
+			<div>
+				<h4 style="margin:0 0 0.5rem">Observaciones canon top</h4>
+				if len(c.TopCanonObservations) == 0 {
+					<p class="muted">Aún no tenés observaciones promovidas a canon.</p>
+				} else {
+					<ul class="cockpit-list">
+						for _, o := range c.TopCanonObservations {
+							<li>
+								<a href={ templ.SafeURL("/dashboard/memorias/" + o.ID) }>{ o.Title }</a>
+								if strings.TrimSpace(o.Project) != "" {
+									<span class="muted"> · { o.Project }</span>
+								}
+								<span class="badge badge-success" style="margin-left:0.4rem">{ fmt.Sprint(o.RelevanceCount) } refs</span>
+							</li>
+						}
+					</ul>
+				}
+			</div>
+			<div>
+				<h4 style="margin:0 0 0.5rem">Skills más editados</h4>
+				if len(c.TopSkillsEdited) == 0 {
+					<p class="muted">Aún no editaste skills.</p>
+				} else {
+					<ul class="cockpit-list">
+						for _, sk := range c.TopSkillsEdited {
+							<li>
+								<a href={ templ.SafeURL("/dashboard/admin/skills/" + sk.ID) }>{ sk.Name }</a>
+								<span class="muted"> · { fmt.Sprint(sk.Count) } usos</span>
+							</li>
+						}
+					</ul>
+				}
+			</div>
+			<div>
+				<h4 style="margin:0 0 0.5rem">Tu ranking</h4>
+				<p class="stat-value" style="font-size:1.5rem">{ fmt.Sprint(c.TotalSaves) } saves</p>
+				if strings.TrimSpace(c.RankLabel) != "" {
+					<p class="muted" style="font-size:0.85rem">{ c.RankLabel }</p>
+				}
+			</div>
+		</div>
+	</div>
+}
