@@ -742,9 +742,19 @@ templ adminNav(active string) {
 			<a href="/dashboard/admin/projects">Proyectos</a>
 		}
 		if active == "users" {
-			<a href="/dashboard/admin/users" class="active">Users</a>
+			<a href="/dashboard/admin/users" class="active">Usuarios</a>
 		} else {
-			<a href="/dashboard/admin/users">Users</a>
+			<a href="/dashboard/admin/users">Usuarios</a>
+		}
+		if active == "skills" {
+			<a href="/dashboard/admin/skills" class="active">Skills</a>
+		} else {
+			<a href="/dashboard/admin/skills">Skills</a>
+		}
+		if active == "mcp" {
+			<a href="/dashboard/admin/mcp" class="active">MCP & Tools</a>
+		} else {
+			<a href="/dashboard/admin/mcp">MCP & Tools</a>
 		}
 		if active == "health" {
 			<a href="/dashboard/admin/health" class="active">Salud del Sistema</a>

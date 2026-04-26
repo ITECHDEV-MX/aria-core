@@ -262,6 +262,56 @@ func (a *ariaMemDashboardAdapter) ListProjects(ctx context.Context) ([]string, e
 	return out, rows.Err()
 }
 
+// === Skills admin ===
+
+func (a *ariaMemDashboardAdapter) ListAllSkills(ctx context.Context) ([]dashboard.AriaSkillView, error) {
+	skills, err := a.store.ListAllSkills(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dashboard.AriaSkillView, 0, len(skills))
+	for _, s := range skills {
+		out = append(out, toSkillView(s))
+	}
+	return out, nil
+}
+
+func (a *ariaMemDashboardAdapter) GetSkillByID(ctx context.Context, id string) (*dashboard.AriaSkillView, error) {
+	sk, err := a.store.GetSkillByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	v := toSkillView(sk)
+	return &v, nil
+}
+
+func (a *ariaMemDashboardAdapter) UpsertSkill(ctx context.Context, p dashboard.UpsertAriaSkillInput) error {
+	source := p.Source
+	if source == "" {
+		source = "manual"
+	}
+	return a.store.UpsertSkill(ctx, ariamem.UpsertSkillParams{
+		ID: p.ID, Name: p.Name, Description: p.Description,
+		Stack: p.Stack, Content: p.Content, Source: source, Active: p.Active,
+	})
+}
+
+func (a *ariaMemDashboardAdapter) SetSkillActive(ctx context.Context, id string, active bool) error {
+	return a.store.SetSkillActive(ctx, id, active)
+}
+
+func (a *ariaMemDashboardAdapter) DeleteSkill(ctx context.Context, id string) error {
+	return a.store.DeleteSkill(ctx, id)
+}
+
+func toSkillView(s *ariamem.Skill) dashboard.AriaSkillView {
+	return dashboard.AriaSkillView{
+		ID: s.ID, Name: s.Name, Description: s.Description,
+		Stack: s.Stack, Content: s.Content, Source: s.Source, Active: s.Active,
+		CreatedAt: s.CreatedAt, UpdatedAt: s.UpdatedAt,
+	}
+}
+
 func toMemoryView(o *ariamem.Observation) dashboard.AriaMemoryView {
 	v := dashboard.AriaMemoryView{
 		ID: o.ID, Scope: o.Scope, ObservationType: o.ObservationType,

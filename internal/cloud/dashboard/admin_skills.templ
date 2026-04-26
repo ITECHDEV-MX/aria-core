@@ -1,0 +1,283 @@
+package dashboard
+
+import "strings"
+
+// AdminSkillsListPage — shell + lista de skills admin.
+templ AdminSkillsListPage(skills []AriaSkillView) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>Skills</h2>
+				<p class="muted">Skills/standards del equipo que se exponen al MCP <code>aria_get_skills</code>. Filtrables por stack desde Claude.</p>
+			</div>
+			<div>
+				<a href="/dashboard/admin/skills/new" class="shell-button">+ Nuevo skill</a>
+				<a href="/dashboard/admin/mcp" class="shell-button">Ver MCP & Tools</a>
+			</div>
+		</div>
+		<div id="admin-skills-content">
+			@AdminSkillsListPartial(skills)
+		</div>
+	</section>
+}
+
+templ AdminSkillsListPartial(skills []AriaSkillView) {
+	if len(skills) == 0 {
+		@EmptyState("Sin skills", "No hay skills registrados. Crea uno con el botón de arriba.")
+	} else {
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Stack</th>
+					<th>Source</th>
+					<th>Estado</th>
+					<th>Actualizado</th>
+					<th>Acciones</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, s := range skills {
+					<tr id={ "skill-row-" + s.ID }>
+						<td>
+							<strong>{ s.Name }</strong><br/>
+							<small class="muted">{ s.ID }</small>
+							if s.Description != "" {
+								<br/><small>{ truncateString(s.Description, 100) }</small>
+							}
+						</td>
+						<td>
+							for _, st := range s.Stack {
+								<span class="badge badge-muted" style="margin-right:2px">{ st }</span>
+							}
+						</td>
+						<td><span class="badge badge-muted">{ s.Source }</span></td>
+						<td>
+							<form hx-post={ "/dashboard/admin/skills/" + s.ID + "/toggle" } hx-target="#admin-skills-content" hx-swap="innerHTML" style="display:inline">
+								if s.Active {
+									<button type="submit" class="shell-button" style="background:#3a5">Activo</button>
+								} else {
+									<button type="submit" class="shell-button" style="opacity:0.5">Inactivo</button>
+								}
+							</form>
+						</td>
+						<td>{ formatTimestampTime(s.UpdatedAt) }</td>
+						<td>
+							<a href={ templ.SafeURL("/dashboard/admin/skills/" + s.ID) } class="shell-button">Editar</a>
+							<form hx-post={ "/dashboard/admin/skills/" + s.ID + "/delete" } hx-confirm={ "Eliminar skill " + s.Name + "?" } style="display:inline">
+								<button type="submit" class="shell-button" style="background:#522">Eliminar</button>
+							</form>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// AdminSkillEditor — form crear/editar.
+templ AdminSkillEditor(s *AriaSkillView) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				if s == nil {
+					<h2>Nuevo skill</h2>
+				} else {
+					<h2>Editar — { s.Name }</h2>
+					<p class="muted">id: { s.ID }</p>
+				}
+			</div>
+			<div><a href="/dashboard/admin/skills" class="shell-button">← Volver</a></div>
+		</div>
+
+		<form method="post" action="/dashboard/admin/skills/upsert" class="login-form" style="max-width:880px">
+			<label>
+				ID (slug, único — no editable después)
+				<input type="text" name="id" value={ skillID(s) } placeholder="aria-session-protocol" required readonly?={ s != nil }/>
+			</label>
+			<label>
+				Nombre
+				<input type="text" name="name" value={ skillName(s) } placeholder="ARIA Session Protocol" required/>
+			</label>
+			<label>
+				Descripción corta
+				<input type="text" name="description" value={ skillDescription(s) } placeholder="Protocolo para inicio/cierre de sesiones ARIA"/>
+			</label>
+			<label>
+				Stack (separado por comas)
+				<input type="text" name="stack" value={ skillStack(s) } placeholder="typescript, react, go"/>
+			</label>
+			<label>
+				Source
+				<input type="text" name="source" value={ skillSource(s) } placeholder="manual"/>
+			</label>
+			<label>
+				Contenido (Markdown)
+				<textarea name="content" rows="20" style="font-family:monospace;font-size:0.85rem" placeholder="# Skill: ...&#10;&#10;## Cuándo usar&#10;...&#10;&#10;## Cómo usar&#10;...">{ skillContent(s) }</textarea>
+			</label>
+			<label style="display:flex;align-items:center;gap:8px">
+				<input type="checkbox" name="active" checked?={ s == nil || s.Active }/>
+				Activo (visible para aria_get_skills)
+			</label>
+			<button type="submit" class="shell-button">Guardar</button>
+		</form>
+	</section>
+}
+
+// AdminMCPViewPage — vista de los 3 profiles MCP con sus tools.
+templ AdminMCPViewPage() {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">ADMINISTRACIÓN</p>
+				<h2>MCP & Tools</h2>
+				<p class="muted">Profiles MCP que expone aria-core. Cada uno se invoca con <code>aria-core mcp --profile=&lt;nombre&gt;</code>.</p>
+			</div>
+			<div><a href="/dashboard/admin/skills" class="shell-button">Skills</a></div>
+		</div>
+
+		<h3 class="section-block-title">Cómo configurar Claude Desktop / Claude Code</h3>
+		<p>Editá <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> con el siguiente bloque (ajustá <code>command</code> al path real del binario):</p>
+		<pre style="background:#0a0a0a;padding:1rem;border-radius:4px;overflow-x:auto;font-size:0.85rem">{ ayudaMCPConfig() }</pre>
+		<p>Pre-requisito: <code>aria-core login --email tu@itechdev.com.mx</code> (cachea JWT 8h en <code>~/.aria-core/session.json</code>).</p>
+
+		<h3 class="section-block-title">Profile <code>aria</code> — Memoria del equipo</h3>
+		<p class="muted">Cloud-bound. Reemplaza al legacy <code>mcp__aria__*</code>. 11 tools.</p>
+		@mcpToolsList(profileAriaTools())
+
+		<h3 class="section-block-title">Profile <code>cotizador</code> — CRM ventas</h3>
+		<p class="muted">Cloud-bound. Solo accesible si tu user tiene rol <code>admin</code> o <code>cotizador</code>. 23 tools.</p>
+		@mcpToolsList(profileCotizadorTools())
+
+		<h3 class="section-block-title">Profile <code>agent</code> — Sync engram local</h3>
+		<p class="muted">Local SQLite. Para sync de chunks engram-style del dev local. 11 tools <code>mem_*</code>.</p>
+		@mcpToolsList(profileAgentTools())
+	</section>
+}
+
+templ mcpToolsList(tools []mcpToolInfo) {
+	<table class="data-table">
+		<thead><tr><th>Tool</th><th>Descripción</th></tr></thead>
+		<tbody>
+			for _, t := range tools {
+				<tr>
+					<td><code>{ t.Name }</code></td>
+					<td>{ t.Description }</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}
+
+// === Helpers Go ===
+
+type mcpToolInfo struct {
+	Name        string
+	Description string
+}
+
+func profileAriaTools() []mcpToolInfo {
+	return []mcpToolInfo{
+		{"aria_save", "Guardar memoria. Si pasás topic_key, hace upsert por (project, topic_key)."},
+		{"aria_search", "Buscar memorias FTS español accent-insensitive con filtros."},
+		{"aria_get", "Detalle de una observation por ID."},
+		{"aria_timeline", "Cronología de memorias en ventana temporal por proyecto."},
+		{"aria_promote_canon", "Marcar memoria como canon (verdad curada durable)."},
+		{"aria_record_quality", "Registrar señal de calidad sobre memoria (feedback loop)."},
+		{"aria_session_start", "Iniciar sesión trackeable. Devuelve session_id."},
+		{"aria_session_summary", "Cerrar sesión + guardar resumen estructurado."},
+		{"aria_get_context_status", "Auto-orientación al inicio: sesión activa, count obs, skills cargados."},
+		{"aria_get_skills", "Skills/standards del equipo, filtrable por stack."},
+		{"aria_get_recipes", "Workflow patterns aprendidos para tareas similares."},
+	}
+}
+
+func profileCotizadorTools() []mcpToolInfo {
+	return []mcpToolInfo{
+		{"cotizador_list_leads", "Listar leads con filtro de status."},
+		{"cotizador_get_lead", "Detalle de un lead."},
+		{"cotizador_create_lead", "Crear nuevo lead."},
+		{"cotizador_update_lead_status", "Cambiar status del lead (con audit log)."},
+		{"cotizador_lead_history", "Historial de cambios del lead."},
+		{"cotizador_create_rfp", "Crear RFP asociado a lead (texto del cliente)."},
+		{"cotizador_list_rfps", "Listar RFPs de un lead."},
+		{"cotizador_get_rfp", "Detalle de RFP."},
+		{"cotizador_save_rfp_analysis", "Actualizar analysis_json del RFP (Claude lo razona)."},
+		{"cotizador_create_quote", "Crear cotización con N items, totales auto-calculados."},
+		{"cotizador_list_quotes", "Listar cotizaciones de un lead."},
+		{"cotizador_get_quote", "Detalle de quote + items."},
+		{"cotizador_update_quote_status", "Cambiar status quote."},
+		{"cotizador_close_quote", "Cerrar quote con outcome + lesson + (si won) auto crea proyecto."},
+		{"cotizador_search_similar_items", "FTS sobre items históricos (alimenta nuevas quotes)."},
+		{"cotizador_get_outcome_stats", "Win rate, avg won/lost, totales."},
+		{"cotizador_get_client_history", "Historial de cotizaciones por cliente."},
+		{"cotizador_get_lessons_learned", "Lecciones aprendidas FTS + tag filter."},
+		{"cotizador_save_lesson", "Guardar lección con tags."},
+		{"cotizador_promote_lead_to_client", "Convertir lead won en cliente con datos fiscales."},
+		{"cotizador_list_clients", "Lista de clientes formales."},
+		{"cotizador_get_client", "Detalle cliente."},
+		{"cotizador_list_templates", "Listar plantillas pre-fabricadas iTechDev."},
+		{"cotizador_apply_template", "Aplicar plantilla a una quote (UPSERT secciones)."},
+	}
+}
+
+func profileAgentTools() []mcpToolInfo {
+	return []mcpToolInfo{
+		{"mem_save", "Guardar memoria en DB local (SQLite ~/.aria-core/aria-core.db)."},
+		{"mem_search", "Buscar memorias FTS5 local."},
+		{"mem_context", "Recuperar contexto reciente."},
+		{"mem_get_observation", "Detalle de observación local."},
+		{"mem_save_prompt", "Guardar prompt en sesión local."},
+		{"mem_session_start", "Iniciar sesión local."},
+		{"mem_session_end", "Terminar sesión local."},
+		{"mem_session_summary", "Guardar resumen de sesión."},
+		{"mem_suggest_topic_key", "Sugerir topic_key estable basado en historial."},
+		{"mem_update", "Actualizar observación existente por ID."},
+		{"mem_capture_passive", "Extracción pasiva de '## Key Learnings'."},
+	}
+}
+
+// Form value helpers (templ-friendly, evitan ternary inline).
+func skillID(s *AriaSkillView) string {
+	if s == nil {
+		return ""
+	}
+	return s.ID
+}
+
+func skillName(s *AriaSkillView) string {
+	if s == nil {
+		return ""
+	}
+	return s.Name
+}
+
+func skillDescription(s *AriaSkillView) string {
+	if s == nil {
+		return ""
+	}
+	return s.Description
+}
+
+func skillStack(s *AriaSkillView) string {
+	if s == nil {
+		return ""
+	}
+	return strings.Join(s.Stack, ", ")
+}
+
+func skillSource(s *AriaSkillView) string {
+	if s == nil {
+		return "manual"
+	}
+	return s.Source
+}
+
+func skillContent(s *AriaSkillView) string {
+	if s == nil {
+		return ""
+	}
+	return s.Content
+}

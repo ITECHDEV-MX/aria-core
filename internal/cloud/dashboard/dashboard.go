@@ -76,6 +76,34 @@ type AriaMemDashboardService interface {
 	GetByID(ctx context.Context, id string) (*AriaMemoryView, error)
 	PromoteCanon(ctx context.Context, id, byUID string) error
 	ListProjects(ctx context.Context) ([]string, error)
+	// Skills admin (commit 12)
+	ListAllSkills(ctx context.Context) ([]AriaSkillView, error)
+	GetSkillByID(ctx context.Context, id string) (*AriaSkillView, error)
+	UpsertSkill(ctx context.Context, p UpsertAriaSkillInput) error
+	SetSkillActive(ctx context.Context, id string, active bool) error
+	DeleteSkill(ctx context.Context, id string) error
+}
+
+type AriaSkillView struct {
+	ID          string
+	Name        string
+	Description string
+	Stack       []string
+	Content     string
+	Source      string
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type UpsertAriaSkillInput struct {
+	ID          string
+	Name        string
+	Description string
+	Stack       []string
+	Content     string
+	Source      string
+	Active      bool
 }
 
 type AriaMemoryView struct {
@@ -529,6 +557,15 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 
 	// Página de ayuda / guía de uso (visible para todos los autenticados).
 	mux.HandleFunc("GET /dashboard/ayuda", h.requireSession(h.handleAyudaPage))
+
+	// === Admin: Skills CRUD + vista MCP profiles (commit 12) ===
+	mux.HandleFunc("GET /dashboard/admin/skills", h.requireAdmin(h.handleAdminSkillsList))
+	mux.HandleFunc("GET /dashboard/admin/skills/new", h.requireAdmin(h.handleAdminSkillNew))
+	mux.HandleFunc("GET /dashboard/admin/skills/{id}", h.requireAdmin(h.handleAdminSkillEdit))
+	mux.HandleFunc("POST /dashboard/admin/skills/upsert", h.requireAdmin(h.handleAdminSkillUpsert))
+	mux.HandleFunc("POST /dashboard/admin/skills/{id}/toggle", h.requireAdmin(h.handleAdminSkillToggle))
+	mux.HandleFunc("POST /dashboard/admin/skills/{id}/delete", h.requireAdmin(h.handleAdminSkillDelete))
+	mux.HandleFunc("GET /dashboard/admin/mcp", h.requireAdmin(h.handleAdminMCPView))
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {

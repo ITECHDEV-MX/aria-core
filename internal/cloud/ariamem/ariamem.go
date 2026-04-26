@@ -534,6 +534,73 @@ func (s *Store) UpsertSkill(ctx context.Context, p UpsertSkillParams) error {
 	return err
 }
 
+// GetSkillByID retorna un skill o ErrNotFound.
+func (s *Store) GetSkillByID(ctx context.Context, id string) (*Skill, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, name, description, stack, content, source, active, created_at, updated_at
+		FROM aria_skills WHERE id = $1
+	`, id)
+	var sk Skill
+	var stack pq.StringArray
+	if err := row.Scan(&sk.ID, &sk.Name, &sk.Description, &stack, &sk.Content, &sk.Source, &sk.Active, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	sk.Stack = []string(stack)
+	return &sk, nil
+}
+
+// ListAllSkills incluye los inactivos (para admin UI).
+func (s *Store) ListAllSkills(ctx context.Context) ([]*Skill, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, description, stack, content, source, active, created_at, updated_at
+		FROM aria_skills ORDER BY active DESC, name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Skill
+	for rows.Next() {
+		var sk Skill
+		var stack pq.StringArray
+		if err := rows.Scan(&sk.ID, &sk.Name, &sk.Description, &stack, &sk.Content, &sk.Source, &sk.Active, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+			return nil, err
+		}
+		sk.Stack = []string(stack)
+		out = append(out, &sk)
+	}
+	return out, rows.Err()
+}
+
+// SetSkillActive toggle de status.
+func (s *Store) SetSkillActive(ctx context.Context, id string, active bool) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE aria_skills SET active = $1, updated_at = NOW() WHERE id = $2`, active, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// DeleteSkill borra un skill por id.
+func (s *Store) DeleteSkill(ctx context.Context, id string) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM aria_skills WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) ListSkills(ctx context.Context, stackFilter []string) ([]*Skill, error) {
 	var (
 		rows *sql.Rows
