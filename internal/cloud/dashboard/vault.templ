@@ -1,0 +1,259 @@
+package dashboard
+
+import (
+	"fmt"
+	"strings"
+)
+
+// VaultPage — shell de la bóveda. Tabs: Mis secrets / Compartidos / Audit log.
+templ VaultPage(degraded bool) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">SEGURIDAD</p>
+			<h1>🔒 Vault</h1>
+			<p class="lead">Bóveda de secretos cifrados (AES-256-GCM). Master key vía <code>ARIA_CORE_VAULT_MASTER_KEY</code>. Acceso registrado en audit log.</p>
+		</div>
+	</div>
+	if degraded {
+		<div class="card" style="border-left:4px solid #d35;background:#fff8f8">
+			<strong>Modo degradado:</strong> No hay master key configurado. Sólo se muestra metadata. Para encrypt/decrypt setear <code>ARIA_CORE_VAULT_MASTER_KEY</code>.
+		</div>
+	}
+	<div class="card">
+		<form id="vault-create"
+			hx-post="/dashboard/vault/create"
+			hx-target="#vault-content"
+			hx-swap="innerHTML">
+			<div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:0.5rem;align-items:end">
+				<label style="margin:0">
+					<span class="muted">Name</span>
+					<input type="text" name="name" required placeholder="DB_PROD_PASSWORD"/>
+				</label>
+				<label style="margin:0">
+					<span class="muted">Category</span>
+					<select name="category">
+						<option value="generic">generic</option>
+						<option value="db_password">db_password</option>
+						<option value="api_token">api_token</option>
+						<option value="ssh_key">ssh_key</option>
+						<option value="cert">cert</option>
+						<option value="env">env</option>
+						<option value="webhook">webhook</option>
+					</select>
+				</label>
+				<label style="margin:0">
+					<span class="muted">Scope</span>
+					<select name="scope">
+						<option value="personal">personal</option>
+						<option value="project">project</option>
+						<option value="team">team</option>
+						<option value="client_knowledge">client_knowledge</option>
+					</select>
+				</label>
+				<label style="margin:0">
+					<span class="muted">Value (no se muestra)</span>
+					<input type="password" name="value" required autocomplete="new-password"/>
+				</label>
+				<button type="submit" class="shell-button">+ Crear</button>
+			</div>
+			<div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:0.5rem;margin-top:0.5rem">
+				<label style="margin:0">
+					<span class="muted">Project (optional)</span>
+					<input type="text" name="project"/>
+				</label>
+				<label style="margin:0">
+					<span class="muted">Client ID (optional UUID)</span>
+					<input type="text" name="client_id"/>
+				</label>
+				<label style="margin:0">
+					<span class="muted">Description (opcional)</span>
+					<input type="text" name="description"/>
+				</label>
+			</div>
+		</form>
+	</div>
+
+	<div style="margin-top:1rem">
+		<a href="/dashboard/vault" class="shell-button" style="background:#3a5">Mis secrets</a>
+		<a href="/dashboard/vault?owned=false" class="shell-button">Compartidos conmigo</a>
+		<a href="/dashboard/vault/audit" class="shell-button">Audit log global</a>
+	</div>
+
+	<div id="vault-content"
+		hx-get="/dashboard/vault/list"
+		hx-trigger="load"
+		hx-swap="innerHTML">
+		<p class="muted">Cargando secrets...</p>
+	</div>
+}
+
+templ VaultListPartial(secrets []VaultSecretView) {
+	if len(secrets) == 0 {
+		@EmptyState("Sin secrets", "No hay secrets visibles para tu cuenta. Creá uno con el form de arriba.")
+	} else {
+		<p class="muted" style="margin:0.5rem 0 1rem">{ formatCount(len(secrets)) }</p>
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Nombre</th>
+					<th>Categoría</th>
+					<th>Scope</th>
+					<th>Project / Cliente</th>
+					<th>Estado</th>
+					<th>Creado</th>
+					<th>Acciones</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, sec := range secrets {
+					<tr id={ "vault-row-" + sec.ID }>
+						<td>
+							<strong>{ sec.Name }</strong>
+							if sec.Description != "" {
+								<br/><small class="muted">{ truncateString(sec.Description, 80) }</small>
+							}
+							<br/><small class="muted">{ sec.ID }</small>
+						</td>
+						<td><span class="badge badge-muted">{ sec.Category }</span></td>
+						<td><span class="badge badge-muted">{ sec.Scope }</span></td>
+						<td>
+							if sec.Project != "" {
+								<small>{ sec.Project }</small>
+							}
+							if sec.ClientID != "" {
+								<br/><small class="muted">{ sec.ClientID }</small>
+							}
+							if sec.Project == "" && sec.ClientID == "" {
+								<small class="muted">—</small>
+							}
+						</td>
+						<td>
+							if sec.IsActive {
+								<span class="badge" style="background:#3a5;color:#fff">activo</span>
+							} else {
+								<span class="badge badge-muted">inactivo</span>
+							}
+							if sec.RotationPolicy != "" && sec.RotationPolicy != "manual" {
+								<br/><small class="muted">rot: { sec.RotationPolicy }</small>
+							}
+						</td>
+						<td>
+							<small>{ sec.CreatedAt.Format("2006-01-02 15:04") }</small>
+						</td>
+						<td>
+							<form hx-post={ "/dashboard/vault/" + sec.ID + "/reveal" }
+								hx-target={ "#reveal-result-" + sec.ID }
+								hx-swap="innerHTML"
+								style="display:inline">
+								<input type="text" name="reason" placeholder="razón..." required style="width:140px;margin-right:4px"/>
+								<button type="submit" class="shell-button">Revelar</button>
+							</form>
+							<a href={ templ.URL("/dashboard/vault/" + sec.ID + "/audit") } class="shell-button" style="margin-left:4px">Audit</a>
+							<form hx-post={ "/dashboard/vault/" + sec.ID + "/delete" }
+								hx-target="#vault-content"
+								hx-swap="innerHTML"
+								hx-confirm="¿Borrar este secret?"
+								style="display:inline;margin-left:4px">
+								<button type="submit" class="shell-button" style="background:#d35;color:#fff">×</button>
+							</form>
+							<div id={ "reveal-result-" + sec.ID } style="margin-top:4px"></div>
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+templ VaultRevealResult(secretName, value string) {
+	<div style="background:#fffbe6;border:1px solid #f5c842;padding:6px 8px;border-radius:4px;font-family:monospace;font-size:0.85rem">
+		<strong>{ secretName }:</strong> <code id={ "reveal-value-" + secretName }>{ value }</code>
+		<small class="muted" style="display:block;margin-top:2px">Auto-clear en 30s. Cierre la página al terminar.</small>
+		<script>
+			setTimeout(() => {
+				const el = document.getElementById('reveal-value-{ secretName }');
+				if (el) el.textContent = '*** cleared ***';
+			}, 30000);
+		</script>
+	</div>
+}
+
+templ VaultRevealError(msg string) {
+	<div style="background:#fee;border:1px solid #d35;padding:6px 8px;border-radius:4px;color:#a22">
+		{ msg }
+	</div>
+}
+
+templ VaultAuditPage(entries []VaultAccessEntryView, title string) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">VAULT / AUDIT</p>
+			<h1>📋 { title }</h1>
+			<p class="lead">Registro inmutable de accesos a secrets. Útil para investigar incidentes.</p>
+		</div>
+		<div>
+			<a href="/dashboard/vault" class="shell-button">← Volver</a>
+		</div>
+	</div>
+	if len(entries) == 0 {
+		@EmptyState("Sin actividad", "No hay accesos registrados.")
+	} else {
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Fecha</th>
+					<th>Acción</th>
+					<th>Secret</th>
+					<th>Usuario</th>
+					<th>Razón</th>
+					<th>Cmd hash</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, e := range entries {
+					<tr>
+						<td><small>{ e.AccessedAt.Format("2006-01-02 15:04:05") }</small></td>
+						<td>
+							@vaultActionBadge(e.Action)
+						</td>
+						<td>
+							if e.SecretName != "" {
+								<strong>{ e.SecretName }</strong><br/>
+							}
+							<small class="muted">{ e.SecretID }</small>
+						</td>
+						<td><small>{ e.AccessedByUID }</small></td>
+						<td><small>{ truncateString(e.Reason, 60) }</small></td>
+						<td>
+							if e.CommandHash != "" {
+								<small class="muted">{ truncateString(e.CommandHash, 16) }</small>
+							}
+						</td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+templ vaultActionBadge(action string) {
+	switch strings.ToLower(action) {
+		case "denied":
+			<span class="badge" style="background:#d35;color:#fff">{ action }</span>
+		case "create", "rotate":
+			<span class="badge" style="background:#3a5;color:#fff">{ action }</span>
+		case "delete":
+			<span class="badge" style="background:#a22;color:#fff">{ action }</span>
+		case "use_in_cmd":
+			<span class="badge" style="background:#369;color:#fff">{ action }</span>
+		default:
+			<span class="badge badge-muted">{ action }</span>
+	}
+}
+
+// Pequeño helper de format usado solo por vault para evitar duplicar
+// formatCount entre archivos. Si formatCount ya existe en helpers, este no
+// se exporta (lowercase) y no causa conflicto.
+func vaultFmtPair(a, b int) string {
+	return fmt.Sprintf("%d / %d", a, b)
+}

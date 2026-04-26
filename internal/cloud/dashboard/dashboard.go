@@ -59,6 +59,9 @@ type MountConfig struct {
 	IsAdmin             func(r *http.Request) bool
 	GetRoles            func(r *http.Request) []string
 	GetDisplayName      func(r *http.Request) string
+	// GetUID retorna el UID del usuario autenticado, vacío si no hay sesión.
+	// Necesario para módulos como vault que asocian acciones con un actor concreto.
+	GetUID func(r *http.Request) string
 	Store               DashboardStore
 	MaxLoginBodyBytes   int64
 	StatusProvider      SyncStatusProvider
@@ -72,6 +75,8 @@ type MountConfig struct {
 	PDFClient PDFClient
 	// Invites (opcional) — habilita invitar usuario por email.
 	Invites InviteDashboardService
+	// Vault (opcional) — habilita /dashboard/vault con CRUD de secrets + audit log.
+	Vault VaultDashboardService
 }
 
 // PDFClient es el contrato dashboard para conversiones HTML→PDF (gotenberg).
@@ -93,6 +98,47 @@ type PDFConvertOptions struct {
 // InviteDashboardService es el contrato del módulo de invites para el dashboard.
 type InviteDashboardService interface {
 	CreateAndSend(ctx context.Context, email string, roles []string, invitedByUID, invitedByEmail string) (link string, emailSent bool, info string, err error)
+}
+
+// VaultSecretView es la representación de un secret en el dashboard (sin valor descifrado).
+type VaultSecretView struct {
+	ID             string
+	Name           string
+	Category       string
+	Scope          string
+	Project        string
+	ClientID       string
+	Description    string
+	RotationPolicy string
+	ExpiresAt      *time.Time
+	CreatedAt      time.Time
+	CreatedByUID   string
+	IsActive       bool
+}
+
+// VaultAccessEntryView es una fila del audit log para mostrar en dashboard.
+type VaultAccessEntryView struct {
+	ID            string
+	SecretID      string
+	SecretName    string
+	AccessedByUID string
+	Action        string
+	Reason        string
+	CommandHash   string
+	AccessedAt    time.Time
+}
+
+// VaultDashboardService es el contrato del módulo vault para el dashboard.
+// Es admin-gated en la layer de routes (requireAdmin).
+type VaultDashboardService interface {
+	List(ctx context.Context, ownerUID string, onlyOwned bool) ([]VaultSecretView, error)
+	Create(ctx context.Context, name, category, scope, project, clientID, description, value string, byUID string) (string, error)
+	Reveal(ctx context.Context, id, byUID, reason string) (string, error)
+	Rotate(ctx context.Context, id, newValue, byUID string) error
+	Delete(ctx context.Context, id, byUID string) error
+	AccessLog(ctx context.Context, secretID string, limit int) ([]VaultAccessEntryView, error)
+	GlobalAuditLog(ctx context.Context, limit, offset int) ([]VaultAccessEntryView, error)
+	Available() bool
 }
 
 // AriaMemDashboardService es el contrato dashboard para la capa de memoria ARIA.
@@ -618,6 +664,16 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/toggle", h.requireAdmin(h.handleAdminSkillToggle))
 	mux.HandleFunc("POST /dashboard/admin/skills/{id}/delete", h.requireAdmin(h.handleAdminSkillDelete))
 	mux.HandleFunc("GET /dashboard/admin/mcp", h.requireAdmin(h.handleAdminMCPView))
+
+	// === Vault: bóveda de secretos (admin-gated) ===
+	mux.HandleFunc("GET /dashboard/vault", h.requireAdmin(h.handleVaultPage))
+	mux.HandleFunc("GET /dashboard/vault/list", h.requireAdmin(h.handleVaultList))
+	mux.HandleFunc("POST /dashboard/vault/create", h.requireAdmin(h.handleVaultCreate))
+	mux.HandleFunc("POST /dashboard/vault/{id}/reveal", h.requireAdmin(h.handleVaultReveal))
+	mux.HandleFunc("POST /dashboard/vault/{id}/rotate", h.requireAdmin(h.handleVaultRotate))
+	mux.HandleFunc("POST /dashboard/vault/{id}/delete", h.requireAdmin(h.handleVaultDelete))
+	mux.HandleFunc("GET /dashboard/vault/{id}/audit", h.requireAdmin(h.handleVaultAuditDetail))
+	mux.HandleFunc("GET /dashboard/vault/audit", h.requireAdmin(h.handleVaultAuditGlobal))
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {

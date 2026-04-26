@@ -13,6 +13,7 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/chunkcodec"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -905,6 +906,11 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 	if err := cs.backfillProjectSessionsFromChunks(ctx); err != nil {
 		return err
 	}
+	// BEGIN VAULT MIGRATIONS
+	if err := vault.Migrate(ctx, cs.db); err != nil {
+		return fmt.Errorf("cloudstore: vault migrate: %w", err)
+	}
+	// END VAULT MIGRATIONS
 	return nil
 }
 

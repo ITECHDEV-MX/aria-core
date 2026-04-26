@@ -25,6 +25,8 @@ type v1MemSaveRequest struct {
 	Source           string          `json:"source,omitempty"`
 	GeneratedByModel string          `json:"generated_by_model,omitempty"`
 	ClientID         string          `json:"client_id,omitempty"`
+	// ForceSave permite admin override del bloqueo por leak detection.
+	ForceSave bool `json:"force_save,omitempty"`
 }
 
 func (s *CloudServer) handleV1MemorySave(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +75,8 @@ func (s *CloudServer) handleV1MemorySave(w http.ResponseWriter, r *http.Request)
 		TopicKey:         req.TopicKey,
 		Source:           req.Source,
 		GeneratedByModel: req.GeneratedByModel,
+		// Solo admins pueden bypassear leak detection.
+		ForceSave: req.ForceSave && claims != nil && claims.HasRole("admin"),
 	}
 	_ = devEmail
 	o, err := s.ariaMem.Save(r.Context(), in)

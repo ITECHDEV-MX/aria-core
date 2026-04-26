@@ -66,6 +66,8 @@ type CloudServer struct {
 	invites          InviteService
 	dashboardInvites dashboard.InviteDashboardService
 	publicURL        string
+	vault            VaultService
+	vaultDash        dashboard.VaultDashboardService
 }
 
 // EmailService is the contract for sending transactional emails.
@@ -265,6 +267,13 @@ func WithPublicURL(u string) Option {
 	}
 }
 
+// WithVaultDashboard inyecta el servicio dashboard del vault.
+func WithVaultDashboard(v dashboard.VaultDashboardService) Option {
+	return func(s *CloudServer) {
+		s.vaultDash = v
+	}
+}
+
 // AriaMemService es el contrato de la capa de memoria ARIA.
 type AriaMemService interface {
 	Save(ctx context.Context, p AriaMemSaveInput) (*AriaMemObservation, error)
@@ -285,6 +294,9 @@ type AriaMemSaveInput struct {
 	SessionID, DeveloperUID, DeveloperRole, ClientID, Project, Scope    string
 	ObservationType, Title, Subtitle, Narrative, Facts, Concepts        string
 	FilesTouched, ReasoningTrace, TopicKey, Source, GeneratedByModel    string
+	// ForceSave permite saltar el bloqueo por leak detection en aria_save.
+	// Reservado para admin override; los clients normales no deben pasarlo.
+	ForceSave bool
 }
 
 type AriaMemSearchInput struct {
@@ -462,6 +474,13 @@ func (s *CloudServer) routes() {
 		GetDisplayName: func(r *http.Request) string {
 			return s.displayNameFor(r)
 		},
+		GetUID: func(r *http.Request) string {
+			claims, err := s.dashboardClaimsFromRequest(r)
+			if err != nil || claims == nil {
+				return ""
+			}
+			return claims.UID
+		},
 		Store:             dashboardStore,
 		MaxLoginBodyBytes: maxDashboardLoginBodyBytes,
 		StatusProvider:    s.syncStatus,
@@ -470,6 +489,7 @@ func (s *CloudServer) routes() {
 		AriaMem:           s.ariaMemDash,
 		PDFClient:         s.pdfClient,
 		Invites:           s.dashboardInvites,
+		Vault:             s.vaultDash,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -533,6 +553,17 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("GET /v1/memory/context-status", s.withJWTAuth(s.handleV1MemoryContextStatus))
 	s.mux.HandleFunc("GET /v1/memory/skills", s.withJWTAuth(s.handleV1MemorySkills))
 	s.mux.HandleFunc("GET /v1/memory/recipes", s.withJWTAuth(s.handleV1MemoryRecipes))
+
+	// === ARIA Vault: bóveda de secretos cifrados (commit vault) ===
+	// Cualquier user autenticado puede crear/listar; ACL fino se hace dentro del store.
+	s.mux.HandleFunc("POST /v1/vault/secrets", s.withJWTAuth(s.handleV1VaultCreate))
+	s.mux.HandleFunc("GET /v1/vault/secrets", s.withJWTAuth(s.handleV1VaultList))
+	s.mux.HandleFunc("GET /v1/vault/secrets/{id}", s.withJWTAuth(s.handleV1VaultGet))
+	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/reveal", s.withJWTAuth(s.handleV1VaultReveal))
+	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/rotate", s.withJWTAuth(s.handleV1VaultRotate))
+	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/delete", s.withJWTAuth(s.handleV1VaultDelete))
+	s.mux.HandleFunc("POST /v1/vault/secrets/{id}/grants", s.withJWTAuth(s.handleV1VaultGrant))
+	s.mux.HandleFunc("GET /v1/vault/secrets/{id}/access-log", s.withJWTAuth(s.handleV1VaultAccessLog))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {
