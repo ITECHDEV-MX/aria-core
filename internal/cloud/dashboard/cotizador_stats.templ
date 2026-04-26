@@ -1,0 +1,272 @@
+package dashboard
+
+import (
+	"encoding/json"
+	"fmt"
+)
+
+// CotizadorStatsPage — pipeline ejecutivo con gráficos Chart.js.
+templ CotizadorStatsPage(s *CotizadorDashboardStatsView) {
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">VENTAS · PIPELINE</p>
+			<h1>📊 Stats & Pipeline</h1>
+			<p class="lead">Win rate, valor del pipeline activo, tendencia mensual y funnel de leads.</p>
+		</div>
+		<div class="main-actions">
+			<a href="/dashboard/cotizador" class="btn btn-outline">← Cotizaciones</a>
+		</div>
+	</div>
+
+	<!-- Stat cards top -->
+	<div class="stat-grid">
+		<div class="stat-card">
+			<div class="stat-label">Win rate</div>
+			<div class="stat-value">{ formatPct(s.WinRate) }</div>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Quotes ganadas</div>
+			<div class="stat-value">{ fmt.Sprint(s.Won) }</div>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Total ganado</div>
+			<div class="stat-value" style="font-size:1.4rem">{ formatMoneyCompact(s.AvgWonTotal * float64(s.Won)) }</div>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Pipeline activo</div>
+			<div class="stat-value" style="font-size:1.4rem">{ formatMoneyCompact(s.TotalPipelineMXN) }</div>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Leads totales</div>
+			<div class="stat-value">{ fmt.Sprint(leadsTotal(s.LeadsByStatus)) }</div>
+		</div>
+		<div class="stat-card">
+			<div class="stat-label">Ticket promedio</div>
+			<div class="stat-value" style="font-size:1.4rem">{ formatMoneyCompact(s.AvgDealSize) }</div>
+		</div>
+	</div>
+
+	<!-- Charts grid -->
+	<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1rem">
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Funnel de leads</div>
+				<p class="card-description">Cantidad de leads por etapa.</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-funnel"></canvas></div>
+		</div>
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Win / Loss</div>
+				<p class="card-description">Distribución de outcomes terminales.</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-winloss"></canvas></div>
+		</div>
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Pipeline por status</div>
+				<p class="card-description">Valor total ($) por estado de quote.</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-pipeline"></canvas></div>
+		</div>
+		<div class="card">
+			<div class="card-header">
+				<div class="card-title">Tendencia mensual (últimos 6 meses)</div>
+				<p class="card-description">Quotes creadas vs ganadas por mes.</p>
+			</div>
+			<div style="position:relative;height:280px"><canvas id="chart-trend"></canvas></div>
+		</div>
+	</div>
+
+	<!-- Chart data inyectada como JSON safe -->
+	<script type="application/json" id="aria-charts-data">{ chartsDataJSON(s) }</script>
+	<!-- Chart.js CDN -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+	<script>
+		(function() {
+			const computed = getComputedStyle(document.documentElement);
+			const fg = computed.getPropertyValue('--foreground').trim() || '#fff';
+			const muted = computed.getPropertyValue('--muted-foreground').trim() || '#888';
+			const border = computed.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.1)';
+			const primary = computed.getPropertyValue('--primary').trim() || '#17a3de';
+			const accent = computed.getPropertyValue('--accent').trim() || '#00a4e2';
+			const success = computed.getPropertyValue('--success').trim() || '#3a5';
+			const destructive = computed.getPropertyValue('--destructive').trim() || '#c33';
+			const warning = computed.getPropertyValue('--warning').trim() || '#fa3';
+
+			Chart.defaults.color = muted;
+			Chart.defaults.borderColor = border;
+			Chart.defaults.font.family = 'Open Sans, sans-serif';
+
+			const data = JSON.parse(document.getElementById('aria-charts-data').textContent);
+
+			// Funnel leads
+			new Chart(document.getElementById('chart-funnel'), {
+				type: 'bar',
+				data: {
+					labels: data.leadStatuses.map(s => s.label),
+					datasets: [{
+						label: 'Leads',
+						data: data.leadStatuses.map(s => s.count),
+						backgroundColor: [primary, accent, warning, success, '#3a5', destructive].slice(0, data.leadStatuses.length),
+						borderRadius: 4,
+					}]
+				},
+				options: {
+					indexAxis: 'y',
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: { legend: { display: false } },
+					scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+				}
+			});
+
+			// Win/Loss donut
+			new Chart(document.getElementById('chart-winloss'), {
+				type: 'doughnut',
+				data: {
+					labels: ['Ganadas', 'Perdidas', 'Expiradas', 'Abiertas'],
+					datasets: [{
+						data: [data.won, data.lost, data.expired, data.open],
+						backgroundColor: [success, destructive, warning, muted],
+						borderWidth: 2,
+						borderColor: computed.getPropertyValue('--card').trim() || '#181818'
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: {
+						legend: { position: 'bottom' },
+					}
+				}
+			});
+
+			// Pipeline value bar
+			new Chart(document.getElementById('chart-pipeline'), {
+				type: 'bar',
+				data: {
+					labels: data.quoteStatuses.map(s => s.label),
+					datasets: [{
+						label: 'Valor MXN',
+						data: data.quoteStatuses.map(s => s.value),
+						backgroundColor: data.quoteStatuses.map(s => s.color),
+						borderRadius: 4,
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: {
+						legend: { display: false },
+						tooltip: { callbacks: { label: ctx => '$ ' + ctx.parsed.y.toLocaleString('es-MX') } }
+					},
+					scales: { y: { beginAtZero: true, ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k' } } }
+				}
+			});
+
+			// Trend mensual
+			new Chart(document.getElementById('chart-trend'), {
+				type: 'line',
+				data: {
+					labels: data.trend.map(p => p.month),
+					datasets: [
+						{
+							label: 'Creadas',
+							data: data.trend.map(p => p.created),
+							borderColor: primary,
+							backgroundColor: primary + '22',
+							tension: 0.35, fill: true, pointRadius: 4
+						},
+						{
+							label: 'Ganadas',
+							data: data.trend.map(p => p.won),
+							borderColor: success,
+							backgroundColor: success + '22',
+							tension: 0.35, fill: true, pointRadius: 4
+						}
+					]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: { legend: { position: 'bottom' } },
+					scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+				}
+			});
+		})();
+	</script>
+}
+
+// chartsDataJSON pre-serializa la data para Chart.js evitando interpolación insegura en JS.
+func chartsDataJSON(s *CotizadorDashboardStatsView) string {
+	type leadStatus struct {
+		Label string `json:"label"`
+		Count int    `json:"count"`
+	}
+	type quoteStatus struct {
+		Label string  `json:"label"`
+		Value float64 `json:"value"`
+		Color string  `json:"color"`
+	}
+	type trendP struct {
+		Month   string `json:"month"`
+		Created int    `json:"created"`
+		Won     int    `json:"won"`
+	}
+	leads := []leadStatus{}
+	for _, code := range []string{"new", "contacted", "qualified", "quoting", "won", "lost"} {
+		if c, ok := s.LeadsByStatus[code]; ok && c > 0 {
+			leads = append(leads, leadStatus{Label: cotizadorStatusLabel(code), Count: c})
+		}
+	}
+	colorMap := map[string]string{
+		"draft": "#888", "sent": "#17a3de", "in_review": "#fa3",
+		"approved": "#3a5", "rejected": "#c33", "expired": "#666",
+	}
+	quotes := []quoteStatus{}
+	for _, code := range []string{"draft", "sent", "in_review", "approved", "rejected", "expired"} {
+		if v, ok := s.PipelineValue[code]; ok && v > 0 {
+			quotes = append(quotes, quoteStatus{Label: cotizadorQuoteStatusLabel(code), Value: v, Color: colorMap[code]})
+		}
+	}
+	trend := []trendP{}
+	for _, p := range s.MonthlyTrend {
+		trend = append(trend, trendP{Month: p.Month, Created: p.Created, Won: p.Won})
+	}
+	payload := map[string]any{
+		"leadStatuses":  leads,
+		"quoteStatuses": quotes,
+		"trend":         trend,
+		"won":           s.Won,
+		"lost":          s.Lost,
+		"expired":       s.Expired,
+		"open":          s.Open,
+	}
+	b, _ := json.Marshal(payload)
+	return string(b)
+}
+
+// formatPct formatea ratio como porcentaje con 1 decimal.
+func formatPct(v float64) string {
+	return fmt.Sprintf("%.1f%%", v)
+}
+
+// formatMoneyCompact suma con K/M.
+func formatMoneyCompact(v float64) string {
+	if v >= 1000000 {
+		return fmt.Sprintf("$%.1fM", v/1000000)
+	}
+	if v >= 1000 {
+		return fmt.Sprintf("$%.0fk", v/1000)
+	}
+	return fmt.Sprintf("$%.0f", v)
+}
+
+func leadsTotal(m map[string]int) int {
+	t := 0
+	for _, v := range m {
+		t += v
+	}
+	return t
+}

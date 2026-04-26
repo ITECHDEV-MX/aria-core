@@ -147,6 +147,25 @@ func (h *handlers) handleCotizadorQuoteSectionUpsert(w http.ResponseWriter, r *h
 	http.Redirect(w, r, "/dashboard/cotizador/quotes/"+quoteID+"/edit-header", http.StatusSeeOther)
 }
 
+func (h *handlers) handleCotizadorStats(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.Cotizador == nil {
+		http.Error(w, "cotizador module not configured", http.StatusServiceUnavailable)
+		return
+	}
+	stats, err := h.cfg.Cotizador.GetDashboardStats(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("stats: %v", err), http.StatusInternalServerError)
+		return
+	}
+	p := h.principalFromRequest(r)
+	component := CotizadorStatsPage(stats)
+	if isHTMXRequest(r) {
+		renderComponent(w, r, component)
+		return
+	}
+	renderComponent(w, r, Layout("Pipeline & Stats", p.DisplayName(), "cotizador", p.Roles(), component))
+}
+
 func (h *handlers) handleCotizadorQuoteApplyTemplate(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.Cotizador == nil {
 		http.Error(w, "cotizador module not configured", http.StatusServiceUnavailable)

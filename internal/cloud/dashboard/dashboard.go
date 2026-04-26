@@ -152,6 +152,7 @@ type CotizadorService interface {
 	CloseQuoteWithOutcome(ctx context.Context, quoteID, newStatus, byUID, reason, lessonText string, lessonTags []string) error
 	SearchSimilarItems(ctx context.Context, query string, limit int) ([]CotizadorSimilarItemView, error)
 	GetOutcomeStats(ctx context.Context) (CotizadorOutcomeStatsView, error)
+	GetDashboardStats(ctx context.Context) (*CotizadorDashboardStatsView, error)
 	GetClientHistory(ctx context.Context, query string) ([]CotizadorClientHistoryView, error)
 	SearchLessons(ctx context.Context, query, tag string, limit int) ([]CotizadorLessonView, error)
 	CreateLesson(ctx context.Context, p CreateLessonInput) (*CotizadorLessonView, error)
@@ -229,6 +230,25 @@ type CotizadorOutcomeStatsView struct {
 	WinRate      float64
 	AvgWonTotal  float64
 	AvgLostTotal float64
+}
+
+type CotizadorDashboardStatsView struct {
+	CotizadorOutcomeStatsView
+	LeadsByStatus    map[string]int
+	QuotesByStatus   map[string]int
+	PipelineValue    map[string]float64
+	MonthlyTrend     []CotizadorMonthlyPoint
+	AvgDealSize      float64
+	TotalPipelineMXN float64
+	TopCurrencies    []string
+}
+
+type CotizadorMonthlyPoint struct {
+	Month   string
+	Created int
+	Won     int
+	Lost    int
+	WonMXN  float64
 }
 
 type CotizadorClientHistoryView struct {
@@ -548,6 +568,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/upsert", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionUpsert))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/{key}/delete", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionDelete))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/apply-template", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteApplyTemplate))
+	mux.HandleFunc("GET /dashboard/cotizador/stats", h.requireAnyRole(cotizadorRoles, h.handleCotizadorStats))
 
 	// === Memoria ARIA (commit 11) ===
 	mux.HandleFunc("GET /dashboard/memorias", h.requireSession(h.handleAriaMemList))

@@ -30,7 +30,7 @@ func CotizadorHomePage() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"main-header\"><div><p class=\"section-kicker\">VENTAS</p><h1>💼 Cotizaciones</h1><p class=\"lead\">Pipeline de leads, RFPs, propuestas y conversión a clientes/proyectos.</p></div></div><div class=\"card\"><div class=\"card-header\"><div class=\"card-title\">Nuevo lead</div><p class=\"card-description\">Captura inicial — luego podés sumar RFP y cotización desde el detalle.</p></div><form hx-post=\"/dashboard/cotizador/leads/create\" hx-target=\"#cotizador-leads-content\" hx-swap=\"innerHTML\"><div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem\"><label style=\"margin:0\">Nombre del contacto <input type=\"text\" name=\"name\" placeholder=\"Juan Pérez\" required></label> <label style=\"margin:0\">Empresa <input type=\"text\" name=\"company\" placeholder=\"Acme SA\"></label> <label style=\"margin:0\">Email <input type=\"email\" name=\"email\" placeholder=\"contacto@acme.com\"></label> <label style=\"margin:0\">Teléfono <input type=\"text\" name=\"phone\" placeholder=\"+52 555 ...\"></label> <label style=\"margin:0\">Origen <input type=\"text\" name=\"source\" placeholder=\"referido, LinkedIn, evento...\"></label></div><label style=\"margin-top:0.75rem\">Notas <textarea name=\"notes\" rows=\"2\" placeholder=\"contexto inicial, requerimientos resumidos...\"></textarea></label> <button type=\"submit\" class=\"btn btn-primary\" style=\"margin-top:0.5rem\">+ Crear lead</button></form></div><div class=\"card\"><div class=\"card-header\"><div class=\"card-title\">Leads</div><p class=\"card-description\">Filtrá por estado del funnel.</p></div><div style=\"display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem\"><button hx-get=\"/dashboard/cotizador/leads/list\" hx-target=\"#cotizador-leads-content\" hx-swap=\"innerHTML\" class=\"btn btn-outline btn-sm\">Todos</button> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"main-header\"><div><p class=\"section-kicker\">VENTAS</p><h1>💼 Cotizaciones</h1><p class=\"lead\">Pipeline de leads, RFPs, propuestas y conversión a clientes/proyectos.</p></div><div class=\"main-actions\"><a href=\"/dashboard/cotizador/stats\" class=\"btn btn-outline\">📊 Stats & Pipeline</a></div></div><div class=\"card\"><div class=\"card-header\"><div class=\"card-title\">Nuevo lead</div><p class=\"card-description\">Captura inicial — luego podés sumar RFP y cotización desde el detalle.</p></div><form hx-post=\"/dashboard/cotizador/leads/create\" hx-target=\"#cotizador-leads-content\" hx-swap=\"innerHTML\"><div style=\"display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem\"><label style=\"margin:0\">Nombre del contacto <input type=\"text\" name=\"name\" placeholder=\"Juan Pérez\" required></label> <label style=\"margin:0\">Empresa <input type=\"text\" name=\"company\" placeholder=\"Acme SA\"></label> <label style=\"margin:0\">Email <input type=\"email\" name=\"email\" placeholder=\"contacto@acme.com\"></label> <label style=\"margin:0\">Teléfono <input type=\"text\" name=\"phone\" placeholder=\"+52 555 ...\"></label> <label style=\"margin:0\">Origen <input type=\"text\" name=\"source\" placeholder=\"referido, LinkedIn, evento...\"></label></div><label style=\"margin-top:0.75rem\">Notas <textarea name=\"notes\" rows=\"2\" placeholder=\"contexto inicial, requerimientos resumidos...\"></textarea></label> <button type=\"submit\" class=\"btn btn-primary\" style=\"margin-top:0.5rem\">+ Crear lead</button></form></div><div class=\"card\"><div class=\"card-header\"><div class=\"card-title\">Leads</div><p class=\"card-description\">Filtrá por estado del funnel.</p></div><div style=\"display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem\"><button hx-get=\"/dashboard/cotizador/leads/list\" hx-target=\"#cotizador-leads-content\" hx-swap=\"innerHTML\" class=\"btn btn-outline btn-sm\">Todos</button> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -42,7 +42,7 @@ func CotizadorHomePage() templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs("/dashboard/cotizador/leads/list?status=" + st.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 57, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 60, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -55,7 +55,7 @@ func CotizadorHomePage() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(st.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 57, Col: 174}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 60, Col: 174}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -104,7 +104,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(errorMsg)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 72, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 75, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -123,7 +123,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(cotizadorStatusLabel(currentStatus))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 75, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 78, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -152,7 +152,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(l.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 95, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 98, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(l.Company)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 96, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 99, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(l.Email)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 97, Col: 66}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 100, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -213,7 +213,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(cotizadorStatusLabel(l.Status))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 98, Col: 109}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 101, Col: 109}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -226,7 +226,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(formatTimestampTime(l.CreatedAt))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 99, Col: 91}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 102, Col: 91}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -239,7 +239,7 @@ func CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus st
 				var templ_7745c5c3_Var14 templ.SafeURL
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/dashboard/cotizador/leads/" + l.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 100, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 103, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -288,7 +288,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(l.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 115, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 118, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -301,7 +301,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(l.Company)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 116, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 119, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -314,7 +314,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(cotizadorStatusLabel(l.Status))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 116, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 119, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -327,7 +327,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs("/dashboard/cotizador/leads/" + l.ID + "/update")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 124, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 127, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -340,7 +340,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(l.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 125, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 128, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -353,7 +353,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(l.Company)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 126, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 129, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -366,7 +366,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(l.Email)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 127, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 130, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -379,7 +379,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(l.Phone)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 128, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 131, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -392,7 +392,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(l.Source)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 129, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 132, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -405,7 +405,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(l.Notes)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 130, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 133, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -418,7 +418,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs("/dashboard/cotizador/leads/" + l.ID + "/status")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 135, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 138, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -436,7 +436,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(st.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 140, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 143, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -459,7 +459,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(st.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 140, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 143, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -492,7 +492,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(formatTimestampTime(e.OccurredAt))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 157, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 160, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -505,7 +505,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(e.Action)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 158, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 161, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 				if templ_7745c5c3_Err != nil {
@@ -518,7 +518,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(e.FromStatus)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 159, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 162, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 				if templ_7745c5c3_Err != nil {
@@ -531,7 +531,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(e.ToStatus)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 160, Col: 23}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 163, Col: 23}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -544,7 +544,7 @@ func CotizadorLeadDetail(l *CotizadorLeadView, history []CotizadorLeadHistoryVie
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(e.Notes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 161, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/cloud/dashboard/cotizador.templ`, Line: 164, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {

@@ -29,6 +29,31 @@ func (a *cotizadorAdapter) SearchSimilarItems(ctx context.Context, query string,
 	return out, nil
 }
 
+func (a *cotizadorAdapter) GetDashboardStats(ctx context.Context) (*dashboard.CotizadorDashboardStatsView, error) {
+	st, err := a.store.GetDashboardStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	v := &dashboard.CotizadorDashboardStatsView{
+		CotizadorOutcomeStatsView: dashboard.CotizadorOutcomeStatsView{
+			Total: st.Total, Won: st.Won, Lost: st.Lost, Expired: st.Expired, Open: st.Open,
+			WinRate: st.WinRate, AvgWonTotal: st.AvgWonTotal, AvgLostTotal: st.AvgLostTotal,
+		},
+		LeadsByStatus:    st.LeadsByStatus,
+		QuotesByStatus:   st.QuotesByStatus,
+		PipelineValue:    st.PipelineValue,
+		AvgDealSize:      st.AvgDealSize,
+		TotalPipelineMXN: st.TotalPipelineMXN,
+		TopCurrencies:    st.TopCurrencies,
+	}
+	for _, p := range st.MonthlyTrend {
+		v.MonthlyTrend = append(v.MonthlyTrend, dashboard.CotizadorMonthlyPoint{
+			Month: p.Month, Created: p.Created, Won: p.Won, Lost: p.Lost, WonMXN: p.WonMXN,
+		})
+	}
+	return v, nil
+}
+
 func (a *cotizadorAdapter) GetOutcomeStats(ctx context.Context) (dashboard.CotizadorOutcomeStatsView, error) {
 	st, err := a.store.GetOutcomeStats(ctx)
 	if err != nil {

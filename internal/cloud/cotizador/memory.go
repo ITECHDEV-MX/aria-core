@@ -466,6 +466,112 @@ func (s *Store) SearchSimilarItems(ctx context.Context, query string, limit int)
 	return out, rows.Err()
 }
 
+// === Dashboard stats extendido ===
+
+type DashboardStats struct {
+	OutcomeStats
+	LeadsByStatus    map[string]int       // funnel
+	QuotesByStatus   map[string]int       // pipeline
+	PipelineValue    map[string]float64   // total $ por status quote
+	MonthlyTrend     []MonthlyTrendPoint  // últimos 6 meses
+	AvgDealSize      float64
+	TotalPipelineMXN float64 // total quotes activas (no won/lost/expired) en MXN
+	TopCurrencies    []string
+}
+
+type MonthlyTrendPoint struct {
+	Month   string  // YYYY-MM
+	Created int     // quotes creadas
+	Won     int     // quotes won
+	Lost    int     // quotes lost
+	WonMXN  float64 // total won del mes
+}
+
+// GetDashboardStats agregado de stats para visualización ejecutiva.
+func (s *Store) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
+	out := &DashboardStats{
+		LeadsByStatus:  make(map[string]int),
+		QuotesByStatus: make(map[string]int),
+		PipelineValue:  make(map[string]float64),
+	}
+	// Outcome base
+	if base, err := s.GetOutcomeStats(ctx); err == nil && base != nil {
+		out.OutcomeStats = *base
+	}
+	// Avg deal size (won)
+	out.AvgDealSize = out.AvgWonTotal
+
+	// Leads por status
+	rows, err := s.db.QueryContext(ctx, `SELECT status, count(*) FROM cotizador_leads GROUP BY status`)
+	if err == nil {
+		for rows.Next() {
+			var st string
+			var c int
+			if err := rows.Scan(&st, &c); err == nil {
+				out.LeadsByStatus[st] = c
+			}
+		}
+		rows.Close()
+	}
+
+	// Quotes por status + pipeline value
+	rows2, err := s.db.QueryContext(ctx, `
+		SELECT status, count(*), COALESCE(SUM(total::float8), 0)
+		FROM cotizador_quotes GROUP BY status
+	`)
+	if err == nil {
+		for rows2.Next() {
+			var st string
+			var c int
+			var total float64
+			if err := rows2.Scan(&st, &c, &total); err == nil {
+				out.QuotesByStatus[st] = c
+				out.PipelineValue[st] = total
+				if st != QuoteStatusApproved && st != QuoteStatusRejected && st != QuoteStatusExpired {
+					out.TotalPipelineMXN += total
+				}
+			}
+		}
+		rows2.Close()
+	}
+
+	// Trend últimos 6 meses (por created_at)
+	rows3, err := s.db.QueryContext(ctx, `
+		SELECT
+			to_char(date_trunc('month', created_at), 'YYYY-MM') as month,
+			count(*) as created,
+			count(*) FILTER (WHERE status = 'approved') as won,
+			count(*) FILTER (WHERE status = 'rejected') as lost,
+			COALESCE(SUM(total::float8) FILTER (WHERE status = 'approved'), 0) as won_total
+		FROM cotizador_quotes
+		WHERE created_at >= date_trunc('month', NOW() - INTERVAL '5 months')
+		GROUP BY 1 ORDER BY 1
+	`)
+	if err == nil {
+		for rows3.Next() {
+			var p MonthlyTrendPoint
+			if err := rows3.Scan(&p.Month, &p.Created, &p.Won, &p.Lost, &p.WonMXN); err == nil {
+				out.MonthlyTrend = append(out.MonthlyTrend, p)
+			}
+		}
+		rows3.Close()
+	}
+
+	// Currencies presentes
+	rows4, err := s.db.QueryContext(ctx, `SELECT DISTINCT currency FROM cotizador_quotes ORDER BY currency`)
+	if err == nil {
+		for rows4.Next() {
+			var c string
+			if err := rows4.Scan(&c); err == nil {
+				out.TopCurrencies = append(out.TopCurrencies, c)
+			}
+		}
+		rows4.Close()
+	}
+
+	return out, nil
+}
+
 // === Outcome stats ===
 
 func (s *Store) GetOutcomeStats(ctx context.Context) (*OutcomeStats, error) {
