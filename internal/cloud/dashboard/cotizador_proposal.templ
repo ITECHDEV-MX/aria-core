@@ -37,6 +37,7 @@ templ CotizadorProposalView(q *CotizadorQuoteView, items []CotizadorQuoteItemVie
 			<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID) } class="shell-button">← Detalle</a>
 			<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/edit-header") } class="shell-button">Editar propuesta</a>
 			<button onclick="window.print()" class="shell-button">Imprimir / PDF</button>
+			<a href={ templ.SafeURL("/dashboard/cotizador/quotes/" + q.ID + "/proposal.pdf") } class="shell-button btn btn-primary">📥 Descargar PDF</a>
 		</div>
 		<div class="proposal-cover">
 			<p class="kicker">{ proposalTypeLabel(q.ProposalType) }</p>

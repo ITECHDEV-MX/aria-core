@@ -68,6 +68,31 @@ type MountConfig struct {
 	Cotizador CotizadorService
 	// AriaMem (opcional) — habilita /dashboard/memorias con aria_observations.
 	AriaMem AriaMemDashboardService
+	// PDFClient (opcional) — habilita endpoints de export PDF (gotenberg).
+	// Si nil, los endpoints PDF responden 503 "PDF export no configurado".
+	PDFClient PDFClient
+}
+
+// PDFClient es el contrato dashboard para conversiones HTML→PDF (implementado
+// por internal/cloud/pdf.Client contra gotenberg). Aceptamos cualquier tipo
+// que satisfaga esta interface para mantener el paquete dashboard testeable
+// sin acoplarlo al cliente HTTP concreto.
+type PDFClient interface {
+	ConvertHTML(ctx context.Context, htmlBytes []byte, opts PDFConvertOptions) ([]byte, error)
+}
+
+// PDFConvertOptions duplica el shape de pdf.ConvertOptions sin importar
+// el paquete pdf desde dashboard (que ya importa muchas cosas). El adapter
+// en cloudserver mapea esta struct al pdf.ConvertOptions concreto.
+type PDFConvertOptions struct {
+	PaperWidth        float64
+	PaperHeight       float64
+	MarginTop         float64
+	MarginBottom      float64
+	MarginLeft        float64
+	MarginRight       float64
+	PreferCSSPageSize bool
+	PrintBackground   bool
 }
 
 // AriaMemDashboardService es el contrato dashboard para la capa de memoria ARIA.
@@ -565,6 +590,8 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/status", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteStatusChange))
 	// Proposal vista completa + edit header + sections (commit 7)
 	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}/proposal", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteProposal))
+	// Export PDF de propuestas vía gotenberg (commit 13)
+	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}/proposal.pdf", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteProposalPDF))
 	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}/edit-header", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteEditHeader))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/header", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteUpdateHeader))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/upsert", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionUpsert))

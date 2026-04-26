@@ -19,6 +19,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/constants"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
+	corepdf "github.com/ITECHDEV-MX/aria-core/internal/cloud/pdf"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/remote"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -115,6 +116,15 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	ariaMemSvc := newAriaMemAdapter(cs)
 	ariaMemDashSvc := newAriaMemDashboardAdapter(cs)
 
+	// PDF client (gotenberg). Configurable via ARIA_CORE_GOTENBERG_URL.
+	// If empty/unset, the dashboard PDF endpoints respond 503 "PDF export
+	// no configurado" (handler-level guard, see dashboard.PDFClient).
+	gotenbergURL := strings.TrimSpace(os.Getenv("ARIA_CORE_GOTENBERG_URL"))
+	if gotenbergURL == "" {
+		gotenbergURL = "http://127.0.0.1:3001"
+	}
+	pdfAdapter := newDashboardPDFAdapter(corepdf.NewClient(gotenbergURL))
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -128,6 +138,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithCotizador(cotizadorSvc),
 			cloudserver.WithAriaMem(ariaMemSvc),
 			cloudserver.WithAriaMemDashboard(ariaMemDashSvc),
+			cloudserver.WithPDFClient(pdfAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,
