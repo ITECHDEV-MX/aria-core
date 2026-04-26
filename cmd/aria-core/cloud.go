@@ -16,9 +16,11 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/auth"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudserver"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudusers"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/constants"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
+	emailpkg "github.com/ITECHDEV-MX/aria-core/internal/cloud/email"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/remote"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -115,6 +117,35 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	ariaMemSvc := newAriaMemAdapter(cs)
 	ariaMemDashSvc := newAriaMemDashboardAdapter(cs)
 
+	// Email + invite wiring (M365 Graph + magic-link tokens).
+	publicURL := strings.TrimSpace(cfg.PublicURL)
+	emailClient, err := emailpkg.NewClient(emailpkg.Config{
+		TenantID:     cfg.M365TenantID,
+		ClientID:     cfg.M365ClientID,
+		ClientSecret: cfg.M365ClientSecret,
+		FromAddress:  cfg.M365FromEmail,
+		PublicURL:    publicURL,
+	})
+	if err != nil {
+		_ = cs.Close()
+		return nil, fmt.Errorf("email client init: %w", err)
+	}
+	if !emailClient.IsConfigured() {
+		log.Printf("[aria-core-cloud] email module disabled (M365 env vars missing); SendMail calls will no-op")
+	} else {
+		log.Printf("[aria-core-cloud] email module ready (from=%s)", emailClient.FromAddress())
+	}
+	emailService := emailpkg.NewService(emailClient)
+	emailAdapter := newEmailServiceAdapter(emailService)
+
+	usersStore := cloudusers.New(cs.DB())
+	inviteAdapter := newInviteServiceAdapter(usersStore)
+	dashboardInvites := newInviteDashboardAdapter(usersStore, emailService, publicURL)
+
+	// Wire post-commit email hooks into the cotizador adapter.
+	notifier := newQuoteEmailNotifier(cotizadorSvc.store, usersStore, emailService, publicURL)
+	cotizadorSvc.setNotifier(notifier)
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -128,6 +159,10 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithCotizador(cotizadorSvc),
 			cloudserver.WithAriaMem(ariaMemSvc),
 			cloudserver.WithAriaMemDashboard(ariaMemDashSvc),
+			cloudserver.WithEmailService(emailAdapter),
+			cloudserver.WithInviteService(inviteAdapter),
+			cloudserver.WithDashboardInvites(dashboardInvites),
+			cloudserver.WithPublicURL(publicURL),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

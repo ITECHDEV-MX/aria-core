@@ -68,6 +68,17 @@ type MountConfig struct {
 	Cotizador CotizadorService
 	// AriaMem (opcional) — habilita /dashboard/memorias con aria_observations.
 	AriaMem AriaMemDashboardService
+	// Invites (opcional) — habilita el flujo de invitar usuario por email
+	// desde /dashboard/admin/users.
+	Invites InviteDashboardService
+}
+
+// InviteDashboardService es el contrato del módulo de invites para el dashboard.
+type InviteDashboardService interface {
+	// CreateAndSend genera un token UUID en cloud_invites y dispara el email
+	// vía Microsoft Graph. Retorna la URL pública del magic link y un mensaje
+	// con el estado del envío (sent / fallback / not configured).
+	CreateAndSend(ctx context.Context, email string, roles []string, invitedByUID, invitedByEmail string) (link string, emailSent bool, info string, err error)
 }
 
 // AriaMemDashboardService es el contrato dashboard para la capa de memoria ARIA.
@@ -533,6 +544,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/activate", h.requireAdmin(h.handleAdminUserSetActive(true)))
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/deactivate", h.requireAdmin(h.handleAdminUserSetActive(false)))
 	mux.HandleFunc("POST /dashboard/admin/users/{uid}/password", h.requireAdmin(h.handleAdminUserChangePassword))
+	mux.HandleFunc("POST /dashboard/admin/users/invite", h.requireAdmin(h.handleAdminInviteCreate))
 	mux.HandleFunc("GET /dashboard/admin/health", h.requireSession(h.handleAdminHealth))
 	mux.HandleFunc("POST /dashboard/admin/projects/{name}/sync", h.requireSession(h.handleAdminSyncTogglePost))
 	mux.HandleFunc("GET /dashboard/admin/projects/{name}/sync/form", h.requireSession(h.handleAdminSyncToggleForm))
@@ -1363,6 +1375,54 @@ func (h *handlers) handleAdminUserChangePassword(w http.ResponseWriter, r *http.
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = fmt.Fprintf(w, `<div class="muted">password actualizado para %s</div>`, html.EscapeString(uid))
+}
+
+// handleAdminInviteCreate POST /dashboard/admin/users/invite — admin only.
+// Genera magic-link invite + dispara email. Devuelve fragmento HTML con flash.
+func (h *handlers) handleAdminInviteCreate(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.Invites == nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<div class="login-error" role="alert">El módulo de invitaciones no está configurado.</div>`)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	emailAddr := strings.TrimSpace(strings.ToLower(r.PostForm.Get("email")))
+	roles := r.PostForm["roles"]
+	if emailAddr == "" {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<div class="login-error" role="alert">Email es requerido.</div>`)
+		return
+	}
+	if len(roles) == 0 {
+		roles = []string{"dev"}
+	}
+	// Resolver el invitedBy desde el principal de la sesión.
+	invitedByUID := ""
+	invitedByEmail := ""
+	if h.cfg.GetDisplayName != nil {
+		invitedByEmail = h.cfg.GetDisplayName(r)
+	}
+	link, emailSent, info, err := h.cfg.Invites.CreateAndSend(r.Context(), emailAddr, roles, invitedByUID, invitedByEmail)
+	if err != nil {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = fmt.Fprintf(w, `<div class="login-error" role="alert">No se pudo crear la invitación: %s</div>`, html.EscapeString(err.Error()))
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if emailSent {
+		_, _ = fmt.Fprintf(w, `<div class="muted" role="status">Invitación enviada a <strong>%s</strong>. Link: <code>%s</code></div>`,
+			html.EscapeString(emailAddr), html.EscapeString(link))
+	} else {
+		msg := info
+		if strings.TrimSpace(msg) == "" {
+			msg = "El email no se envió (módulo no configurado). Copiá el link manualmente:"
+		}
+		_, _ = fmt.Fprintf(w, `<div class="muted" role="status">%s <code>%s</code></div>`,
+			html.EscapeString(msg), html.EscapeString(link))
+	}
 }
 
 // renderSingleUserRow re-fetches the user list and re-renders just the row matching uid.

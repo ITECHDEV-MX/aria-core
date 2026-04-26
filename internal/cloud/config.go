@@ -15,6 +15,19 @@ type Config struct {
 	BindHost        string
 	AdminToken      string
 	AllowedProjects []string
+
+	// Microsoft 365 / Microsoft Graph (email module).
+	// Empty values → email module is initialized in degraded mode (logs but
+	// does not actually send mail).
+	M365TenantID     string
+	M365ClientID     string
+	M365ClientSecret string
+	M365FromEmail    string
+
+	// PublicURL is the base URL used to construct magic-link URLs and other
+	// absolute references in transactional emails. Default is set in
+	// DefaultConfig.
+	PublicURL string
 }
 
 const DefaultJWTSecret = "aria-core-dev-jwt-secret-for-local-smoke-1234"
@@ -27,6 +40,7 @@ func DefaultConfig() Config {
 		MaxPool:     10,
 		Port:        8080,
 		BindHost:    "127.0.0.1",
+		PublicURL:   "https://ariacore.itechdev.com.mx",
 	}
 }
 
@@ -52,6 +66,21 @@ func ConfigFromEnv() Config {
 	}
 	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_CLOUD_HOST")); v != "" {
 		cfg.BindHost = v
+	}
+	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_M365_TENANT_ID")); v != "" {
+		cfg.M365TenantID = v
+	}
+	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_M365_CLIENT_ID")); v != "" {
+		cfg.M365ClientID = v
+	}
+	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_M365_CLIENT_SECRET")); v != "" {
+		cfg.M365ClientSecret = v
+	}
+	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_M365_FROM_EMAIL")); v != "" {
+		cfg.M365FromEmail = v
+	}
+	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_PUBLIC_URL")); v != "" {
+		cfg.PublicURL = v
 	}
 	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_CLOUD_ALLOWED_PROJECTS")); v != "" {
 		parts := strings.Split(v, ",")

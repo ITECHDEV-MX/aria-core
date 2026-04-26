@@ -47,6 +47,8 @@ func cmdAdmin() {
 		runAdmin(args, adminDeactivate)
 	case "activate":
 		runAdmin(args, adminActivate)
+	case "create-invite":
+		runAdmin(args, adminCreateInvite)
 	case "import-proposals":
 		adminImportProposals(args)
 	case "migrate-from-legacy":
@@ -72,6 +74,11 @@ Subcommands:
   set-password  --uid UUID --password P
   activate      --uid UUID
   deactivate    --uid UUID
+  create-invite --email E --role R [--role R2] [--public-url URL]
+                      Genera un magic-link UUID en cloud_invites y emite la
+                      URL para que el admin la copie/pegue (no envía email
+                      desde la CLI; el envío vía Graph se hace desde el
+                      dashboard /dashboard/admin/users).
   import-proposals    Importa las 3 propuestas histórico iTechDev (idempotente por folio)
   migrate-from-legacy --sqlite ~/.aria/aria.db [--dry-run]
                       Migra ARIA legacy SQLite → aria_core_cloud Postgres
@@ -226,6 +233,38 @@ func adminDeactivate(ctx context.Context, store *cloudusers.Store, args []string
 		return err
 	}
 	fmt.Printf("✓ uid=%s desactivado\n", *uid)
+	return nil
+}
+
+func adminCreateInvite(ctx context.Context, store *cloudusers.Store, args []string) error {
+	fs := flag.NewFlagSet("create-invite", flag.ContinueOnError)
+	email := fs.String("email", "", "email del invitado (UNIQUE check al activar)")
+	publicURL := fs.String("public-url", "", "URL pública (default: ARIA_CORE_PUBLIC_URL o https://ariacore.itechdev.com.mx)")
+	var roles stringSliceFlag
+	fs.Var(&roles, "role", "rol del invitado (puede repetirse): admin | dev | cotizador | project_admin")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*email) == "" {
+		return fmt.Errorf("--email is required")
+	}
+	if len(roles) == 0 {
+		roles = stringSliceFlag{cloudusers.RoleDev}
+	}
+	inv, err := store.CreateInvite(ctx, *email, []string(roles), "")
+	if err != nil {
+		return err
+	}
+	base := strings.TrimSpace(*publicURL)
+	if base == "" {
+		base = strings.TrimSpace(os.Getenv("ARIA_CORE_PUBLIC_URL"))
+	}
+	if base == "" {
+		base = "https://ariacore.itechdev.com.mx"
+	}
+	link := strings.TrimRight(base, "/") + "/dashboard/invite/" + inv.Token
+	fmt.Printf("✓ invitación creada\n  email:   %s\n  roles:   %s\n  expires: %s\n  link:    %s\n",
+		inv.Email, strings.Join(inv.Roles, ", "), inv.ExpiresAt.UTC().Format("2006-01-02 15:04 UTC"), link)
 	return nil
 }
 

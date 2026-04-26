@@ -10,11 +10,28 @@ import (
 
 // cotizadorAdapter conecta cotizador.Store al contrato dashboard.CotizadorService.
 type cotizadorAdapter struct {
-	store *cotizador.Store
+	store     *cotizador.Store
+	notifier  quoteNotifier // optional — nil-safe; set via setNotifier.
+}
+
+// quoteNotifier is the contract used by the cotizador adapter to fire emails
+// after a quote status transition. It mirrors a subset of EmailService but
+// is internally typed so the adapter doesn't have a hard cloudserver dep.
+type quoteNotifier interface {
+	NotifyQuoteStatusChange(ctx context.Context, quoteID, fromStatus, newStatus, byUID, notes string)
+	NotifyQuoteClose(ctx context.Context, quoteID, fromStatus, newStatus, byUID, reason string)
 }
 
 func newCotizadorAdapter(cs *cloudstore.CloudStore) *cotizadorAdapter {
 	return &cotizadorAdapter{store: cotizador.New(cs.DB())}
+}
+
+// setNotifier wires the optional async notifier (post-commit email hook).
+func (a *cotizadorAdapter) setNotifier(n quoteNotifier) {
+	if a == nil {
+		return
+	}
+	a.notifier = n
 }
 
 func (a *cotizadorAdapter) ListLeads(ctx context.Context, status string) ([]dashboard.CotizadorLeadView, error) {

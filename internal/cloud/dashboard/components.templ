@@ -1008,7 +1008,27 @@ templ AdminUsersPage() {
 		</div>
 		@adminNav("users")
 
-		<h3 class="section-block-title">Crear usuario</h3>
+		<h3 class="section-block-title">Invitar usuario por email</h3>
+		<p class="muted" style="font-size:13px">Envía un magic link al correo del invitado para que fije su propia contraseña. El link expira en 24 horas y solo puede usarse una vez.</p>
+		<form hx-post="/dashboard/admin/users/invite" hx-target="#admin-invite-feedback" hx-swap="innerHTML" class="login-form" style="max-width:560px">
+			<label>
+				Email
+				<input type="email" name="email" placeholder="nuevo@itechdev.com.mx" required/>
+			</label>
+			<fieldset>
+				<legend>Roles (uno o más)</legend>
+				for _, r := range AvailableRoles() {
+					<label style="display:block">
+						<input type="checkbox" name="roles" value={ r.Value }/>
+						{ r.Label }
+					</label>
+				}
+			</fieldset>
+			<button type="submit" class="shell-button">Invitar usuario</button>
+		</form>
+		<div id="admin-invite-feedback" class="muted" style="margin-top:0.5rem"></div>
+
+		<h3 class="section-block-title">Crear usuario manualmente (con password)</h3>
 		<form hx-post="/dashboard/admin/users/create" hx-target="#admin-users-content" hx-swap="innerHTML" class="login-form" style="max-width:560px">
 			<label>
 				Email

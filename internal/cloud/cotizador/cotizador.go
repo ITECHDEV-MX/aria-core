@@ -116,6 +116,15 @@ func New(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+// DB exposes the underlying *sql.DB for adapters that need direct SQL access
+// (e.g. expiring-quote sweep over cotizador_quotes).
+func (s *Store) DB() *sql.DB {
+	if s == nil {
+		return nil
+	}
+	return s.db
+}
+
 // CreateLeadParams agrupa los inputs de creación.
 type CreateLeadParams struct {
 	Name         string

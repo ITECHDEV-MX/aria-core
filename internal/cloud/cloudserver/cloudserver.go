@@ -61,6 +61,81 @@ type CloudServer struct {
 	cotizador      dashboard.CotizadorService
 	ariaMem        AriaMemService
 	ariaMemDash    dashboard.AriaMemDashboardService
+	email            EmailService
+	invites          InviteService
+	dashboardInvites dashboard.InviteDashboardService
+	publicURL        string
+}
+
+// EmailService is the contract for sending transactional emails.
+// The cotizador hooks call SendQuote* methods after status changes.
+// All methods must be safe to call when the underlying client is not
+// configured (no-op + log).
+type EmailService interface {
+	IsConfigured() bool
+	PublicURL() string
+	SendQuoteSent(ctx context.Context, qc EmailQuoteContext) error
+	SendQuoteApproved(ctx context.Context, qc EmailQuoteContext, bccCreator string) error
+	SendQuoteRejected(ctx context.Context, qc EmailQuoteContext, creatorEmail string) error
+	SendQuoteExpiring(ctx context.Context, qc EmailQuoteContext, creatorEmail string) error
+	SendInvite(ctx context.Context, ic EmailInviteContext) error
+}
+
+// EmailQuoteContext carries the data needed to render quote-event emails.
+// Mirrors internal/cloud/email.QuoteContext so the cloudserver doesn't
+// import the email package directly (kept clean by adapter).
+type EmailQuoteContext struct {
+	QuoteID                 string
+	Folio                   string
+	ProductName             string
+	PreparedForCompany      string
+	PreparedForContactName  string
+	PreparedForContactEmail string
+	Total                   float64
+	Currency                string
+	Status                  string
+	ValidUntil              string
+	PreparedByName          string
+	PreparedByEmail         string
+	Notes                   string
+	PublicURL               string
+}
+
+// EmailInviteContext mirrors email.InviteContext.
+type EmailInviteContext struct {
+	Email     string
+	Link      string
+	ExpiresAt string
+	InvitedBy string
+	Roles     []string
+}
+
+// InviteService is the contract for the magic-link invite flow.
+type InviteService interface {
+	CreateInvite(ctx context.Context, email string, roles []string, invitedByUID string) (*InviteRecord, error)
+	GetInvite(ctx context.Context, token string) (*InviteRecord, error)
+	ConsumeInvite(ctx context.Context, token, password string) error
+}
+
+// InviteRecord is the cloudserver-facing view of a magic-link invite.
+type InviteRecord struct {
+	Token        string
+	Email        string
+	Roles        []string
+	ExpiresAt    time.Time
+	UsedAt       *time.Time
+	InvitedByUID string
+}
+
+// IsUsable returns true if the invite is still valid (not used, not expired).
+func (i *InviteRecord) IsUsable(now time.Time) bool {
+	if i == nil {
+		return false
+	}
+	if i.UsedAt != nil {
+		return false
+	}
+	return now.Before(i.ExpiresAt)
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
@@ -150,6 +225,37 @@ func WithAriaMem(m AriaMemService) Option {
 func WithAriaMemDashboard(m dashboard.AriaMemDashboardService) Option {
 	return func(s *CloudServer) {
 		s.ariaMemDash = m
+	}
+}
+
+// WithEmailService inyecta el servicio de email para notificaciones.
+// Si no se inyecta, los hooks loggean info y siguen sin error.
+func WithEmailService(e EmailService) Option {
+	return func(s *CloudServer) {
+		s.email = e
+	}
+}
+
+// WithInviteService inyecta el servicio de magic-link invites.
+func WithInviteService(i InviteService) Option {
+	return func(s *CloudServer) {
+		s.invites = i
+	}
+}
+
+// WithDashboardInvites inyecta el servicio dashboard que combina creación
+// de invite + envío de email para el handler /dashboard/admin/users/invite.
+func WithDashboardInvites(d dashboard.InviteDashboardService) Option {
+	return func(s *CloudServer) {
+		s.dashboardInvites = d
+	}
+}
+
+// WithPublicURL configura la URL pública usada para construir magic links.
+// Default: "https://ariacore.itechdev.com.mx".
+func WithPublicURL(u string) Option {
+	return func(s *CloudServer) {
+		s.publicURL = strings.TrimSpace(u)
 	}
 }
 
@@ -356,6 +462,7 @@ func (s *CloudServer) routes() {
 		AdminUsers:        adminUsers,
 		Cotizador:         s.cotizador,
 		AriaMem:           s.ariaMemDash,
+		Invites:           s.dashboardInvites,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -398,6 +505,13 @@ func (s *CloudServer) routes() {
 	// Templates (commit 9)
 	s.mux.HandleFunc("GET /v1/cotizador/templates", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorTemplatesList))
 	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/apply-template", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorApplyTemplate))
+
+	// === Magic-link invites ===
+	// Admin crea invite (auth admin, JWT bearer).
+	s.mux.HandleFunc("POST /v1/admin/invites", s.withJWTRole([]string{"admin"}, s.handleV1AdminInviteCreate))
+	// Form de activación + accept (sin auth — el token UUID es el credential).
+	s.mux.HandleFunc("GET /dashboard/invite/{token}", s.handleDashboardInviteGet)
+	s.mux.HandleFunc("POST /dashboard/invite/{token}/accept", s.handleDashboardInviteAccept)
 
 	// === ARIA Memory (commit 10): reemplaza legacy mcp__aria__* ===
 	// Cualquier role autenticado puede leer/guardar memoria.

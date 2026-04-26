@@ -882,6 +882,20 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_occurred_at ON cloud_sync_audit_log (occurred_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_contributor_project ON cloud_sync_audit_log (contributor, project)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_outcome ON cloud_sync_audit_log (outcome)`,
+
+		// === Magic-link invites (email module) ===
+		// Tokens UUID directos; revocables borrando la fila o marcando used_at.
+		`CREATE TABLE IF NOT EXISTS cloud_invites (
+			token UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			email TEXT NOT NULL,
+			invited_by_uid UUID REFERENCES cloud_users(uid),
+			roles TEXT[] NOT NULL DEFAULT '{}',
+			expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+			used_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_email ON cloud_invites(lower(email))`,
+		`CREATE INDEX IF NOT EXISTS idx_cloud_invites_expires ON cloud_invites(expires_at)`,
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {

@@ -104,7 +104,18 @@ func (a *cotizadorAdapter) CreateQuote(ctx context.Context, in dashboard.CreateQ
 }
 
 func (a *cotizadorAdapter) UpdateQuoteStatus(ctx context.Context, quoteID, newStatus, byUID, notes string) error {
-	return a.store.UpdateQuoteStatus(ctx, quoteID, newStatus, byUID, notes)
+	// Capture fromStatus pre-update so the notifier knows the transition.
+	fromStatus := ""
+	if q, err := a.store.GetQuote(ctx, quoteID); err == nil && q != nil {
+		fromStatus = q.Status
+	}
+	if err := a.store.UpdateQuoteStatus(ctx, quoteID, newStatus, byUID, notes); err != nil {
+		return err
+	}
+	if a.notifier != nil {
+		a.notifier.NotifyQuoteStatusChange(ctx, quoteID, fromStatus, newStatus, byUID, notes)
+	}
+	return nil
 }
 
 func (a *cotizadorAdapter) QuoteHistory(ctx context.Context, quoteID string, limit int) ([]dashboard.CotizadorQuoteHistoryView, error) {
