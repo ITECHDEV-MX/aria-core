@@ -2,58 +2,68 @@ package dashboard
 
 // CotizadorHomePage — shell del módulo Cotizador con form crear lead + lista vía HTMX.
 templ CotizadorHomePage() {
-	<section class="frame-section">
-		<div class="section-header">
-			<div>
-				<p class="section-kicker">VENTAS</p>
-				<h2>Cotizaciones</h2>
-				<p class="muted">Gestión de leads, RFPs, cotizaciones y conversión a clientes/proyectos.</p>
-			</div>
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">VENTAS</p>
+			<h1>💼 Cotizaciones</h1>
+			<p class="lead">Pipeline de leads, RFPs, propuestas y conversión a clientes/proyectos.</p>
 		</div>
+	</div>
 
-		<h3 class="section-block-title">Nuevo lead</h3>
-		<form hx-post="/dashboard/cotizador/leads/create" hx-target="#cotizador-leads-content" hx-swap="innerHTML" class="login-form" style="max-width:680px">
-			<label>
-				Nombre del contacto
-				<input type="text" name="name" placeholder="Juan Pérez" required/>
-			</label>
-			<label>
-				Empresa
-				<input type="text" name="company" placeholder="Acme SA"/>
-			</label>
-			<label>
-				Email
-				<input type="email" name="email" placeholder="contacto@acme.com"/>
-			</label>
-			<label>
-				Teléfono
-				<input type="text" name="phone" placeholder="+52 555 ..."/>
-			</label>
-			<label>
-				Origen
-				<input type="text" name="source" placeholder="referido, LinkedIn, evento..."/>
-			</label>
-			<label>
+	<div class="card">
+		<div class="card-header">
+			<div class="card-title">Nuevo lead</div>
+			<p class="card-description">Captura inicial — luego podés sumar RFP y cotización desde el detalle.</p>
+		</div>
+		<form hx-post="/dashboard/cotizador/leads/create" hx-target="#cotizador-leads-content" hx-swap="innerHTML">
+			<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem">
+				<label style="margin:0">
+					Nombre del contacto
+					<input type="text" name="name" placeholder="Juan Pérez" required/>
+				</label>
+				<label style="margin:0">
+					Empresa
+					<input type="text" name="company" placeholder="Acme SA"/>
+				</label>
+				<label style="margin:0">
+					Email
+					<input type="email" name="email" placeholder="contacto@acme.com"/>
+				</label>
+				<label style="margin:0">
+					Teléfono
+					<input type="text" name="phone" placeholder="+52 555 ..."/>
+				</label>
+				<label style="margin:0">
+					Origen
+					<input type="text" name="source" placeholder="referido, LinkedIn, evento..."/>
+				</label>
+			</div>
+			<label style="margin-top:0.75rem">
 				Notas
-				<textarea name="notes" rows="3" placeholder="contexto inicial, requerimientos resumidos..."></textarea>
+				<textarea name="notes" rows="2" placeholder="contexto inicial, requerimientos resumidos..."></textarea>
 			</label>
-			<button type="submit" class="shell-button">Crear lead</button>
+			<button type="submit" class="btn btn-primary" style="margin-top:0.5rem">+ Crear lead</button>
 		</form>
+	</div>
 
-		<h3 class="section-block-title">Leads</h3>
-		<div style="margin-bottom:0.5rem">
-			<button hx-get="/dashboard/cotizador/leads/list" hx-target="#cotizador-leads-content" hx-swap="innerHTML" class="shell-button">Todos</button>
+	<div class="card">
+		<div class="card-header">
+			<div class="card-title">Leads</div>
+			<p class="card-description">Filtrá por estado del funnel.</p>
+		</div>
+		<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:1rem">
+			<button hx-get="/dashboard/cotizador/leads/list" hx-target="#cotizador-leads-content" hx-swap="innerHTML" class="btn btn-outline btn-sm">Todos</button>
 			for _, st := range cotizadorLeadStatuses() {
-				<button hx-get={ "/dashboard/cotizador/leads/list?status=" + st.Value } hx-target="#cotizador-leads-content" hx-swap="innerHTML" class="shell-button" style="margin-left:4px">{ st.Label }</button>
+				<button hx-get={ "/dashboard/cotizador/leads/list?status=" + st.Value } hx-target="#cotizador-leads-content" hx-swap="innerHTML" class="btn btn-outline btn-sm">{ st.Label }</button>
 			}
 		</div>
 		<div id="cotizador-leads-content"
 			hx-get="/dashboard/cotizador/leads/list"
 			hx-trigger="load"
 			hx-swap="innerHTML">
-			<p class="muted">Loading...</p>
+			<p class="muted">Cargando...</p>
 		</div>
-	</section>
+	</div>
 }
 
 // CotizadorLeadsPartial — tabla de leads (filtrable por status).
@@ -62,35 +72,37 @@ templ CotizadorLeadsPartial(leads []CotizadorLeadView, errorMsg, currentStatus s
 		<div class="login-error" role="alert">{ errorMsg }</div>
 	}
 	if currentStatus != "" {
-		<p class="muted">Filtro: { cotizadorStatusLabel(currentStatus) }</p>
+		<p class="muted">Filtro activo: <strong>{ cotizadorStatusLabel(currentStatus) }</strong></p>
 	}
 	if len(leads) == 0 {
 		@EmptyState("Sin leads", "No hay leads para este filtro. Creá uno con el formulario de arriba.")
 	} else {
-		<table class="data-table">
-			<thead>
-				<tr>
-					<th>Nombre</th>
-					<th>Empresa</th>
-					<th>Email</th>
-					<th>Estado</th>
-					<th>Creado</th>
-					<th>Acciones</th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, l := range leads {
+		<div class="table-wrapper">
+			<table class="data-table">
+				<thead>
 					<tr>
-						<td>{ l.Name }</td>
-						<td>{ l.Company }</td>
-						<td>{ l.Email }</td>
-						<td><span class={ "badge badge-" + cotizadorStatusVariant(l.Status) }>{ cotizadorStatusLabel(l.Status) }</span></td>
-						<td>{ formatTimestampTime(l.CreatedAt) }</td>
-						<td><a href={ templ.SafeURL("/dashboard/cotizador/leads/" + l.ID) } class="shell-button">Abrir</a></td>
+						<th>Nombre</th>
+						<th>Empresa</th>
+						<th>Email</th>
+						<th>Estado</th>
+						<th>Creado</th>
+						<th></th>
 					</tr>
-				}
-			</tbody>
-		</table>
+				</thead>
+				<tbody>
+					for _, l := range leads {
+						<tr>
+							<td><strong>{ l.Name }</strong></td>
+							<td>{ l.Company }</td>
+							<td><span class="muted" style="font-size:0.85rem">{ l.Email }</span></td>
+							<td><span class={ "badge badge-" + cotizadorStatusVariant(l.Status) }>{ cotizadorStatusLabel(l.Status) }</span></td>
+							<td><span class="muted" style="font-size:0.85rem">{ formatTimestampTime(l.CreatedAt) }</span></td>
+							<td><a href={ templ.SafeURL("/dashboard/cotizador/leads/" + l.ID) } class="btn btn-outline btn-sm">Abrir →</a></td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
 	}
 }
 

@@ -6,179 +6,188 @@ import (
 
 // AriaMemListPage — shell de Memoria con filtros + lista vía HTMX.
 templ AriaMemListPage(projects []string) {
-	<section class="frame-section">
-		<div class="section-header">
-			<div>
-				<p class="section-kicker">MEMORIA ARIA</p>
-				<h2>Memorias</h2>
-				<p class="muted">Observaciones, decisiones, lecciones y conocimiento del proyecto. Buscador full-text en español con tolerancia a acentos.</p>
-			</div>
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">CONOCIMIENTO</p>
+			<h1>💡 Memoria</h1>
+			<p class="lead">Observaciones, decisiones, lecciones y conocimiento del equipo. Búsqueda full-text en español con tolerancia a acentos.</p>
 		</div>
+	</div>
 
-		<form id="aria-mem-filters" hx-get="/dashboard/memorias/list" hx-target="#aria-mem-content" hx-swap="innerHTML" hx-trigger="submit, change delay:300ms" class="login-form" style="max-width:980px">
-			<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px">
-				<input type="search" name="q" placeholder="Buscar (FTS español)..."/>
-				<select name="project">
-					<option value="">Todos los proyectos</option>
-					for _, p := range projects {
-						<option value={ p }>{ p }</option>
-					}
-				</select>
-				<select name="scope">
-					<option value="">Todos los scopes</option>
-					<option value="personal">Personal</option>
-					<option value="project">Proyecto</option>
-					<option value="team">Equipo</option>
-					<option value="global">Global</option>
-					<option value="client_knowledge">Cliente</option>
-				</select>
-				<select name="type">
-					<option value="">Todos los tipos</option>
-					<option value="general">General</option>
-					<option value="decision">Decisión</option>
-					<option value="architecture">Arquitectura</option>
-					<option value="bugfix">Bugfix</option>
-					<option value="feature">Feature</option>
-					<option value="adr">ADR</option>
-					<option value="tech_debt">Tech debt</option>
-					<option value="risk">Riesgo</option>
-					<option value="commitment">Compromiso</option>
-					<option value="meeting">Reunión</option>
-					<option value="i18n">i18n</option>
-					<option value="config">Config</option>
-				</select>
+	<div class="card">
+		<form id="aria-mem-filters" hx-get="/dashboard/memorias/list" hx-target="#aria-mem-content" hx-swap="innerHTML" hx-trigger="submit, change delay:300ms, keyup delay:500ms from:input[type=search]">
+			<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:0.75rem">
+				<label style="margin:0">
+					<input type="search" name="q" placeholder="🔍 Buscar (FTS español)..."/>
+				</label>
+				<label style="margin:0">
+					<select name="project">
+						<option value="">Todos los proyectos</option>
+						for _, p := range projects {
+							<option value={ p }>{ p }</option>
+						}
+					</select>
+				</label>
+				<label style="margin:0">
+					<select name="scope">
+						<option value="">Todos los scopes</option>
+						<option value="personal">Personal</option>
+						<option value="project">Proyecto</option>
+						<option value="team">Equipo</option>
+						<option value="global">Global</option>
+						<option value="client_knowledge">Cliente</option>
+					</select>
+				</label>
+				<label style="margin:0">
+					<select name="type">
+						<option value="">Todos los tipos</option>
+						<option value="general">General</option>
+						<option value="decision">Decisión</option>
+						<option value="architecture">Arquitectura</option>
+						<option value="bugfix">Bugfix</option>
+						<option value="feature">Feature</option>
+						<option value="adr">ADR</option>
+						<option value="tech_debt">Tech debt</option>
+						<option value="risk">Riesgo</option>
+						<option value="commitment">Compromiso</option>
+						<option value="meeting">Reunión</option>
+						<option value="i18n">i18n</option>
+						<option value="config">Config</option>
+					</select>
+				</label>
 			</div>
 		</form>
+	</div>
 
-		<div id="aria-mem-content"
-			hx-get="/dashboard/memorias/list"
-			hx-trigger="load"
-			hx-swap="innerHTML">
-			<p class="muted">Cargando memorias...</p>
-		</div>
-	</section>
+	<div id="aria-mem-content"
+		hx-get="/dashboard/memorias/list"
+		hx-trigger="load"
+		hx-swap="innerHTML">
+		<p class="muted">Cargando memorias...</p>
+	</div>
 }
 
-// AriaMemListPartial — tabla de memorias.
+// AriaMemListPartial — grid de cards.
 templ AriaMemListPartial(rs []AriaMemoryView, errorMsg string) {
 	if errorMsg != "" {
 		<div class="login-error" role="alert">{ errorMsg }</div>
 	}
 	if len(rs) == 0 {
-		@EmptyState("Sin memorias", "No se encontraron memorias para los filtros activos. Probá ampliar la búsqueda.")
+		<div class="card">
+			@EmptyState("Sin memorias", "No se encontraron memorias para los filtros activos. Probá ampliar la búsqueda.")
+		</div>
 	} else {
-		<p class="muted" style="margin-top:0.5rem">{ formatCount(len(rs)) }</p>
-		<table class="data-table">
-			<thead>
-				<tr>
-					<th>Título</th>
-					<th>Proyecto</th>
-					<th>Scope</th>
-					<th>Tipo</th>
-					<th>Canon</th>
-					<th>Fecha</th>
-					<th>Acción</th>
-				</tr>
-			</thead>
-			<tbody>
-				for _, m := range rs {
-					<tr>
-						<td>
-							<strong>{ truncateString(m.Title, 80) }</strong>
-							if m.TopicKey != "" {
-								<br/><small class="muted">topic: { m.TopicKey }</small>
-							}
-						</td>
-						<td>{ m.Project }</td>
-						<td><span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span></td>
-						<td>{ m.ObservationType }</td>
-						<td>
-							if m.Canon {
-								<span class="badge badge-success">★ Canon</span>
-							}
-						</td>
-						<td>{ formatTimestampTime(m.CreatedAt) }</td>
-						<td><a href={ templ.SafeURL("/dashboard/memorias/" + m.ID) } class="shell-button">Abrir</a></td>
-					</tr>
-				}
-			</tbody>
-		</table>
+		<p class="muted" style="margin:0.5rem 0 1rem">{ formatCount(len(rs)) }</p>
+		<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem">
+			for _, m := range rs {
+				<a href={ templ.SafeURL("/dashboard/memorias/" + m.ID) } class="card" style="text-decoration:none;color:inherit;display:flex;flex-direction:column;transition:transform 0.12s ease,box-shadow 0.12s ease" onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='var(--primary)'" onmouseout="this.style.transform='translateY(0)';this.style.borderColor='var(--border)'">
+					<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:0.5rem;margin-bottom:0.5rem">
+						<span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span>
+						if m.Canon {
+							<span class="badge badge-success">★ Canon</span>
+						}
+					</div>
+					<h3 style="font-family:var(--font-sans);font-size:1rem;margin:0 0 0.5rem;line-height:1.35">{ truncateString(m.Title, 100) }</h3>
+					if m.TopicKey != "" {
+						<p style="font-family:var(--font-mono);font-size:0.75rem;color:var(--accent);margin:0 0 0.5rem">{ m.TopicKey }</p>
+					}
+					if m.Subtitle != "" {
+						<p class="muted" style="font-size:0.85rem;margin:0 0 0.75rem">{ truncateString(m.Subtitle, 120) }</p>
+					}
+					<div style="margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);font-size:0.75rem">
+						<span class="badge badge-muted">{ m.ObservationType }</span>
+						if m.Project != "" {
+							<span class="muted">{ m.Project }</span>
+						}
+						<span class="muted">{ formatTimestampTime(m.CreatedAt) }</span>
+					</div>
+				</a>
+			}
+		</div>
 	}
 }
 
 // AriaMemDetail — vista completa de una observation con reasoning_trace.
 templ AriaMemDetail(m *AriaMemoryView) {
-	<section class="frame-section">
-		<div class="section-header">
-			<div>
-				<p class="section-kicker">MEMORIA</p>
-				<h2>{ m.Title }</h2>
-				if m.Subtitle != "" {
-					<p class="muted">{ m.Subtitle }</p>
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">MEMORIA</p>
+			<h1 style="font-size:1.4rem;font-family:var(--font-sans);font-weight:600">{ m.Title }</h1>
+			if m.Subtitle != "" {
+				<p class="lead">{ m.Subtitle }</p>
+			}
+			<div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;gap:0.4rem">
+				<span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span>
+				<span class="badge badge-muted">{ m.ObservationType }</span>
+				if m.Canon {
+					<span class="badge badge-success">★ CANON</span>
 				}
-				<div style="margin-top:0.5rem">
-					<span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span>
-					<span class="badge badge-muted">{ m.ObservationType }</span>
-					if m.Canon {
-						<span class="badge badge-success">★ CANON</span>
-					}
-					if m.Project != "" {
-						<span class="badge badge-muted">project: { m.Project }</span>
-					}
-					if m.TopicKey != "" {
-						<span class="badge badge-muted">topic: { m.TopicKey }</span>
-					}
-				</div>
-			</div>
-			<div>
-				<a href="/dashboard/memorias" class="shell-button">← Volver</a>
-				if !m.Canon {
-					<form hx-post={ "/dashboard/memorias/" + m.ID + "/promote-canon" } hx-target="closest section" hx-swap="outerHTML" style="display:inline">
-						<button type="submit" class="shell-button" style="background:#3a5">★ Promover a canon</button>
-					</form>
+				if m.Project != "" {
+					<span class="badge badge-muted">{ m.Project }</span>
+				}
+				if m.TopicKey != "" {
+					<span class="badge badge-muted">topic: { m.TopicKey }</span>
 				}
 			</div>
 		</div>
+		<div class="main-actions">
+			<a href="/dashboard/memorias" class="btn btn-outline">← Volver</a>
+			if !m.Canon {
+				<form hx-post={ "/dashboard/memorias/" + m.ID + "/promote-canon" } hx-target="body" hx-swap="outerHTML" style="display:inline">
+					<button type="submit" class="btn btn-success">★ Promover a canon</button>
+				</form>
+			}
+		</div>
+	</div>
 
-		<p class="muted">Creado { formatTimestampTime(m.CreatedAt) } · actualizado { formatTimestampTime(m.UpdatedAt) } · source { m.Source } · id { m.ID }</p>
+	<p class="muted" style="font-size:0.8rem">Creado { formatTimestampTime(m.CreatedAt) } · actualizado { formatTimestampTime(m.UpdatedAt) } · source <code>{ m.Source }</code> · id <code>{ m.ID }</code></p>
 
-		if m.Narrative != "" {
-			<h3 class="section-block-title">Contenido</h3>
-			<div style="white-space:pre-wrap;background:#0a0a0a;padding:1rem;border-radius:4px;font-size:0.9rem;line-height:1.6">{ m.Narrative }</div>
-		}
+	if m.Narrative != "" {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Contenido</div></div>
+			<div style="white-space:pre-wrap;font-size:0.92rem;line-height:1.65">{ m.Narrative }</div>
+		</div>
+	}
 
-		if m.Facts != "" {
-			<h3 class="section-block-title">Hechos</h3>
-			<ul>
+	if m.Facts != "" {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Hechos clave</div></div>
+			<ul style="margin:0;padding-left:1.25rem">
 				for _, fact := range splitFacts(m.Facts) {
 					<li>{ fact }</li>
 				}
 			</ul>
-		}
+		</div>
+	}
 
-		if m.Concepts != "" {
-			<h3 class="section-block-title">Conceptos</h3>
-			<p>{ m.Concepts }</p>
-		}
+	if m.Concepts != "" {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Conceptos</div></div>
+			<p style="margin:0">{ m.Concepts }</p>
+		</div>
+	}
 
-		if m.FilesTouched != "" {
-			<h3 class="section-block-title">Archivos relacionados</h3>
-			<ul style="font-family:monospace;font-size:0.85rem">
+	if m.FilesTouched != "" {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Archivos relacionados</div></div>
+			<ul style="font-family:var(--font-mono);font-size:0.82rem;margin:0;padding-left:1.25rem">
 				for _, f := range splitFacts(m.FilesTouched) {
 					<li>{ f }</li>
 				}
 			</ul>
-		}
+		</div>
+	}
 
-		if m.ReasoningTrace != "" {
-			<h3 class="section-block-title">Reasoning trace</h3>
-			<pre style="background:#0a0a0a;padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem">{ prettyJSON(m.ReasoningTrace) }</pre>
-		}
+	if m.ReasoningTrace != "" {
+		<div class="card">
+			<div class="card-header"><div class="card-title">Reasoning trace</div></div>
+			<pre style="margin:0">{ prettyJSON(m.ReasoningTrace) }</pre>
+		</div>
+	}
 
-		if m.SessionID != "" {
-			<p class="muted" style="margin-top:1rem">Sesión origen: <code>{ m.SessionID }</code></p>
-		}
-	</section>
+	if m.SessionID != "" {
+		<p class="muted" style="margin-top:1rem;font-size:0.8rem">Sesión origen: <code>{ m.SessionID }</code></p>
+	}
 }
 
 // === helpers ===

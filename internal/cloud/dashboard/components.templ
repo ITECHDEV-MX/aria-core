@@ -138,59 +138,94 @@ templ HtmxPaginationBar(pg Pagination, endpoint string, target string, includes 
 // DashboardHome renders the main dashboard landing content with project stats.
 // ADAPTED: username comes from Principal.DisplayName() at the call site.
 templ DashboardHome(username string) {
-	<section class="hero-panel">
-		<div class="hero-copy">
-			<p class="section-kicker">OPERATOR { username }</p>
-			<h2>Bienvenido a ARIA Core</h2>
-			<p class="hero-lead">Tu espacio de memoria compartida está listo. La DB SQLite local sigue siendo autoritativa, mientras la nube la convierte en un índice consultable por tu equipo y agentes.</p>
+	<div class="main-header">
+		<div>
+			<p class="section-kicker">PANEL DE CONTROL</p>
+			<h1>Hola, { username }</h1>
+			<p class="lead">Tu espacio de memoria compartida y operación comercial. Buscá decisiones del equipo, alimenta el contexto de tu Claude o ingresá directo al pipeline de cotizaciones.</p>
 		</div>
-		<div class="data-frame" id="dashboard-stats" hx-get="/dashboard/stats" hx-trigger="load" hx-swap="innerHTML">
-			<p class="htmx-indicator terminal-note">Cargando estadísticas...</p>
+	</div>
+	<div id="dashboard-stats" hx-get="/dashboard/stats" hx-trigger="load" hx-swap="innerHTML">
+		<p class="muted">Cargando estadísticas...</p>
+	</div>
+
+	<div class="card" style="margin-top:1.5rem">
+		<div class="card-header">
+			<div class="card-title">Accesos rápidos</div>
+			<p class="card-description">Lo que más usas a diario.</p>
 		</div>
-	</section>
+		<div class="stat-grid">
+			<a href="/dashboard/memorias" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">💡 Memoria</div>
+				<div class="stat-value" style="font-size:1rem;font-family:var(--font-sans)">Buscar decisiones, ADRs y aprendizajes del equipo</div>
+			</a>
+			<a href="/dashboard/cotizador" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">💼 Cotizaciones</div>
+				<div class="stat-value" style="font-size:1rem;font-family:var(--font-sans)">Pipeline ventas, RFPs, propuestas con histórico</div>
+			</a>
+			<a href="/dashboard/ayuda" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">📖 Guía</div>
+				<div class="stat-value" style="font-size:1rem;font-family:var(--font-sans)">Setup, workflow y convenciones del equipo</div>
+			</a>
+			<a href="/dashboard/admin/mcp" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">🤖 MCP & Tools</div>
+				<div class="stat-value" style="font-size:1rem;font-family:var(--font-sans)">Configurá Claude Desktop con aria-core</div>
+			</a>
+		</div>
+	</div>
 }
 
 // DashboardStatsPartial renders the metric cards loaded via htmx.
 // ADAPTED: ProjectStat -> DashboardProjectRow; no LastActivity field (use Chunks).
 templ DashboardStatsPartial(stats []cloudstore.DashboardProjectRow, projects []string) {
 	if len(stats) == 0 {
-		<div class="metric-strip">
-			<div class="metric-card">
-				<span class="metric-value">{ fmt.Sprint(len(projects)) }</span>
-				<span class="metric-label">Proyectos enrolados</span>
+		<div class="stat-grid">
+			<div class="stat-card">
+				<div class="stat-label">Proyectos enrolados</div>
+				<div class="stat-value">{ fmt.Sprint(len(projects)) }</div>
 			</div>
 		</div>
 		if len(projects) > 0 {
-			<div class="project-chip-list">
+			<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.75rem 0">
 				for i, p := range projects {
 					if i < maxPills {
 						@StatusBadge(p, "success")
 					}
 				}
 				if len(projects) > maxPills {
-					<a href="/dashboard/projects" class="badge badge-muted">+{ fmt.Sprint(len(projects) - maxPills) } more</a>
+					<a href="/dashboard/projects" class="badge badge-muted">+{ fmt.Sprint(len(projects) - maxPills) } más</a>
 				}
 			</div>
 		}
 		@EmptyState("Sin proyectos sincronizados", "Las métricas aparecerán aquí después del primer sync exitoso.")
 	} else {
-		<div class="metric-strip">
-			<a href="/dashboard/browser?tab=sessions" class="metric-card stat-card-link">
-				<span class="metric-value">{ fmt.Sprint(totalStatSessions(stats)) }</span>
-				<span class="metric-label">Sesiones</span>
+		<div class="stat-grid">
+			<a href="/dashboard/browser?tab=sessions" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">Sesiones</div>
+				<div class="stat-value">{ fmt.Sprint(totalStatSessions(stats)) }</div>
 			</a>
-			<a href="/dashboard/browser" class="metric-card stat-card-link">
-				<span class="metric-value">{ fmt.Sprint(totalStatObservations(stats)) }</span>
-				<span class="metric-label">Observaciones</span>
+			<a href="/dashboard/browser" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">Observaciones sync</div>
+				<div class="stat-value">{ fmt.Sprint(totalStatObservations(stats)) }</div>
 			</a>
-			<a href="/dashboard/browser?tab=prompts" class="metric-card stat-card-link">
-				<span class="metric-value">{ fmt.Sprint(totalStatPrompts(stats)) }</span>
-				<span class="metric-label">Prompts</span>
+			<a href="/dashboard/browser?tab=prompts" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">Prompts</div>
+				<div class="stat-value">{ fmt.Sprint(totalStatPrompts(stats)) }</div>
 			</a>
-			<a href="/dashboard/projects" class="metric-card stat-card-link">
-				<span class="metric-value">{ fmt.Sprint(len(stats)) }</span>
-				<span class="metric-label">Proyectos sincronizados</span>
+			<a href="/dashboard/projects" class="stat-card" style="text-decoration:none">
+				<div class="stat-label">Proyectos</div>
+				<div class="stat-value">{ fmt.Sprint(len(stats)) }</div>
 			</a>
+		</div>
+		<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin:0.75rem 0">
+			for i, p := range projects {
+				if i < maxPills {
+					@StatusBadge(p, "success")
+				}
+			}
+			if len(projects) > maxPills {
+				<a href="/dashboard/projects" class="badge badge-muted">+{ fmt.Sprint(len(projects) - maxPills) } más</a>
+			}
 		</div>
 		<div class="project-chip-list metric-tags">
 			for i, p := range projects {
