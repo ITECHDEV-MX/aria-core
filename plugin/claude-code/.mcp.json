@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aria-core": {
+      "command": "aria-core",
+      "args": ["mcp", "--tools=agent"]
+    }
+  }
+}

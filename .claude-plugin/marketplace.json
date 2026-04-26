@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "aria-core",
+  "description": "ARIA Core — motor de memoria persistente multi-tenant para agentes de IA. Single binary, multi-cliente, multi-usuario.",
+  "owner": {
+    "name": "ITECHDEV-MX",
+    "email": "contacto@itechpymes.com.mx"
+  },
+  "plugins": [
+    {
+      "name": "aria-core",
+      "description": "ARIA Core: memoria persistente con sesiones, recovery de compaction, scopes (project/team/global/client_knowledge), conocimiento canónico y skills de negocio.",
+      "version": "0.1.0",
+      "author": {
+        "name": "ITECHDEV-MX"
+      },
+      "source": "./plugin/claude-code",
+      "category": "productivity",
+      "homepage": "https://ariacore.itechdev.com.mx"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "aria-core",
+  "description": "Persistent memory for AI coding agents. Survives across sessions and compactions.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Gentleman Programming"
+  },
+  "homepage": "https://github.com/ITECHDEV-MX/aria-core",
+  "repository": "https://github.com/ITECHDEV-MX/aria-core",
+  "license": "MIT"
+}

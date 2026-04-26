@@ -1,0 +1,10 @@
+{
+  "id": "aria-core-brain",
+  "name": "AriaCore Brain",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Sync your AriaCore persistent memory into your Obsidian vault as interconnected markdown notes.",
+  "author": "Gentleman Programming",
+  "authorUrl": "https://github.com/ITECHDEV-MX/aria-core",
+  "isDesktopOnly": false
+}

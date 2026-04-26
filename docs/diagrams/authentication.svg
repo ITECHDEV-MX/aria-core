@@ -1,0 +1,173 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 960" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="ma"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#89b4fa"/></marker>
+    <marker id="mb"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#cba6f7"/></marker>
+    <marker id="mer" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f38ba8"/></marker>
+  </defs>
+
+  <rect width="1280" height="960" fill="#1e1e2e"/>
+
+  <text x="640" y="50" text-anchor="middle" fill="#cdd6f4" font-size="28" font-weight="700">Engram — Authentication</text>
+  <text x="640" y="74" text-anchor="middle" fill="#a6adc8" font-size="14">Two paths, one Service · bearer for machines · signed session cookies for humans</text>
+
+  <!-- Column A: Sync client -->
+  <g transform="translate(40,110)">
+    <rect width="580" height="800" rx="14" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.5"/>
+    <text x="24" y="36" fill="#cdd6f4" font-size="20" font-weight="700">A · Sync client (machine)</text>
+    <text x="24" y="58" fill="#a6adc8" font-size="12">used by: engram serve autosync · CLI cloud ops · curl debug</text>
+
+    <!-- step 1 -->
+    <g transform="translate(24,90)">
+      <circle cx="18" cy="18" r="18" fill="#89b4fa"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">1</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Client reads ENGRAM_CLOUD_TOKEN from env</text>
+      <text x="48" y="32" fill="#a6adc8" font-size="12">shim sources ~/.engram/cloud.env before exec</text>
+    </g>
+
+    <!-- step 2 -->
+    <g transform="translate(24,150)">
+      <circle cx="18" cy="18" r="18" fill="#89b4fa"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">2</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Request goes out over HTTPS</text>
+      <rect x="48" y="26" width="490" height="92" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">POST /sync/mutations/push HTTP/1.1</text>
+      <text x="60" y="66"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Host: engram.condetuti.com</text>
+      <text x="60" y="84"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Authorization: Bearer 5f5eb51b657c70…</text>
+      <text x="60" y="102" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Content-Type: application/json</text>
+    </g>
+
+    <!-- step 3 -->
+    <g transform="translate(24,290)">
+      <circle cx="18" cy="18" r="18" fill="#89b4fa"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">3</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">auth.Service.Authorize(r *http.Request)</text>
+      <rect x="48" y="26" width="490" height="120" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// internal/cloud/auth/auth.go:234</text>
+      <text x="60" y="66"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">header := r.Header.Get("Authorization")</text>
+      <text x="60" y="84"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">parts  := strings.Fields(header)  // "Bearer X"</text>
+      <text x="60" y="102" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">strings.EqualFold(parts[0], "Bearer")</text>
+      <text x="60" y="120" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">token == s.expectedToken   // string equality</text>
+    </g>
+    <text x="430" y="300" fill="#f38ba8" font-size="11" font-weight="700">fail → 401</text>
+
+    <!-- step 4 -->
+    <g transform="translate(24,470)">
+      <circle cx="18" cy="18" r="18" fill="#89b4fa"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">4</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">ProjectScopeAuthorizer.AuthorizeProject(p)</text>
+      <rect x="48" y="26" width="490" height="110" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// auth.go:192 — per-token allowlist</text>
+      <text x="60" y="66"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">normalized := store.NormalizeProject(project)</text>
+      <text x="60" y="84"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">if _, ok := a.allowed[normalized]; !ok {</text>
+      <text x="60" y="102" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  return ErrProjectNotAllowed   // leaks nothing</text>
+      <text x="60" y="120" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">}</text>
+    </g>
+    <text x="430" y="480" fill="#f38ba8" font-size="11" font-weight="700">fail → 403</text>
+
+    <!-- step 5 -->
+    <g transform="translate(24,640)">
+      <circle cx="18" cy="18" r="18" fill="#89b4fa"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">5</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Handler runs · writes to cloud_mutations</text>
+      <rect x="48" y="26" width="490" height="70" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">cloudstore.AppendMutation(project, seq, payload…)</text>
+      <text x="60" y="66" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">202 Accepted → {accepted_seqs: [N]}</text>
+      <text x="440" y="88" fill="#a6e3a1" font-size="11" font-weight="700">success → 200</text>
+    </g>
+
+    <!-- connectors -->
+    <line x1="300" y1="148" x2="300" y2="170" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ma)"/>
+    <line x1="300" y1="268" x2="300" y2="290" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ma)"/>
+    <line x1="300" y1="446" x2="300" y2="468" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ma)"/>
+    <line x1="300" y1="616" x2="300" y2="638" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ma)"/>
+  </g>
+
+  <!-- Column B: Dashboard -->
+  <g transform="translate(660,110)">
+    <rect width="580" height="800" rx="14" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+    <text x="24" y="36" fill="#cdd6f4" font-size="20" font-weight="700">B · Dashboard user (human)</text>
+    <text x="24" y="58" fill="#a6adc8" font-size="12">used by: browser session on /dashboard — signed cookie, no raw token stored</text>
+
+    <!-- step 1 -->
+    <g transform="translate(24,90)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">1</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">User POSTs /dashboard/login {token}</text>
+      <text x="48" y="32" fill="#a6adc8" font-size="12">token equals ENGRAM_CLOUD_TOKEN or a SetDashboardSessionTokens() value</text>
+    </g>
+
+    <!-- step 2 -->
+    <g transform="translate(24,140)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">2</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Service.MintDashboardSession(token)</text>
+      <rect x="48" y="26" width="490" height="160" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// auth.go:58 — returns signed session (no JWT lib)</text>
+      <text x="60" y="68"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">claims := { token_hash, iat, exp }</text>
+      <text x="60" y="86"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">token_hash := HMAC_SHA256("dashboard:"+token, jwtSecret)</text>
+      <text x="60" y="104" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">exp := iat + 8h      // hard TTL</text>
+      <text x="60" y="122" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">payload := base64url(json(claims))</text>
+      <text x="60" y="140" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">signed  := payload + "." + base64url(HMAC(payload, jwtSecret))</text>
+      <text x="60" y="160" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">// raw bearer never appears in claims — only its HMAC</text>
+    </g>
+
+    <!-- step 3 -->
+    <g transform="translate(24,320)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">3</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Server → Set-Cookie dashboard_session</text>
+      <rect x="48" y="26" width="490" height="70" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Set-Cookie: dashboard_session=&lt;payload&gt;.&lt;sig&gt;;</text>
+      <text x="60" y="66" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  HttpOnly; Secure; SameSite=Lax; Path=/</text>
+    </g>
+
+    <!-- step 4 -->
+    <g transform="translate(24,420)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">4</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Browser requests /dashboard/stats</text>
+      <rect x="48" y="26" width="490" height="60" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">GET /dashboard/stats</text>
+      <text x="60" y="66" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Cookie: dashboard_session=&lt;payload&gt;.&lt;sig&gt;</text>
+    </g>
+
+    <!-- step 5 -->
+    <g transform="translate(24,510)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">5</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Service.ParseDashboardSession(cookie)</text>
+      <rect x="48" y="26" width="490" height="175" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="48"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// auth.go:79 — verify + decode + match</text>
+      <text x="60" y="68"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">parts       := split(cookie, ".")</text>
+      <text x="60" y="86"  font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">expected    := HMAC_SHA256(parts[0], jwtSecret)</text>
+      <text x="60" y="104" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">hmac.Equal(expected, decoded(parts[1]))  // const-time</text>
+      <text x="60" y="122" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">claims      := json(base64urlDecode(parts[0]))</text>
+      <text x="60" y="140" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">claims.exp  &gt; now()                       // TTL check</text>
+      <text x="60" y="160" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">claims.token_hash ≡ HMAC("dashboard:"+expected)</text>
+    </g>
+    <text x="430" y="520" fill="#f38ba8" font-size="11" font-weight="700">fail → 401</text>
+
+    <!-- step 6 -->
+    <g transform="translate(24,720)">
+      <circle cx="18" cy="18" r="18" fill="#cba6f7"/>
+      <text x="18" y="23" text-anchor="middle" fill="#1e1e2e" font-size="13" font-weight="800">6</text>
+      <text x="48" y="14" fill="#cdd6f4" font-size="14" font-weight="700">Handler runs · renders templ page</text>
+      <rect x="48" y="26" width="490" height="50" rx="8" fill="#313244" stroke="#45475a" stroke-width="1"/>
+      <text x="60" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">handleDashboardStats(w, r) → 200 HTML</text>
+      <text x="440" y="68" fill="#a6e3a1" font-size="11" font-weight="700">success → 200</text>
+    </g>
+
+    <!-- connectors -->
+    <line x1="300" y1="128" x2="300" y2="140" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#mb)"/>
+    <line x1="300" y1="300" x2="300" y2="320" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#mb)"/>
+    <line x1="300" y1="398" x2="300" y2="420" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#mb)"/>
+    <line x1="300" y1="488" x2="300" y2="510" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#mb)"/>
+    <line x1="300" y1="698" x2="300" y2="720" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#mb)"/>
+  </g>
+
+  <!-- Footer principles -->
+  <g transform="translate(40,930)">
+    <text fill="#a6adc8" font-size="12">invariants:</text>
+    <text x="90" fill="#a6adc8" font-size="12">· raw bearer never appears in session claims · HMAC comparisons are constant-time · session TTL = 8h, non-renewable · rotating the bearer invalidates all existing sessions automatically</text>
+  </g>
+</svg>

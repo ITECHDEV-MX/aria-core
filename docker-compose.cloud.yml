@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aria-core-cloud-postgres
+    environment:
+      POSTGRES_USER: ariacore
+      POSTGRES_PASSWORD: ariacore_dev
+      POSTGRES_DB: aria_core_cloud
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ariacore -d aria_core_cloud"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - aria-core-cloud-pg:/var/lib/postgresql/data
+
+  cloud:
+    build:
+      context: .
+      dockerfile: docker/cloud/Dockerfile
+    container_name: aria-core-cloud
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ARIA_CORE_DATABASE_URL: postgres://ariacore:ariacore_dev@postgres:5432/aria_core_cloud?sslmode=disable
+      ARIA_CORE_JWT_SECRET: aria-core-dev-jwt-secret-for-local-smoke-1234
+      ARIA_CORE_CLOUD_INSECURE_NO_AUTH: "1"
+      ARIA_CORE_CLOUD_ALLOWED_PROJECTS: smoke-project
+      ARIA_CORE_CLOUD_HOST: 0.0.0.0
+      ARIA_CORE_PORT: "18080"
+    ports:
+      - "127.0.0.1:18080:18080"
+    command: ["cloud", "serve"]
+
+volumes:
+  aria-core-cloud-pg:

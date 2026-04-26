@@ -1,0 +1,26 @@
+# CODEOWNERS — Automatic review requests
+#
+# These paths route review requests to the right people.
+# Format: <pattern> <@user or @org/team>
+
+# Default owner for everything not matched below
+*                              @iTechDev/core
+
+# Core store and server — highest sensitivity
+internal/store/                @iTechDev/core
+internal/server/               @iTechDev/core
+internal/cloud/                @iTechDev/core
+
+# CLI surface — user-facing, needs careful review
+cmd/                           @iTechDev/core
+
+# GitHub infrastructure — workflows and templates
+.github/                       @iTechDev/core
+
+# Skills — these ship as agent instructions to users
+skills/                        @iTechDev/core
+
+# Release and build config — changes affect all platforms
+.goreleaser.yaml               @iTechDev/core
+go.mod                         @iTechDev/core
+go.sum                         @iTechDev/core

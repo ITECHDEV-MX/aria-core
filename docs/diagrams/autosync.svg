@@ -1,0 +1,189 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 960" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="m-gr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#a6e3a1"/></marker>
+    <marker id="m-y"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f9e2af"/></marker>
+    <marker id="m-r"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f38ba8"/></marker>
+    <marker id="m-p"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#fab387"/></marker>
+    <marker id="m-m"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#cba6f7"/></marker>
+    <marker id="m-gy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#a6adc8"/></marker>
+  </defs>
+
+  <rect width="1280" height="960" fill="#1e1e2e"/>
+
+  <text x="640" y="50" text-anchor="middle" fill="#cdd6f4" font-size="28" font-weight="700">Engram — Autosync Manager</text>
+  <text x="640" y="74" text-anchor="middle" fill="#a6adc8" font-size="14">State machine + per-tick cycle + exponential backoff</text>
+
+  <!-- STATE MACHINE -->
+  <g transform="translate(60,110)">
+    <text x="0" y="10" fill="#cdd6f4" font-size="18" font-weight="700">State machine — internal/cloud/autosync/manager.go</text>
+    <text x="0" y="30" fill="#a6adc8" font-size="12">phase is reported verbatim on GET /sync/status</text>
+
+    <!-- disabled -->
+    <g transform="translate(30,60)">
+      <rect width="170" height="70" rx="12" fill="#6c7086" stroke="#45475a" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="85" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">disabled</text>
+      <text x="85" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">ENGRAM_CLOUD_AUTOSYNC=0</text>
+    </g>
+
+    <!-- idle -->
+    <g transform="translate(260,60)">
+      <rect width="170" height="70" rx="12" fill="#45475a" stroke="#89b4fa" stroke-width="2"/>
+      <text x="85" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">idle</text>
+      <text x="85" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">waiting on PollInterval</text>
+    </g>
+
+    <!-- running -->
+    <g transform="translate(490,60)">
+      <rect width="170" height="70" rx="12" fill="#89b4fa33" stroke="#89b4fa" stroke-width="2"/>
+      <text x="85" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">running</text>
+      <text x="85" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">cycle in flight</text>
+    </g>
+
+    <!-- healthy -->
+    <g transform="translate(720,20)">
+      <rect width="170" height="70" rx="12" fill="#a6e3a133" stroke="#a6e3a1" stroke-width="2"/>
+      <text x="85" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">healthy</text>
+      <text x="85" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">last cycle succeeded</text>
+    </g>
+
+    <!-- degraded -->
+    <g transform="translate(720,100)">
+      <rect width="170" height="70" rx="12" fill="#f9e2af33" stroke="#f9e2af" stroke-width="2"/>
+      <text x="85" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">degraded</text>
+      <text x="85" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">transport / policy / apply error</text>
+    </g>
+
+    <!-- backoff -->
+    <g transform="translate(950,20)">
+      <rect width="200" height="70" rx="12" fill="#fab38733" stroke="#fab387" stroke-width="2"/>
+      <text x="100" y="30" text-anchor="middle" fill="#cdd6f4" font-size="16" font-weight="700">backoff</text>
+      <text x="100" y="52" text-anchor="middle" fill="#a6adc8" font-size="12">consecutive_failures ≥ 10</text>
+    </g>
+
+    <!-- retry card -->
+    <g transform="translate(950,110)">
+      <rect width="200" height="110" rx="10" fill="#313244" stroke="#45475a" stroke-width="1.5"/>
+      <text x="16" y="22" fill="#cdd6f4" font-size="14" font-weight="700">retry schedule</text>
+      <text x="16" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">BaseBackoff    = 1s</text>
+      <text x="16" y="62" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">MaxBackoff     = 5m</text>
+      <text x="16" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">next = min(B·2ⁿ + jitter, 5m)</text>
+      <text x="16" y="100" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">where n = consecutive_failures</text>
+    </g>
+
+    <!-- transitions -->
+    <line x1="200" y1="95" x2="256" y2="95" stroke="#a6adc8" stroke-width="1.8" fill="none" marker-end="url(#m-gy)"/>
+    <text x="215" y="88" fill="#cdd6f4" font-size="11" font-weight="600">enable</text>
+
+    <line x1="430" y1="95" x2="486" y2="95" stroke="#a6adc8" stroke-width="1.8" fill="none" marker-end="url(#m-gy)"/>
+    <text x="440" y="88" fill="#cdd6f4" font-size="11" font-weight="600">tick</text>
+
+    <line x1="660" y1="80" x2="716" y2="55" stroke="#a6e3a1" stroke-width="2" fill="none" marker-end="url(#m-gr)"/>
+    <text x="665" y="70" fill="#cdd6f4" font-size="11" font-weight="600">ok</text>
+
+    <line x1="660" y1="110" x2="716" y2="135" stroke="#f9e2af" stroke-width="2" fill="none" marker-end="url(#m-y)"/>
+    <text x="665" y="130" fill="#cdd6f4" font-size="11" font-weight="600">err</text>
+
+    <path d="M720 55 C 600 55, 430 45, 345 60" stroke="#a6e3a1" stroke-width="2" fill="none" marker-end="url(#m-gr)"/>
+
+    <line x1="890" y1="135" x2="1045" y2="90" stroke="#fab387" stroke-width="2" fill="none" marker-end="url(#m-p)"/>
+    <text x="905" y="118" fill="#cdd6f4" font-size="11" font-weight="600">n ≥ 10</text>
+
+    <path d="M720 135 C 600 170, 430 160, 345 105" stroke="#f9e2af" stroke-width="2" fill="none" marker-end="url(#m-y)"/>
+    <text x="490" y="170" fill="#cdd6f4" font-size="11" font-weight="600">backoff expired</text>
+
+    <path d="M1050 65 C 600 -10, 500 20, 345 80" stroke="#fab387" stroke-width="2" fill="none" marker-end="url(#m-p)"/>
+    <text x="700" y="10" fill="#cdd6f4" font-size="11" font-weight="600">backoff expired</text>
+
+    <text x="0" y="250" fill="#a6adc8" font-size="12">on success the failure counter resets to 0 · explicit config change (SetEnabled false) forces disabled</text>
+  </g>
+
+  <!-- CYCLE -->
+  <g transform="translate(60,410)">
+    <text x="0" y="10" fill="#cdd6f4" font-size="18" font-weight="700">Per-cycle work — push pending + pull new</text>
+    <text x="0" y="30" fill="#a6adc8" font-size="12">cycle() is re-entered each PollInterval tick while idle</text>
+
+    <rect x="0" y="50" width="1160" height="420" rx="14" fill="#313244" stroke="#45475a" stroke-width="1.5"/>
+
+    <!-- Step 1 -->
+    <g transform="translate(30,80)">
+      <rect width="230" height="120" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">1 · acquire lease</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">TryAcquireSyncLease(key,</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  LeaseInterval=60s)</text>
+      <text x="16" y="92" fill="#a6adc8" font-size="12">prevents overlap if multiple</text>
+      <text x="16" y="108" fill="#a6adc8" font-size="12">engram serve instances race</text>
+    </g>
+
+    <!-- Step 2 -->
+    <g transform="translate(290,80)">
+      <rect width="230" height="120" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">2 · list enrolled</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">ListEnrolledProjects()</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">→ [engram, gentle-ai]</text>
+      <text x="16" y="92" fill="#a6adc8" font-size="12">pulled fresh from SQLite</text>
+      <text x="16" y="108" fill="#a6adc8" font-size="12">(no in-memory cache)</text>
+    </g>
+
+    <!-- Step 3 -->
+    <g transform="translate(550,80)">
+      <rect width="260" height="120" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">3 · per-project rotation</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">for project in enrolled {</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  push(project) → pull(project)</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">}</text>
+      <text x="16" y="110" fill="#a6adc8" font-size="12">first transport error aborts rotation</text>
+    </g>
+
+    <!-- Step 4 -->
+    <g transform="translate(840,80)">
+      <rect width="290" height="120" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">4 · record status</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">MarkSyncSuccess(key)   // healthy</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">MarkSyncFailure(key,   // degraded</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  msg, backoff_until)</text>
+      <text x="16" y="110" fill="#a6adc8" font-size="12">status surfaces on /sync/status</text>
+    </g>
+
+    <!-- step arrows -->
+    <line x1="260" y1="140" x2="290" y2="140" stroke="#a6adc8" stroke-width="1.8" fill="none" marker-end="url(#m-gy)"/>
+    <line x1="520" y1="140" x2="550" y2="140" stroke="#a6adc8" stroke-width="1.8" fill="none" marker-end="url(#m-gy)"/>
+    <line x1="810" y1="140" x2="840" y2="140" stroke="#a6adc8" stroke-width="1.8" fill="none" marker-end="url(#m-gy)"/>
+
+    <!-- PUSH detail -->
+    <g transform="translate(30,230)">
+      <rect width="540" height="210" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">3a · PUSH — drain pending</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// store.go:2942  — ListPendingSyncMutations</text>
+      <text x="16" y="70" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">SELECT * FROM sync_mutations sm</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">LEFT JOIN sync_enrolled_projects sep</text>
+      <text x="16" y="102" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  ON sm.project = sep.project</text>
+      <text x="16" y="118" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">WHERE sm.target_key='cloud'</text>
+      <text x="16" y="134" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  AND sm.acked_at IS NULL</text>
+      <text x="16" y="150" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  AND (sm.project='' OR sep.project IS NOT NULL)</text>
+      <text x="16" y="176" fill="#a6adc8" font-size="12">POST /sync/mutations/push { mutations: [...] }</text>
+      <text x="16" y="194" fill="#a6adc8" font-size="12">→ {accepted_seqs:[…]} · MarkSyncMutationAcked</text>
+    </g>
+
+    <!-- PULL detail -->
+    <g transform="translate(600,230)">
+      <rect width="530" height="210" rx="10" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.2"/>
+      <text x="16" y="26" fill="#cdd6f4" font-size="14" font-weight="700">3b · PULL — replay new</text>
+      <text x="16" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">// cloudserver/mutations.go:handleMutationPull</text>
+      <text x="16" y="70" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">GET /sync/mutations/pull?since_seq=N</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">  &amp;project=engram&amp;limit=100</text>
+      <text x="16" y="110" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">server filters to caller&#39;s</text>
+      <text x="16" y="126" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">EnrolledProjects() set</text>
+      <text x="16" y="154" fill="#a6adc8" font-size="12">client applies each mutation to local SQLite</text>
+      <text x="16" y="172" fill="#a6adc8" font-size="12">FK failure on apply → phase=degraded, stops page</text>
+      <text x="16" y="190" fill="#a6adc8" font-size="12">(residual: should skip+log+continue instead)</text>
+    </g>
+  </g>
+
+  <!-- FOOTER -->
+  <g transform="translate(60,860)">
+    <text x="0" y="10" fill="#cdd6f4" font-size="14" font-weight="700">config (autosync.Config)</text>
+    <text x="0" y="30" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">PollInterval=30s · LeaseInterval=60s · BaseBackoff=1s · MaxBackoff=5m</text>
+    <text x="620" y="10" fill="#cdd6f4" font-size="14" font-weight="700">status shape (GET /sync/status)</text>
+    <text x="620" y="30" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">{phase, enabled, last_sync_at, consecutive_failures, backoff_until, reason_code, last_error}</text>
+  </g>
+</svg>

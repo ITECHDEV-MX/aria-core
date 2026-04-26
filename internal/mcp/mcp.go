@@ -1,0 +1,1487 @@
+// Package mcp implements the Model Context Protocol server for AriaCore.
+//
+// This exposes memory tools via MCP stdio transport so ANY agent
+// (OpenCode, Claude Code, Cursor, Windsurf, etc.) can use AriaCore's
+// persistent memory just by adding it as an MCP server.
+//
+// Tool profiles allow agents to load only the tools they need:
+//
+//	aria-core mcp                    → all 16 tools (default)
+//	aria-core mcp --tools=agent      → 12 tools agents actually use (per skill files)
+//	aria-core mcp --tools=admin      → 4 tools for TUI/CLI (delete, stats, timeline, merge)
+//	aria-core mcp --tools=agent,admin → combine profiles
+//	aria-core mcp --tools=mem_save,mem_search → individual tool names
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	projectpkg "github.com/ITECHDEV-MX/aria-core/internal/project"
+	"github.com/ITECHDEV-MX/aria-core/internal/store"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+)
+
+// MCPConfig holds configuration for the MCP server.
+// JW6: DefaultProject removed — it was populated but never read (dead code).
+// Project is always auto-detected from cwd at call time via resolveWriteProject/resolveReadProject.
+type MCPConfig struct {
+}
+
+var suggestTopicKey = store.SuggestTopicKey
+
+var loadMCPStats = func(s *store.Store) (*store.Stats, error) {
+	return s.Stats()
+}
+
+// ─── Tool Profiles ───────────────────────────────────────────────────────────
+//
+// "agent" — tools AI agents use during coding sessions:
+//   mem_save, mem_search, mem_context, mem_session_summary,
+//   mem_session_start, mem_session_end, mem_get_observation,
+//   mem_suggest_topic_key, mem_capture_passive, mem_save_prompt
+//
+// "admin" — tools for manual curation, TUI, and dashboards:
+//   mem_update, mem_delete, mem_stats, mem_timeline, mem_merge_projects
+//
+// "all" (default) — every tool registered.
+
+// ProfileAgent contains the tool names that AI agents need.
+// Sourced from actual skill files and memory protocol instructions
+// across all 4 supported agents (Claude Code, OpenCode, Gemini CLI, Codex).
+var ProfileAgent = map[string]bool{
+	"mem_save":              true, // proactive save — referenced 17 times across protocols
+	"mem_search":            true, // search past memories — referenced 6 times
+	"mem_context":           true, // recent context from previous sessions — referenced 10 times
+	"mem_session_summary":   true, // end-of-session summary — referenced 16 times
+	"mem_session_start":     true, // register session start
+	"mem_session_end":       true, // mark session completed
+	"mem_get_observation":   true, // full observation content after search — referenced 4 times
+	"mem_suggest_topic_key": true, // stable topic key for upserts — referenced 3 times
+	"mem_capture_passive":   true, // extract learnings from text — referenced in Gemini/Codex protocol
+	"mem_save_prompt":       true, // save user prompts
+	"mem_update":            true, // update observation by ID — skills say "use mem_update when you have an exact ID to correct"
+	"mem_current_project":   true, // detect current project — recommended first call for agents (REQ-313)
+}
+
+// ProfileAdmin contains tools for TUI, dashboards, and manual curation
+// that are NOT referenced in any agent skill or memory protocol.
+var ProfileAdmin = map[string]bool{
+	"mem_delete":         true, // only in OpenCode's ARIA_CORE_TOOLS filter, not in any agent instructions
+	"mem_stats":          true, // only in OpenCode's ARIA_CORE_TOOLS filter, not in any agent instructions
+	"mem_timeline":       true, // only in OpenCode's ARIA_CORE_TOOLS filter, not in any agent instructions
+	"mem_merge_projects": true, // destructive curation tool — not for agent use
+}
+
+// Profiles maps profile names to their tool sets.
+var Profiles = map[string]map[string]bool{
+	"agent": ProfileAgent,
+	"admin": ProfileAdmin,
+}
+
+// ResolveTools takes a comma-separated string of profile names and/or
+// individual tool names and returns the set of tool names to register.
+// An empty input means "all" — every tool is registered.
+func ResolveTools(input string) map[string]bool {
+	input = strings.TrimSpace(input)
+	if input == "" || input == "all" {
+		return nil // nil means register everything
+	}
+
+	result := make(map[string]bool)
+	for _, token := range strings.Split(input, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		if token == "all" {
+			return nil
+		}
+		if profile, ok := Profiles[token]; ok {
+			for tool := range profile {
+				result[tool] = true
+			}
+		} else {
+			// Treat as individual tool name
+			result[token] = true
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// NewServer creates an MCP server with ALL tools registered (backwards compatible).
+func NewServer(s *store.Store) *server.MCPServer {
+	return NewServerWithConfig(s, MCPConfig{}, nil)
+}
+
+// serverInstructions tells MCP clients when to use AriaCore's tools.
+// 6 core tools are eager (always in context). The rest are deferred
+// and require ToolSearch to load.
+const serverInstructions = `AriaCore provides persistent memory that survives across sessions and compactions.
+
+CORE TOOLS (always available — use without ToolSearch):
+  mem_save — save decisions, bugs, discoveries, conventions PROACTIVELY (do not wait to be asked)
+  mem_search — find past work, decisions, or context from previous sessions
+  mem_context — get recent session history (call at session start or after compaction)
+  mem_session_summary — save end-of-session summary (MANDATORY before saying "done")
+  mem_get_observation — get full untruncated content of a search result by ID
+  mem_save_prompt — save user prompt for context
+  mem_current_project — detect current project from cwd (recommended first call)
+
+DEFERRED TOOLS (use ToolSearch when needed):
+  mem_update, mem_suggest_topic_key, mem_session_start, mem_session_end,
+  mem_stats, mem_delete, mem_timeline, mem_capture_passive, mem_merge_projects
+
+PROACTIVE SAVE RULE: Call mem_save immediately after ANY decision, bug fix, discovery, or convention — not just when asked.`
+
+// NewServerWithTools creates an MCP server registering only the tools in
+// the allowlist. If allowlist is nil, all tools are registered.
+func NewServerWithTools(s *store.Store, allowlist map[string]bool) *server.MCPServer {
+	return NewServerWithConfig(s, MCPConfig{}, allowlist)
+}
+
+// NewServerWithConfig creates an MCP server with full configuration including
+// default project detection and optional tool allowlist.
+func NewServerWithConfig(s *store.Store, cfg MCPConfig, allowlist map[string]bool) *server.MCPServer {
+	return newServerWithActivity(s, cfg, allowlist, NewSessionActivity(10*time.Minute))
+}
+
+func newServerWithActivity(s *store.Store, cfg MCPConfig, allowlist map[string]bool, activity *SessionActivity) *server.MCPServer {
+	srv := server.NewMCPServer(
+		"aria-core",
+		"0.1.0",
+		server.WithToolCapabilities(true),
+		server.WithInstructions(serverInstructions),
+	)
+
+	registerTools(srv, s, cfg, allowlist, activity)
+	return srv
+}
+
+// shouldRegister returns true if the tool should be registered given the
+// allowlist. If allowlist is nil, everything is allowed.
+func shouldRegister(name string, allowlist map[string]bool) bool {
+	if allowlist == nil {
+		return true
+	}
+	return allowlist[name]
+}
+
+func registerTools(srv *server.MCPServer, s *store.Store, cfg MCPConfig, allowlist map[string]bool, activity *SessionActivity) {
+	// ─── mem_search (profile: agent, core — always in context) ─────────
+	if shouldRegister("mem_search", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_search",
+				mcp.WithDescription("Search your persistent memory across all sessions. Use this to find past decisions, bugs fixed, patterns used, files changed, or any context from previous coding sessions."),
+				mcp.WithTitleAnnotation("Search Memory"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("query",
+					mcp.Required(),
+					mcp.Description("Search query — natural language or keywords"),
+				),
+				mcp.WithString("type",
+					mcp.Description("Filter by type: tool_use, file_change, command, file_read, search, manual, decision, architecture, bugfix, pattern"),
+				),
+				mcp.WithString("project",
+					mcp.Description("Filter by project name"),
+				),
+				mcp.WithString("scope",
+					mcp.Description("Filter by scope: project (default) or personal"),
+				),
+				mcp.WithNumber("limit",
+					mcp.Description("Max results (default: 10, max: 20)"),
+				),
+			),
+			handleSearch(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_save (profile: agent, core — always in context) ───────────
+	if shouldRegister("mem_save", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_save",
+				mcp.WithTitleAnnotation("Save Memory"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(false),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithDescription(`Save an important observation to persistent memory. Call this PROACTIVELY after completing significant work — don't wait to be asked.
+
+WHEN to save (call this after each of these):
+- Architectural decisions or tradeoffs
+- Bug fixes (what was wrong, why, how you fixed it)
+- New patterns or conventions established
+- Configuration changes or environment setup
+- Important discoveries or gotchas
+- File structure changes
+
+FORMAT for content — use this structured format:
+  **What**: [concise description of what was done]
+  **Why**: [the reasoning, user request, or problem that drove it]
+  **Where**: [files/paths affected, e.g. src/auth/middleware.ts, internal/store/store.go]
+  **Learned**: [any gotchas, edge cases, or decisions made — omit if none]
+
+TITLE should be short and searchable, like: "JWT auth middleware", "FTS5 query sanitization", "Fixed N+1 in user list"
+
+Examples:
+  title: "Switched from sessions to JWT"
+  type: "decision"
+  content: "**What**: Replaced express-session with jsonwebtoken for auth\n**Why**: Session storage doesn't scale across multiple instances\n**Where**: src/middleware/auth.ts, src/routes/login.ts\n**Learned**: Must set httpOnly and secure flags on the cookie, refresh tokens need separate rotation logic"
+
+  title: "Fixed FTS5 syntax error on special chars"
+  type: "bugfix"
+  content: "**What**: Wrapped each search term in quotes before passing to FTS5 MATCH\n**Why**: Users typing queries like 'fix auth bug' would crash because FTS5 interprets special chars as operators\n**Where**: internal/store/store.go — sanitizeFTS() function\n**Learned**: FTS5 MATCH syntax is NOT the same as LIKE — always sanitize user input"`),
+				mcp.WithString("title",
+					mcp.Required(),
+					mcp.Description("Short, searchable title (e.g. 'JWT auth middleware', 'Fixed N+1 query')"),
+				),
+				mcp.WithString("content",
+					mcp.Required(),
+					mcp.Description("Structured content using **What**, **Why**, **Where**, **Learned** format"),
+				),
+				mcp.WithString("type",
+					mcp.Description("Category: decision, architecture, bugfix, pattern, config, discovery, learning (default: manual)"),
+				),
+				mcp.WithString("session_id",
+					mcp.Description("Session ID to associate with (default: manual-save-{project})"),
+				),
+				mcp.WithString("scope",
+					mcp.Description("Scope for this observation: project (default) or personal"),
+				),
+				mcp.WithString("topic_key",
+					mcp.Description("Optional topic identifier for upserts (e.g. architecture/auth-model). Reuses and updates the latest observation in same project+scope."),
+				),
+			),
+			handleSave(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_update (profile: agent, deferred) ──────────────────────────
+	if shouldRegister("mem_update", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_update",
+				mcp.WithDescription("Update an existing observation by ID. Only provided fields are changed."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Update Memory"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(false),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithNumber("id",
+					mcp.Required(),
+					mcp.Description("Observation ID to update"),
+				),
+				mcp.WithString("title",
+					mcp.Description("New title"),
+				),
+				mcp.WithString("content",
+					mcp.Description("New content"),
+				),
+				mcp.WithString("type",
+					mcp.Description("New type/category"),
+				),
+				mcp.WithString("scope",
+					mcp.Description("New scope: project or personal"),
+				),
+				mcp.WithString("topic_key",
+					mcp.Description("New topic key (normalized internally)"),
+				),
+			),
+			handleUpdate(s),
+		)
+	}
+
+	// ─── mem_suggest_topic_key (profile: agent, deferred) ───────────────
+	if shouldRegister("mem_suggest_topic_key", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_suggest_topic_key",
+				mcp.WithDescription("Suggest a stable topic_key for memory upserts. Use this before mem_save when you want evolving topics (like architecture decisions) to update a single observation over time."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Suggest Topic Key"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("type",
+					mcp.Description("Observation type/category, e.g. architecture, decision, bugfix"),
+				),
+				mcp.WithString("title",
+					mcp.Description("Observation title (preferred input for stable keys)"),
+				),
+				mcp.WithString("content",
+					mcp.Description("Observation content used as fallback if title is empty"),
+				),
+			),
+			handleSuggestTopicKey(),
+		)
+	}
+
+	// ─── mem_delete (profile: admin, deferred) ──────────────────────────
+	if shouldRegister("mem_delete", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_delete",
+				mcp.WithDescription("Delete an observation by ID. Soft-delete by default; set hard_delete=true for permanent deletion."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Delete Memory"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(true),
+				mcp.WithIdempotentHintAnnotation(false),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithNumber("id",
+					mcp.Required(),
+					mcp.Description("Observation ID to delete"),
+				),
+				mcp.WithBoolean("hard_delete",
+					mcp.Description("If true, permanently deletes the observation"),
+				),
+			),
+			handleDelete(s),
+		)
+	}
+
+	// ─── mem_save_prompt (profile: agent, eager) ────────────────────────
+	if shouldRegister("mem_save_prompt", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_save_prompt",
+				mcp.WithDescription("Save a user prompt to persistent memory. Use this to record what the user asked — their intent, questions, and requests — so future sessions have context about the user's goals."),
+				mcp.WithTitleAnnotation("Save User Prompt"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(false),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("content",
+					mcp.Required(),
+					mcp.Description("The user's prompt text"),
+				),
+				mcp.WithString("session_id",
+					mcp.Description("Session ID to associate with (default: manual-save-{project})"),
+				),
+			),
+			handleSavePrompt(s, cfg),
+		)
+	}
+
+	// ─── mem_context (profile: agent, core — always in context) ────────
+	if shouldRegister("mem_context", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_context",
+				mcp.WithDescription("Get recent memory context from previous sessions. Shows recent sessions and observations to understand what was done before."),
+				mcp.WithTitleAnnotation("Get Memory Context"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("project",
+					mcp.Description("Filter by project (omit for all projects)"),
+				),
+				mcp.WithString("scope",
+					mcp.Description("Filter observations by scope: project (default) or personal"),
+				),
+				// JW7: limit param removed — schema advertised it but handleContext never read it.
+			),
+			handleContext(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_stats (profile: admin, deferred) ───────────────────────────
+	if shouldRegister("mem_stats", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_stats",
+				mcp.WithDescription("Show memory system statistics — total sessions, observations, and projects tracked."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Memory Stats"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("project",
+					mcp.Description("Project to echo in envelope context (omit for auto-detect; stats themselves are global aggregates)"),
+				),
+			),
+			handleStats(s),
+		)
+	}
+
+	// ─── mem_timeline (profile: admin, deferred) ────────────────────────
+	if shouldRegister("mem_timeline", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_timeline",
+				mcp.WithDescription("Show chronological context around a specific observation. Use after mem_search to drill into the timeline of events surrounding a search result. This is the progressive disclosure pattern: search first, then timeline to understand context."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Memory Timeline"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithNumber("observation_id",
+					mcp.Required(),
+					mcp.Description("The observation ID to center the timeline on (from mem_search results)"),
+				),
+				mcp.WithNumber("before",
+					mcp.Description("Number of observations to show before the focus (default: 5)"),
+				),
+				mcp.WithNumber("after",
+					mcp.Description("Number of observations to show after the focus (default: 5)"),
+				),
+				mcp.WithString("project",
+					mcp.Description("Filter by project name (omit for auto-detect)"),
+				),
+			),
+			handleTimeline(s),
+		)
+	}
+
+	// ─── mem_get_observation (profile: agent, eager) ────────────────────
+	if shouldRegister("mem_get_observation", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_get_observation",
+				mcp.WithDescription("Get the full content of a specific observation by ID. Use when you need the complete, untruncated content of an observation found via mem_search or mem_timeline."),
+				mcp.WithTitleAnnotation("Get Observation"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithNumber("id",
+					mcp.Required(),
+					mcp.Description("The observation ID to retrieve"),
+				),
+			),
+			handleGetObservation(s),
+		)
+	}
+
+	// ─── mem_session_summary (profile: agent, core — always in context) ─
+	if shouldRegister("mem_session_summary", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_session_summary",
+				mcp.WithTitleAnnotation("Save Session Summary"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(false),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithDescription(`Save a comprehensive end-of-session summary. Call this when a session is ending or when significant work is complete. This creates a structured summary that future sessions will use to understand what happened.
+
+FORMAT — use this exact structure in the content field:
+
+## Goal
+[One sentence: what were we building/working on in this session]
+
+## Instructions
+[User preferences, constraints, or context discovered during this session. Things a future agent needs to know about HOW the user wants things done. Skip if nothing notable.]
+
+## Discoveries
+- [Technical finding, gotcha, or learning 1]
+- [Technical finding 2]
+- [Important API behavior, config quirk, etc.]
+
+## Accomplished
+- ✅ [Completed task 1 — with key implementation details]
+- ✅ [Completed task 2 — mention files changed]
+- 🔲 [Identified but not yet done — for next session]
+
+## Relevant Files
+- path/to/file.ts — [what it does or what changed]
+- path/to/other.go — [role in the architecture]
+
+GUIDELINES:
+- Be CONCISE but don't lose important details (file paths, error messages, decisions)
+- Focus on WHAT and WHY, not HOW (the code itself is in the repo)
+- Include things that would save a future agent time
+- The Discoveries section is the most valuable — capture gotchas and non-obvious learnings
+- Relevant Files should only include files that were significantly changed or are important for context`),
+				mcp.WithString("content",
+					mcp.Required(),
+					mcp.Description("Full session summary using the Goal/Instructions/Discoveries/Accomplished/Files format"),
+				),
+				mcp.WithString("session_id",
+					mcp.Description("Session ID (default: manual-save-{project})"),
+				),
+				// project field intentionally omitted — auto-detect only (REQ-308 write-tool contract)
+			),
+			handleSessionSummary(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_session_start (profile: agent, deferred) ───────────────────
+	if shouldRegister("mem_session_start", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_session_start",
+				mcp.WithDescription("Register the start of a new coding session. Call this at the beginning of a session to track activity."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Start Session"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("id",
+					mcp.Required(),
+					mcp.Description("Unique session identifier"),
+				),
+				mcp.WithString("directory",
+					mcp.Description("Working directory"),
+				),
+			),
+			handleSessionStart(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_session_end (profile: agent, deferred) ─────────────────────
+	if shouldRegister("mem_session_end", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_session_end",
+				mcp.WithDescription("Mark a coding session as completed with an optional summary."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("End Session"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("id",
+					mcp.Required(),
+					mcp.Description("Session identifier to close"),
+				),
+				mcp.WithString("summary",
+					mcp.Description("Summary of what was accomplished"),
+				),
+			),
+			handleSessionEnd(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_capture_passive (profile: agent, deferred) ─────────────────
+	if shouldRegister("mem_capture_passive", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_capture_passive",
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Capture Learnings"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithDescription(`Extract and save structured learnings from text output. Use this at the end of a task to capture knowledge automatically.
+
+The tool looks for sections like "## Key Learnings:" or "## Aprendizajes Clave:" and extracts numbered or bulleted items. Each item is saved as a separate observation.
+
+Duplicates are automatically detected and skipped — safe to call multiple times with the same content.`),
+				mcp.WithString("content",
+					mcp.Required(),
+					mcp.Description("The text output containing a '## Key Learnings:' section with numbered or bulleted items"),
+				),
+				mcp.WithString("session_id",
+					mcp.Description("Session ID (default: manual-save-{project})"),
+				),
+				mcp.WithString("source",
+					mcp.Description("Source identifier (e.g. 'subagent-stop', 'session-end')"),
+				),
+			),
+			handleCapturePassive(s, cfg, activity),
+		)
+	}
+
+	// ─── mem_merge_projects (profile: admin, deferred) ──────────────────
+	if shouldRegister("mem_merge_projects", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_merge_projects",
+				mcp.WithDescription("Merge memories from multiple project name variants into one canonical name. Use when you discover project name drift (e.g. 'AriaCore' and 'aria-core' should be the same project). DESTRUCTIVE — moves all records from source names to the canonical name."),
+				mcp.WithDeferLoading(true),
+				mcp.WithTitleAnnotation("Merge Projects"),
+				mcp.WithReadOnlyHintAnnotation(false),
+				mcp.WithDestructiveHintAnnotation(true),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+				mcp.WithString("from",
+					mcp.Required(),
+					mcp.Description("Comma-separated list of project names to merge FROM (e.g. 'AriaCore,aria-core-memory,ENGRAM')"),
+				),
+				mcp.WithString("to",
+					mcp.Required(),
+					mcp.Description("The canonical project name to merge INTO (e.g. 'aria-core')"),
+				),
+			),
+			handleMergeProjects(s),
+		)
+	}
+
+	// ─── mem_current_project (profile: agent) ────────────────────────────
+	if shouldRegister("mem_current_project", allowlist) {
+		srv.AddTool(
+			mcp.NewTool("mem_current_project",
+				mcp.WithDescription("Detect the current project from the working directory. Returns project name, source (how it was detected), path, and available alternatives. NEVER errors — use this for discovery before writing. Recommended as the first call when starting a new session."),
+				mcp.WithTitleAnnotation("Detect Current Project"),
+				mcp.WithReadOnlyHintAnnotation(true),
+				mcp.WithDestructiveHintAnnotation(false),
+				mcp.WithIdempotentHintAnnotation(true),
+				mcp.WithOpenWorldHintAnnotation(false),
+			),
+			handleCurrentProject(s),
+		)
+	}
+}
+
+// ─── Tool Handlers ───────────────────────────────────────────────────────────
+
+// handleCurrentProject implements mem_current_project. It NEVER returns an error
+// even on ambiguous cwd — it always returns a success result with whatever
+// detection info is available (REQ-313).
+func handleCurrentProject(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		cwd, _ := os.Getwd()
+		res := projectpkg.DetectProjectFull(cwd)
+
+		envelope := map[string]any{
+			"project":            res.Project,
+			"project_source":     res.Source,
+			"project_path":       res.Path,
+			"cwd":                cwd,
+			"available_projects": res.AvailableProjects,
+		}
+		if res.Warning != "" {
+			envelope["warning"] = res.Warning
+		}
+		if res.Error != nil {
+			// REQ-313: not an error response — just surface the info.
+			envelope["error_hint"] = res.Error.Error()
+		}
+		out, _ := jsonMarshal(envelope)
+		return mcp.NewToolResultText(string(out)), nil
+	}
+}
+
+func handleSearch(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		query, _ := req.GetArguments()["query"].(string)
+		typ, _ := req.GetArguments()["type"].(string)
+		projectOverride, _ := req.GetArguments()["project"].(string)
+		scope, _ := req.GetArguments()["scope"].(string)
+		limit := intArg(req, "limit", 10)
+
+		// Resolve project: validate override or auto-detect (REQ-310, REQ-311)
+		detRes, err := resolveReadProject(s, projectOverride)
+		if err != nil {
+			var upe *unknownProjectError
+			if errors.As(err, &upe) {
+				return errorWithMeta("unknown_project",
+					fmt.Sprintf("Project %q not found in store", upe.Name),
+					upe.AvailableProjects,
+				), nil
+			}
+			return mcp.NewToolResultError(fmt.Sprintf("Project resolution failed: %s", err)), nil
+		}
+		project := detRes.Project
+		project, _ = store.NormalizeProject(project)
+		detRes.Project = project // JR2-1: keep envelope in sync with normalized query project
+
+		sessionID := defaultSessionID(project)
+		activity.RecordToolCall(sessionID)
+
+		results, err := s.Search(query, store.SearchOptions{
+			Type:    typ,
+			Project: project,
+			Scope:   scope,
+			Limit:   limit,
+		})
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Search error: %s. Try simpler keywords.", err)), nil
+		}
+
+		if len(results) == 0 {
+			// JW4: use respondWithProject even for empty results.
+			return respondWithProject(detRes, fmt.Sprintf("No memories found for: %q", query), nil), nil
+		}
+
+		var b strings.Builder
+		fmt.Fprintf(&b, "Found %d memories:\n\n", len(results))
+		anyTruncated := false
+		for i, r := range results {
+			projectDisplay := ""
+			if r.Project != nil {
+				projectDisplay = fmt.Sprintf(" | project: %s", *r.Project)
+			}
+			preview := truncate(r.Content, 300)
+			if len(r.Content) > 300 {
+				anyTruncated = true
+				preview += " [preview]"
+			}
+			fmt.Fprintf(&b, "[%d] #%d (%s) — %s\n    %s\n    %s%s | scope: %s\n\n",
+				i+1, r.ID, r.Type, r.Title,
+				preview,
+				r.CreatedAt, projectDisplay, r.Scope)
+		}
+		if anyTruncated {
+			fmt.Fprintf(&b, "---\nResults above are previews (300 chars). To read the full content of a specific memory, call mem_get_observation(id: <ID>).\n")
+		}
+
+		if nudge := activity.NudgeIfNeeded(sessionID); nudge != "" {
+			b.WriteString(nudge)
+		}
+
+		// JW4: use respondWithProject for the success path (REQ-314).
+		return respondWithProject(detRes, b.String(), nil), nil
+	}
+}
+
+func handleSave(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		title, _ := req.GetArguments()["title"].(string)
+		content, _ := req.GetArguments()["content"].(string)
+		typ, _ := req.GetArguments()["type"].(string)
+		sessionID, _ := req.GetArguments()["session_id"].(string)
+		scope, _ := req.GetArguments()["scope"].(string)
+		topicKey, _ := req.GetArguments()["topic_key"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308)
+
+		// Auto-detect project from cwd; fail fast on ambiguous (REQ-308, REQ-309)
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// JW1: use AvailableProjects from detection result (repos in cwd),
+			// NOT stats.Projects (all store projects).
+			return errorWithMeta("ambiguous_project",
+				fmt.Sprintf("Cannot determine project: %s", err),
+				detRes.AvailableProjects,
+			), nil
+		}
+		project := detRes.Project
+
+		// Normalize project name and capture warning
+		normalized, normWarning := store.NormalizeProject(project)
+		project = normalized
+
+		if typ == "" {
+			typ = "manual"
+		}
+		if sessionID == "" {
+			sessionID = defaultSessionID(project)
+		}
+		suggestedTopicKey := suggestTopicKey(typ, title, content)
+
+		// Check for similar existing projects (only when this project has no existing observations)
+		var similarWarning string
+		if project != "" {
+			existingNames, _ := s.ListProjectNames()
+			isNew := true
+			for _, e := range existingNames {
+				if e == project {
+					isNew = false
+					break
+				}
+			}
+			if isNew && len(existingNames) > 0 {
+				matches := projectpkg.FindSimilar(project, existingNames, 3)
+				if len(matches) > 0 {
+					bestMatch := matches[0].Name
+					obsCount, _ := s.CountObservationsForProject(bestMatch)
+					similarWarning = fmt.Sprintf("⚠️ Project %q has no memories. Similar project found: %q (%d memories). Consider using that name instead.", project, bestMatch, obsCount)
+				}
+			}
+		}
+
+		// Ensure the session exists
+		s.CreateSession(sessionID, project, "")
+
+		truncated := len(content) > s.MaxObservationLength()
+
+		_, err = s.AddObservation(store.AddObservationParams{
+			SessionID: sessionID,
+			Type:      typ,
+			Title:     title,
+			Content:   content,
+			Project:   project,
+			Scope:     scope,
+			TopicKey:  topicKey,
+		})
+		if err != nil {
+			return mcp.NewToolResultError("Failed to save: " + err.Error()), nil
+		}
+
+		activity.RecordSave(defaultSessionID(project))
+
+		msg := fmt.Sprintf("Memory saved: %q (%s)", title, typ)
+		if topicKey == "" && suggestedTopicKey != "" {
+			msg += fmt.Sprintf("\nSuggested topic_key: %s", suggestedTopicKey)
+		}
+		if truncated {
+			msg += fmt.Sprintf("\n⚠ WARNING: Content was truncated from %d to %d chars. Consider splitting into smaller observations.", len(content), s.MaxObservationLength())
+		}
+		if normWarning != "" {
+			msg += "\n" + normWarning
+		}
+		if similarWarning != "" {
+			msg += "\n" + similarWarning
+		}
+		// Update detRes to reflect normalized project for envelope accuracy
+		detRes.Project = project
+		return respondWithProject(detRes, msg, nil), nil
+	}
+}
+
+func handleSuggestTopicKey() server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		typ, _ := req.GetArguments()["type"].(string)
+		title, _ := req.GetArguments()["title"].(string)
+		content, _ := req.GetArguments()["content"].(string)
+
+		if strings.TrimSpace(title) == "" && strings.TrimSpace(content) == "" {
+			return mcp.NewToolResultError("provide title or content to suggest a topic_key"), nil
+		}
+
+		topicKey := suggestTopicKey(typ, title, content)
+		if topicKey == "" {
+			return mcp.NewToolResultError("could not suggest topic_key from input"), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Suggested topic_key: %s", topicKey)), nil
+	}
+}
+
+func handleUpdate(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		id := int64(intArg(req, "id", 0))
+		if id == 0 {
+			return mcp.NewToolResultError("id is required"), nil
+		}
+
+		update := store.UpdateObservationParams{}
+		if v, ok := req.GetArguments()["title"].(string); ok {
+			update.Title = &v
+		}
+		if v, ok := req.GetArguments()["content"].(string); ok {
+			update.Content = &v
+		}
+		if v, ok := req.GetArguments()["type"].(string); ok {
+			update.Type = &v
+		}
+		// Tolerant parse: project still accepted even though removed from schema (REQ-308).
+		if v, ok := req.GetArguments()["project"].(string); ok && v != "" {
+			update.Project = &v
+		}
+		if v, ok := req.GetArguments()["scope"].(string); ok {
+			update.Scope = &v
+		}
+		if v, ok := req.GetArguments()["topic_key"].(string); ok {
+			update.TopicKey = &v
+		}
+
+		if update.Title == nil && update.Content == nil && update.Type == nil && update.Project == nil && update.Scope == nil && update.TopicKey == nil {
+			return mcp.NewToolResultError("provide at least one field to update"), nil
+		}
+
+		var contentLen int
+		if update.Content != nil {
+			contentLen = len(*update.Content)
+		}
+
+		obs, err := s.UpdateObservation(id, update)
+		if err != nil {
+			return mcp.NewToolResultError("Failed to update memory: " + err.Error()), nil
+		}
+
+		msg := fmt.Sprintf("Memory updated: #%d %q (%s, scope=%s)", obs.ID, obs.Title, obs.Type, obs.Scope)
+		if contentLen > s.MaxObservationLength() {
+			msg += fmt.Sprintf("\n⚠ WARNING: Content was truncated from %d to %d chars. Consider splitting into smaller observations.", contentLen, s.MaxObservationLength())
+		}
+
+		// Auto-detect for envelope; tolerant — don't fail update on resolution error
+		detRes, detErr := resolveWriteProject()
+		if detErr != nil {
+			// Still return success for the update itself.
+			return mcp.NewToolResultText(msg), nil
+		}
+		return respondWithProject(detRes, msg, nil), nil
+	}
+}
+
+func handleDelete(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		id := int64(intArg(req, "id", 0))
+		if id == 0 {
+			return mcp.NewToolResultError("id is required"), nil
+		}
+
+		hardDelete := boolArg(req, "hard_delete", false)
+		if err := s.DeleteObservation(id, hardDelete); err != nil {
+			return mcp.NewToolResultError("Failed to delete memory: " + err.Error()), nil
+		}
+
+		mode := "soft-deleted"
+		if hardDelete {
+			mode = "permanently deleted"
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Memory #%d %s", id, mode)), nil
+	}
+}
+
+func handleSavePrompt(s *store.Store, cfg MCPConfig) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		content, _ := req.GetArguments()["content"].(string)
+		sessionID, _ := req.GetArguments()["session_id"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308)
+
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// JW1: use AvailableProjects from detection result (repos in cwd).
+			return errorWithMeta("ambiguous_project",
+				fmt.Sprintf("Cannot determine project: %s", err),
+				detRes.AvailableProjects,
+			), nil
+		}
+		project, _ := store.NormalizeProject(detRes.Project)
+
+		if sessionID == "" {
+			sessionID = defaultSessionID(project)
+		}
+
+		// Ensure the session exists
+		s.CreateSession(sessionID, project, "")
+
+		_, err = s.AddPrompt(store.AddPromptParams{
+			SessionID: sessionID,
+			Content:   content,
+			Project:   project,
+		})
+		if err != nil {
+			return mcp.NewToolResultError("Failed to save prompt: " + err.Error()), nil
+		}
+
+		detRes.Project = project
+		return respondWithProject(detRes, fmt.Sprintf("Prompt saved: %q", truncate(content, 80)), nil), nil
+	}
+}
+
+func handleContext(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		projectOverride, _ := req.GetArguments()["project"].(string)
+		scope, _ := req.GetArguments()["scope"].(string)
+
+		// Resolve project: validate override or auto-detect (REQ-310, REQ-311)
+		detRes, err := resolveReadProject(s, projectOverride)
+		if err != nil {
+			var upe *unknownProjectError
+			if errors.As(err, &upe) {
+				return errorWithMeta("unknown_project",
+					fmt.Sprintf("Project %q not found in store", upe.Name),
+					upe.AvailableProjects,
+				), nil
+			}
+			return mcp.NewToolResultError(fmt.Sprintf("Project resolution failed: %s", err)), nil
+		}
+		project := detRes.Project
+		project, _ = store.NormalizeProject(project)
+		detRes.Project = project // JR2-1: keep envelope in sync with normalized query project
+
+		sessionID := defaultSessionID(project)
+		activity.RecordToolCall(sessionID)
+
+		contextResult, err := s.FormatContext(project, scope)
+		if err != nil {
+			return mcp.NewToolResultError("Failed to get context: " + err.Error()), nil
+		}
+
+		if contextResult == "" {
+			return respondWithProject(detRes, "No previous session memories found.", nil), nil
+		}
+
+		stats, _ := s.Stats()
+		var projects string
+		if len(stats.Projects) > 0 {
+			projects = strings.Join(stats.Projects, ", ")
+		} else {
+			projects = "none"
+		}
+
+		result := fmt.Sprintf("%s\n---\nMemory stats: %d sessions, %d observations across projects: %s",
+			contextResult, stats.TotalSessions, stats.TotalObservations, projects)
+
+		if nudge := activity.NudgeIfNeeded(sessionID); nudge != "" {
+			result += nudge
+		}
+
+		return respondWithProject(detRes, result, nil), nil
+	}
+}
+
+func handleStats(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		projectOverride, _ := req.GetArguments()["project"].(string)
+
+		// Resolve project: validate override or auto-detect (REQ-310, REQ-311, REQ-314)
+		detRes, err := resolveReadProject(s, projectOverride)
+		if err != nil {
+			var upe *unknownProjectError
+			if errors.As(err, &upe) {
+				return errorWithMeta("unknown_project",
+					fmt.Sprintf("Project %q not found in store", upe.Name),
+					upe.AvailableProjects,
+				), nil
+			}
+			return mcp.NewToolResultError(fmt.Sprintf("Project resolution failed: %s", err)), nil
+		}
+
+		stats, err := loadMCPStats(s)
+		if err != nil {
+			return mcp.NewToolResultError("Failed to get stats: " + err.Error()), nil
+		}
+
+		var projects string
+		if len(stats.Projects) > 0 {
+			projects = strings.Join(stats.Projects, ", ")
+		} else {
+			projects = "none yet"
+		}
+
+		result := fmt.Sprintf("Memory System Stats:\n- Sessions: %d\n- Observations: %d\n- Prompts: %d\n- Projects: %s",
+			stats.TotalSessions, stats.TotalObservations, stats.TotalPrompts, projects)
+
+		return respondWithProject(detRes, result, nil), nil
+	}
+}
+
+func handleTimeline(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		observationID := int64(intArg(req, "observation_id", 0))
+		if observationID == 0 {
+			return mcp.NewToolResultError("observation_id is required"), nil
+		}
+		before := intArg(req, "before", 5)
+		after := intArg(req, "after", 5)
+		projectOverride, _ := req.GetArguments()["project"].(string)
+
+		// Resolve project: validate override or auto-detect (REQ-310, REQ-311, REQ-314)
+		detRes, err := resolveReadProject(s, projectOverride)
+		if err != nil {
+			var upe *unknownProjectError
+			if errors.As(err, &upe) {
+				return errorWithMeta("unknown_project",
+					fmt.Sprintf("Project %q not found in store", upe.Name),
+					upe.AvailableProjects,
+				), nil
+			}
+			return mcp.NewToolResultError(fmt.Sprintf("Project resolution failed: %s", err)), nil
+		}
+
+		result, err := s.Timeline(observationID, before, after)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Timeline error: %s", err)), nil
+		}
+
+		var b strings.Builder
+
+		// Session header
+		if result.SessionInfo != nil {
+			summary := ""
+			if result.SessionInfo.Summary != nil {
+				summary = fmt.Sprintf(" — %s", truncate(*result.SessionInfo.Summary, 100))
+			}
+			fmt.Fprintf(&b, "Session: %s (%s)%s\n", result.SessionInfo.Project, result.SessionInfo.StartedAt, summary)
+			fmt.Fprintf(&b, "Total observations in session: %d\n\n", result.TotalInRange)
+		}
+
+		// Before entries
+		if len(result.Before) > 0 {
+			b.WriteString("─── Before ───\n")
+			for _, e := range result.Before {
+				fmt.Fprintf(&b, "  #%d [%s] %s — %s\n", e.ID, e.Type, e.Title, truncate(e.Content, 150))
+			}
+			b.WriteString("\n")
+		}
+
+		// Focus observation (highlighted)
+		fmt.Fprintf(&b, ">>> #%d [%s] %s <<<\n", result.Focus.ID, result.Focus.Type, result.Focus.Title)
+		fmt.Fprintf(&b, "    %s\n", truncate(result.Focus.Content, 500))
+		fmt.Fprintf(&b, "    %s\n\n", result.Focus.CreatedAt)
+
+		// After entries
+		if len(result.After) > 0 {
+			b.WriteString("─── After ───\n")
+			for _, e := range result.After {
+				fmt.Fprintf(&b, "  #%d [%s] %s — %s\n", e.ID, e.Type, e.Title, truncate(e.Content, 150))
+			}
+		}
+
+		return respondWithProject(detRes, b.String(), nil), nil
+	}
+}
+
+func handleGetObservation(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		id := int64(intArg(req, "id", 0))
+		if id == 0 {
+			return mcp.NewToolResultError("id is required"), nil
+		}
+
+		obs, err := s.GetObservation(id)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Observation #%d not found", id)), nil
+		}
+
+		// Resolve project from cwd (REQ-310, REQ-314). No override possible for
+		// get-by-ID — always auto-detect. JW5: use resolveReadProject (read semantics).
+		// Tolerant: don't fail the fetch on resolution error; degrade to plain text.
+		detRes, detErr := resolveReadProject(s, "")
+
+		obsProject := ""
+		if obs.Project != nil {
+			obsProject = fmt.Sprintf("\nProject: %s", *obs.Project)
+		}
+		scope := fmt.Sprintf("\nScope: %s", obs.Scope)
+		topic := ""
+		if obs.TopicKey != nil {
+			topic = fmt.Sprintf("\nTopic: %s", *obs.TopicKey)
+		}
+		toolName := ""
+		if obs.ToolName != nil {
+			toolName = fmt.Sprintf("\nTool: %s", *obs.ToolName)
+		}
+		duplicateMeta := fmt.Sprintf("\nDuplicates: %d", obs.DuplicateCount)
+		revisionMeta := fmt.Sprintf("\nRevisions: %d", obs.RevisionCount)
+
+		result := fmt.Sprintf("#%d [%s] %s\n%s\nSession: %s%s%s\nCreated: %s",
+			obs.ID, obs.Type, obs.Title,
+			obs.Content,
+			obs.SessionID, obsProject+scope+topic, toolName+duplicateMeta+revisionMeta,
+			obs.CreatedAt,
+		)
+
+		if detErr != nil {
+			// Degraded path: resolution failed (e.g. ambiguous cwd). Return
+			// the observation content without envelope rather than erroring.
+			return mcp.NewToolResultText(result), nil
+		}
+		return respondWithProject(detRes, result, nil), nil
+	}
+}
+
+func handleSessionSummary(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		content, _ := req.GetArguments()["content"].(string)
+		sessionID, _ := req.GetArguments()["session_id"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308 write-tool contract)
+
+		// Auto-detect project from cwd; fail fast on ambiguous (REQ-308, REQ-309)
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// JW1: use AvailableProjects from detection result (repos in cwd).
+			return errorWithMeta("ambiguous_project",
+				fmt.Sprintf("Cannot determine project: %s", err),
+				detRes.AvailableProjects,
+			), nil
+		}
+		project, _ := store.NormalizeProject(detRes.Project)
+
+		if sessionID == "" {
+			sessionID = defaultSessionID(project)
+		}
+
+		// Ensure the session exists
+		s.CreateSession(sessionID, project, "")
+
+		_, err = s.AddObservation(store.AddObservationParams{
+			SessionID: sessionID,
+			Type:      "session_summary",
+			Title:     fmt.Sprintf("Session summary: %s", project),
+			Content:   content,
+			Project:   project,
+		})
+		if err != nil {
+			return mcp.NewToolResultError("Failed to save session summary: " + err.Error()), nil
+		}
+
+		msg := fmt.Sprintf("Session summary saved for project %q", project)
+		if score := activity.ActivityScore(defaultSessionID(project)); score != "" {
+			msg += "\n" + score
+		}
+		detRes.Project = project
+		return respondWithProject(detRes, msg, nil), nil
+	}
+}
+
+func handleSessionStart(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		id, _ := req.GetArguments()["id"].(string)
+		directory, _ := req.GetArguments()["directory"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308)
+
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// JW1: use AvailableProjects from detection result (repos in cwd).
+			return errorWithMeta("ambiguous_project",
+				fmt.Sprintf("Cannot determine project: %s", err),
+				detRes.AvailableProjects,
+			), nil
+		}
+		project, _ := store.NormalizeProject(detRes.Project)
+
+		activity.RecordToolCall(defaultSessionID(project))
+
+		if err := s.CreateSession(id, project, directory); err != nil {
+			return mcp.NewToolResultError("Failed to start session: " + err.Error()), nil
+		}
+
+		detRes.Project = project
+		return respondWithProject(detRes, fmt.Sprintf("Session %q started for project %q", id, project), nil), nil
+	}
+}
+
+func handleSessionEnd(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		id, _ := req.GetArguments()["id"].(string)
+		summary, _ := req.GetArguments()["summary"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308)
+
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// For session end, still complete the operation even if project resolution fails.
+			// Use basename fallback.
+			cwd, _ := os.Getwd()
+			detRes = projectpkg.DetectionResult{
+				Project: projectpkg.DetectProject(cwd),
+				Source:  "dir_basename",
+				Path:    cwd,
+			}
+		}
+		project, _ := store.NormalizeProject(detRes.Project)
+
+		if err := s.EndSession(id, summary); err != nil {
+			return mcp.NewToolResultError("Failed to end session: " + err.Error()), nil
+		}
+
+		activity.ClearSession(defaultSessionID(project))
+
+		detRes.Project = project
+		return respondWithProject(detRes, fmt.Sprintf("Session %q completed", id), nil), nil
+	}
+}
+
+func handleCapturePassive(s *store.Store, cfg MCPConfig, activity *SessionActivity) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		content, _ := req.GetArguments()["content"].(string)
+		sessionID, _ := req.GetArguments()["session_id"].(string)
+		source, _ := req.GetArguments()["source"].(string)
+		// project field intentionally not read — auto-detect only (REQ-308)
+
+		detRes, err := resolveWriteProject()
+		if err != nil {
+			// JW1: use AvailableProjects from detection result (repos in cwd).
+			return errorWithMeta("ambiguous_project",
+				fmt.Sprintf("Cannot determine project: %s", err),
+				detRes.AvailableProjects,
+			), nil
+		}
+		project, _ := store.NormalizeProject(detRes.Project)
+
+		activity.RecordToolCall(defaultSessionID(project))
+
+		if content == "" {
+			return mcp.NewToolResultError("content is required — include text with a '## Key Learnings:' section"), nil
+		}
+
+		if sessionID == "" {
+			sessionID = defaultSessionID(project)
+			_ = s.CreateSession(sessionID, project, "")
+		}
+
+		if source == "" {
+			source = "mcp-passive"
+		}
+
+		result, err := s.PassiveCapture(store.PassiveCaptureParams{
+			SessionID: sessionID,
+			Content:   content,
+			Project:   project,
+			Source:    source,
+		})
+		if err != nil {
+			return mcp.NewToolResultError("Passive capture failed: " + err.Error()), nil
+		}
+
+		detRes.Project = project
+		return respondWithProject(detRes, fmt.Sprintf(
+			"Passive capture complete: extracted=%d saved=%d duplicates=%d",
+			result.Extracted, result.Saved, result.Duplicates,
+		), nil), nil
+	}
+}
+
+func handleMergeProjects(s *store.Store) server.ToolHandlerFunc {
+	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		fromStr, _ := req.GetArguments()["from"].(string)
+		to, _ := req.GetArguments()["to"].(string)
+
+		if fromStr == "" || to == "" {
+			return mcp.NewToolResultError("both 'from' and 'to' are required"), nil
+		}
+
+		var sources []string
+		for _, src := range strings.Split(fromStr, ",") {
+			src = strings.TrimSpace(src)
+			if src != "" {
+				sources = append(sources, src)
+			}
+		}
+
+		if len(sources) == 0 {
+			return mcp.NewToolResultError("at least one source project name is required in 'from'"), nil
+		}
+
+		result, err := s.MergeProjects(sources, to)
+		if err != nil {
+			return mcp.NewToolResultError("Merge failed: " + err.Error()), nil
+		}
+
+		msg := fmt.Sprintf("Merged %d source(s) into %q:\n", len(result.SourcesMerged), result.Canonical)
+		msg += fmt.Sprintf("  Observations moved: %d\n", result.ObservationsUpdated)
+		msg += fmt.Sprintf("  Sessions moved:     %d\n", result.SessionsUpdated)
+		msg += fmt.Sprintf("  Prompts moved:      %d\n", result.PromptsUpdated)
+
+		return mcp.NewToolResultText(msg), nil
+	}
+}
+
+// ─── Project Resolution Helpers ──────────────────────────────────────────────
+
+// unknownProjectError is returned when a read tool receives a project override
+// that does not exist in the store.
+type unknownProjectError struct {
+	Name              string
+	AvailableProjects []string
+}
+
+func (e *unknownProjectError) Error() string {
+	return "unknown project: " + e.Name
+}
+
+// resolveWriteProject detects the current project from the process working
+// directory. Returns ErrAmbiguousProject if cwd is a parent of multiple repos.
+func resolveWriteProject() (projectpkg.DetectionResult, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	res := projectpkg.DetectProjectFull(cwd)
+	if res.Error != nil {
+		return res, res.Error
+	}
+	return res, nil
+}
+
+// resolveReadProject validates an optional project override against the store.
+// If override is empty, falls back to auto-detection from cwd.
+// JW2: normalizes the override (lowercase+trim) before ProjectExists lookup so
+// that e.g. "MyApp" and "  myapp  " both resolve to the stored "myapp".
+func resolveReadProject(s *store.Store, override string) (projectpkg.DetectionResult, error) {
+	override = strings.TrimSpace(override)
+	if override == "" {
+		return resolveWriteProject()
+	}
+	normalized, _ := store.NormalizeProject(override)
+	exists, err := s.ProjectExists(normalized)
+	if err != nil {
+		return projectpkg.DetectionResult{}, err
+	}
+	if !exists {
+		// Collect available projects for the error.
+		stats, _ := s.Stats()
+		return projectpkg.DetectionResult{}, &unknownProjectError{
+			Name:              normalized,
+			AvailableProjects: stats.Projects,
+		}
+	}
+	return projectpkg.DetectionResult{
+		Project: normalized,
+		Source:  projectpkg.SourceExplicitOverride, // JR2-2: use named constant
+		Path:    "",
+	}, nil
+}
+
+// respondWithProject wraps a tool result by prepending the project envelope
+// fields (project, project_source, project_path) to the text output.
+// extra is an optional map of additional fields to include.
+func respondWithProject(res projectpkg.DetectionResult, text string, extra map[string]any) *mcp.CallToolResult {
+	envelope := map[string]any{
+		"project":        res.Project,
+		"project_source": res.Source,
+		"project_path":   res.Path,
+		"result":         text,
+	}
+	if res.Warning != "" {
+		envelope["warning"] = res.Warning
+	}
+	for k, v := range extra {
+		envelope[k] = v
+	}
+	out, _ := jsonMarshal(envelope)
+	return mcp.NewToolResultText(string(out))
+}
+
+// errorWithMeta returns a structured tool error result with error_code,
+// message, available_projects, and a hint for resolution.
+func errorWithMeta(code, msg string, availableProjects []string) *mcp.CallToolResult {
+	envelope := map[string]any{
+		"error_code":         code,
+		"message":            msg,
+		"available_projects": availableProjects,
+	}
+	switch code {
+	case "ambiguous_project":
+		envelope["hint"] = "Use mem_current_project to inspect detection results, or cd into one of the listed repositories."
+	case "unknown_project":
+		envelope["hint"] = "Use one of the available_projects values, or omit project to auto-detect."
+	}
+	out, _ := jsonMarshal(envelope)
+	result := mcp.NewToolResultText(string(out))
+	result.IsError = true
+	return result
+}
+
+// jsonMarshal marshals v to JSON. Named to allow test injection if needed.
+func jsonMarshal(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// defaultSessionID returns a project-scoped default session ID.
+// If project is non-empty: "manual-save-{project}"
+// If project is empty: "manual-save"
+func defaultSessionID(project string) string {
+	if project == "" {
+		return "manual-save"
+	}
+	return "manual-save-" + project
+}
+
+func intArg(req mcp.CallToolRequest, key string, defaultVal int) int {
+	v, ok := req.GetArguments()[key].(float64)
+	if !ok {
+		return defaultVal
+	}
+	return int(v)
+}
+
+func boolArg(req mcp.CallToolRequest, key string, defaultVal bool) bool {
+	v, ok := req.GetArguments()[key].(bool)
+	if !ok {
+		return defaultVal
+	}
+	return v
+}
+
+func truncate(s string, max int) string {
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "..."
+}

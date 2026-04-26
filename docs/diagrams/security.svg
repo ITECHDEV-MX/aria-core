@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 920" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#89b4fa"/></marker>
+    <marker id="arden" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#f38ba8"/></marker>
+  </defs>
+
+  <rect width="1200" height="920" fill="#1e1e2e"/>
+
+  <text x="600" y="50" text-anchor="middle" fill="#cdd6f4" font-size="28" font-weight="700">Engram — Defense in Depth</text>
+  <text x="600" y="74" text-anchor="middle" fill="#a6adc8" font-size="14">Local-first memory with optional, fail-closed cloud replication</text>
+
+  <!-- ======= LOCAL SIDE ======= -->
+  <g transform="translate(60,110)">
+    <rect width="460" height="720" rx="16" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+    <text x="24" y="36" fill="#cdd6f4" font-size="19" font-weight="700">LOCAL — source of truth</text>
+    <text x="24" y="58" fill="#a6adc8" font-size="12">Works offline. Cloud is opt-in replication, never authority.</text>
+
+    <!-- L1 Agent -->
+    <g transform="translate(24,90)">
+      <rect width="412" height="80" rx="10" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">1 · Agent</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">Claude Code · OpenCode · Cursor · Codex · …</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">transport: MCP stdio — no network surface</text>
+      <text x="320" y="28" fill="#a6e3a1" font-size="11" font-weight="700">no network</text>
+    </g>
+
+    <!-- L2 Local binary -->
+    <g transform="translate(24,190)">
+      <rect width="412" height="80" rx="10" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">2 · engram binary</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">single Go binary: mcp · serve · tui · cloud</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">binds 127.0.0.1:7437 by default (localhost only)</text>
+      <text x="320" y="28" fill="#a6e3a1" font-size="11" font-weight="700">loopback only</text>
+    </g>
+
+    <!-- L3 SQLite -->
+    <g transform="translate(24,290)">
+      <rect width="412" height="100" rx="10" fill="#a6e3a11a" stroke="#a6e3a1" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">3 · SQLite + FTS5</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">~/.engram/engram.db — full memory, all projects</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">sessions · observations · prompts · sync_state</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">mode 0600 — fs permissions guard the contents</text>
+      <text x="320" y="28" fill="#a6e3a1" font-size="11" font-weight="700">authoritative</text>
+    </g>
+
+    <!-- L4 client gate -->
+    <g transform="translate(24,410)">
+      <rect width="412" height="110" rx="10" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">4 · Client enrollment gate</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">only enrolled projects are offered to the cloud</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">table:  sync_enrolled_projects</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">filter: ListPendingSyncMutations (LEFT JOIN on enroll)</text>
+      <text x="16" y="104" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">cli:    engram cloud enroll &lt;project&gt;</text>
+      <text x="320" y="28" fill="#a6e3a1" font-size="11" font-weight="700">opt-in per project</text>
+    </g>
+
+    <!-- Principles -->
+    <g transform="translate(24,540)">
+      <rect width="412" height="160" rx="10" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">LOCAL invariants</text>
+      <text x="16" y="60" fill="#cba6f7" font-size="14" font-weight="700">›</text>
+      <text x="36" y="60" fill="#cdd6f4" font-size="13">cloud outage ≠ memory outage</text>
+      <text x="16" y="84" fill="#cba6f7" font-size="14" font-weight="700">›</text>
+      <text x="36" y="84" fill="#cdd6f4" font-size="13">token never read by MCP — never leaves server process env</text>
+      <text x="16" y="108" fill="#cba6f7" font-size="14" font-weight="700">›</text>
+      <text x="36" y="108" fill="#cdd6f4" font-size="13">disabling cloud = config flip, no DB migration</text>
+      <text x="16" y="132" fill="#cba6f7" font-size="14" font-weight="700">›</text>
+      <text x="36" y="132" fill="#cdd6f4" font-size="13">project name normalize (lowercase+trim) prevents duplicate scope</text>
+    </g>
+  </g>
+
+  <!-- ======= CENTER WIRE ======= -->
+  <g transform="translate(530,360)">
+    <rect width="140" height="220" rx="12" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.5"/>
+    <text x="70" y="32" text-anchor="middle" fill="#cdd6f4" font-size="19" font-weight="700">WIRE</text>
+    <line x1="70" y1="48" x2="70" y2="80" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+    <text x="70" y="110" text-anchor="middle" fill="#cdd6f4" font-size="14" font-weight="600">HTTPS</text>
+    <text x="70" y="130" text-anchor="middle" fill="#a6adc8" font-size="12">TLS 1.2+</text>
+    <text x="70" y="160" text-anchor="middle" fill="#cdd6f4" font-size="14" font-weight="600">Bearer</text>
+    <text x="70" y="180" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">Authorization:</text>
+    <text x="70" y="194" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">Bearer &lt;token&gt;</text>
+    <text x="70" y="214" text-anchor="middle" fill="#a6e3a1" font-size="11" font-weight="700">server-only env, never logged</text>
+  </g>
+
+  <line x1="520" y1="580" x2="540" y2="470" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#ar)"/>
+
+  <!-- ======= CLOUD SIDE ======= -->
+  <g transform="translate(680,110)">
+    <rect width="460" height="720" rx="16" fill="#94e2d51a" stroke="#94e2d5" stroke-width="1.5"/>
+    <text x="24" y="36" fill="#cdd6f4" font-size="19" font-weight="700">CLOUD — replication only</text>
+    <text x="24" y="58" fill="#a6adc8" font-size="12">engram cloud serve on VPS — does not own memory</text>
+
+    <!-- C1 Bearer check -->
+    <g transform="translate(24,90)">
+      <rect width="412" height="100" rx="10" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">1 · Bearer token (Authenticator)</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">header required · rotates via SetBearerToken</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">auth.Service.Authorize(r *http.Request)</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">string equality check (TLS-protected on wire)</text>
+      <text x="320" y="28" fill="#f9e2af" font-size="11" font-weight="700">fail → 401</text>
+    </g>
+
+    <!-- C2 Project authorizer -->
+    <g transform="translate(24,210)">
+      <rect width="412" height="130" rx="10" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">2 · ProjectScopeAuthorizer</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">allowlist per token · fail-closed when empty</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">AuthorizeProject(project)</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">EnrolledProjects() — used by pull filter</text>
+      <text x="16" y="104" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">ENGRAM_CLOUD_ALLOWED_PROJECTS=engram,gentle-ai</text>
+      <text x="320" y="28" fill="#f38ba8" font-size="11" font-weight="700">fail → 403</text>
+    </g>
+
+    <!-- C3 Pull filter -->
+    <g transform="translate(24,360)">
+      <rect width="412" height="100" rx="10" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">3 · Pull filter (REQ-202)</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">cloudserver only returns mutations the token owns</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">EnrolledProjectsProvider interface assertion</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">missing → allowedProjects=[] → empty result (safe)</text>
+    </g>
+
+    <!-- C4 Postgres -->
+    <g transform="translate(24,480)">
+      <rect width="412" height="100" rx="10" fill="#a6e3a11a" stroke="#a6e3a1" stroke-width="1.5"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">4 · Postgres cloud_mutations</text>
+      <text x="16" y="48" fill="#a6adc8" font-size="12">per-project monotonic seq · WAL · append-only</text>
+      <text x="16" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">(project, seq) unique · idx on (project, seq)</text>
+      <text x="16" y="86" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="11">never overwritten — cloud is a replay log</text>
+    </g>
+
+    <!-- Rejected request callout -->
+    <g transform="translate(24,600)">
+      <rect width="412" height="100" rx="10" fill="#f38ba81a" stroke="#f38ba8" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <text x="16" y="28" fill="#cdd6f4" font-size="14" font-weight="600">Rejected at the boundary</text>
+      <text x="16" y="52" fill="#f38ba8" font-size="11" font-weight="700">401 · missing / invalid bearer</text>
+      <text x="16" y="70" fill="#f38ba8" font-size="11" font-weight="700">403 · project not on allowlist</text>
+      <text x="16" y="88" fill="#f38ba8" font-size="11" font-weight="700">400 · mutation without required project field</text>
+    </g>
+  </g>
+
+  <!-- Footer principles -->
+  <g transform="translate(60,848)">
+    <text fill="#a6adc8" font-size="12">principle:</text>
+    <text x="78" y="0" fill="#cdd6f4" font-size="13"><tspan fill="#cba6f7" font-weight="700">fail-closed</tspan> — unknown auth state rejects by default · <tspan fill="#cba6f7" font-weight="700">least authority</tspan> — tokens scoped to explicit project set · <tspan fill="#cba6f7" font-weight="700">local-first</tspan> — cloud is replica, never authority</text>
+  </g>
+</svg>

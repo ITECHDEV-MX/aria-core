@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 900" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="a-blue"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#89b4fa"/></marker>
+    <marker id="a-teal"  viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#94e2d5"/></marker>
+    <marker id="a-peach" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#fab387"/></marker>
+    <marker id="a-mauve" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#cba6f7"/></marker>
+  </defs>
+
+  <rect width="1280" height="900" fill="#1e1e2e"/>
+
+  <text x="640" y="50" text-anchor="middle" fill="#cdd6f4" font-size="28" font-weight="700">Engram — Communication Topology</text>
+  <text x="640" y="74" text-anchor="middle" fill="#a6adc8" font-size="14">How agents, local binary, and cloud exchange memory</text>
+
+  <!-- ==== ROW 1: agents ==== -->
+  <g transform="translate(60,110)">
+    <rect width="520" height="100" rx="12" fill="#f2cdcd1a" stroke="#f2cdcd" stroke-width="1.5"/>
+    <text x="20" y="32" fill="#cdd6f4" font-size="17" font-weight="700">AI Agents (clients)</text>
+    <text x="20" y="54" fill="#a6adc8" font-size="12">any MCP-speaking agent — agent-agnostic by design</text>
+    <text x="20" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">Claude Code · OpenCode · Cursor · Gemini CLI · Codex · Antigravity · VS Code</text>
+  </g>
+
+  <g transform="translate(660,110)">
+    <rect width="560" height="100" rx="12" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+    <text x="20" y="32" fill="#cdd6f4" font-size="17" font-weight="700">Human users (dashboard)</text>
+    <text x="20" y="54" fill="#a6adc8" font-size="12">browser sessions — read-only memory browsing &amp; activity feed</text>
+    <text x="20" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">https://engram.condetuti.com/dashboard</text>
+  </g>
+
+  <!-- MCP stdio labels -->
+  <g transform="translate(150,220)">
+    <text text-anchor="middle" fill="#cdd6f4" font-size="14" font-weight="700">MCP stdio (JSON-RPC)</text>
+    <text x="0" y="18" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">no network — parent/child pipes</text>
+  </g>
+  <line x1="320" y1="210" x2="320" y2="275" stroke="#fab387" stroke-width="2" fill="none" marker-end="url(#a-peach)"/>
+  <line x1="220" y1="210" x2="220" y2="275" stroke="#fab387" stroke-width="2" fill="none" marker-end="url(#a-peach)"/>
+
+  <!-- HTTPS dashboard label -->
+  <g transform="translate(940,220)">
+    <text text-anchor="middle" fill="#cdd6f4" font-size="14" font-weight="700">HTTPS + session cookie</text>
+    <text x="0" y="18" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">dashboard.session = JWT (HMAC-SHA256)</text>
+  </g>
+  <line x1="940" y1="210" x2="940" y2="410" stroke="#cba6f7" stroke-width="2" fill="none" marker-end="url(#a-mauve)"/>
+
+  <!-- ==== ROW 3: local engram binary ==== -->
+  <g transform="translate(60,275)">
+    <rect width="520" height="220" rx="12" fill="#fab3871a" stroke="#fab387" stroke-width="1.5"/>
+    <text x="20" y="32" fill="#cdd6f4" font-size="17" font-weight="700">Local engram binary · ~/.local/bin/engram</text>
+    <text x="20" y="52" fill="#a6adc8" font-size="12">single Go binary — all subcommands embedded</text>
+
+    <g transform="translate(20,70)">
+      <rect width="155" height="60" rx="8" fill="#f9e2af1a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">mcp</text>
+      <text x="12" y="40" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">stdio server</text>
+      <text x="12" y="55" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">mem_save · mem_search · …</text>
+    </g>
+    <g transform="translate(185,70)">
+      <rect width="155" height="60" rx="8" fill="#f9e2af1a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">serve</text>
+      <text x="12" y="40" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">127.0.0.1:7437</text>
+      <text x="12" y="55" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">HTTP API · /sync/status</text>
+    </g>
+    <g transform="translate(350,70)">
+      <rect width="155" height="60" rx="8" fill="#f9e2af1a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">tui</text>
+      <text x="12" y="40" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">bubbletea</text>
+      <text x="12" y="55" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">browse · search · detail</text>
+    </g>
+    <g transform="translate(20,142)">
+      <rect width="485" height="60" rx="8" fill="#f9e2af1a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">cloud · config / enroll / status / serve / upgrade</text>
+      <text x="12" y="42" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#a6adc8" font-size="11">runs autosync goroutine when ENGRAM_CLOUD_AUTOSYNC=1 and cloud.env is sourced</text>
+    </g>
+  </g>
+
+  <!-- Autosync arrow -->
+  <g transform="translate(320,510)">
+    <text text-anchor="middle" fill="#cdd6f4" font-size="14" font-weight="700">autosync goroutine</text>
+    <text x="0" y="18" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">HTTPS + Bearer</text>
+    <text x="0" y="34" text-anchor="middle" fill="#a6adc8" font-size="12">push pending · pull new · record status</text>
+  </g>
+  <line x1="580" y1="390" x2="720" y2="530" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#a-blue)"/>
+  <line x1="720" y1="560" x2="580" y2="420" stroke="#94e2d5" stroke-width="2" fill="none" stroke-dasharray="5 4" marker-end="url(#a-teal)"/>
+
+  <!-- Local SQLite -->
+  <g transform="translate(60,520)">
+    <rect width="520" height="70" rx="10" fill="#a6e3a11a" stroke="#a6e3a1" stroke-width="1.5"/>
+    <text x="20" y="28" fill="#cdd6f4" font-size="14" font-weight="700">SQLite · ~/.engram/engram.db</text>
+    <text x="20" y="50" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">sessions · observations · prompts · sync_mutations · sync_enrolled_projects</text>
+  </g>
+  <line x1="320" y1="495" x2="320" y2="515" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#a-blue)"/>
+
+  <!-- Cloud server -->
+  <g transform="translate(660,410)">
+    <rect width="560" height="320" rx="12" fill="#94e2d51a" stroke="#94e2d5" stroke-width="1.5"/>
+    <text x="20" y="32" fill="#cdd6f4" font-size="17" font-weight="700">engram cloud serve · VPS</text>
+    <text x="20" y="52" fill="#a6adc8" font-size="12">dashboard + sync endpoints — one process</text>
+
+    <g transform="translate(20,70)">
+      <rect width="520" height="105" rx="8" fill="#89b4fa1a" stroke="#89b4fa" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">sync endpoints (bearer-auth)</text>
+      <text x="12" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">POST /sync/mutations/push    — append to journal</text>
+      <text x="12" y="62" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">GET  /sync/mutations/pull    — replay by since_seq</text>
+      <text x="12" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">POST /sync/push              — legacy chunk sync</text>
+      <text x="12" y="98" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">GET  /sync/pull              — legacy chunk sync</text>
+    </g>
+
+    <g transform="translate(20,190)">
+      <rect width="250" height="105" rx="8" fill="#cba6f71a" stroke="#cba6f7" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">dashboard (session-auth)</text>
+      <text x="12" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/dashboard/login</text>
+      <text x="12" y="62" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/dashboard (home / stats)</text>
+      <text x="12" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/dashboard/browser/*</text>
+      <text x="12" y="98" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/dashboard/activity</text>
+    </g>
+
+    <g transform="translate(290,190)">
+      <rect width="250" height="105" rx="8" fill="#f9e2af1a" stroke="#f9e2af" stroke-width="1.5"/>
+      <text x="12" y="22" fill="#cdd6f4" font-size="14" font-weight="700">ops (unauth OR config)</text>
+      <text x="12" y="44" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/health            ← unauth</text>
+      <text x="12" y="62" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">/dashboard/health  ← unauth</text>
+      <text x="12" y="80" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">ENGRAM_CLOUD_TOKEN</text>
+      <text x="12" y="98" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">ENGRAM_CLOUD_ALLOWED_PROJECTS</text>
+    </g>
+  </g>
+
+  <!-- Postgres -->
+  <g transform="translate(660,750)">
+    <rect width="560" height="110" rx="12" fill="#a6e3a11a" stroke="#a6e3a1" stroke-width="1.5"/>
+    <text x="20" y="32" fill="#cdd6f4" font-size="17" font-weight="700">Postgres · cloud datastore</text>
+    <text x="20" y="54" fill="#a6adc8" font-size="12">authoritative only for cloud replay log — local SQLite remains source of truth</text>
+    <text x="20" y="82" font-family="ui-monospace, 'SF Mono', Menlo, monospace" fill="#94e2d5" font-size="12">cloud_mutations (project, seq, entity, op, payload, …)</text>
+  </g>
+  <line x1="940" y1="730" x2="940" y2="748" stroke="#89b4fa" stroke-width="2" fill="none" marker-end="url(#a-blue)"/>
+
+  <!-- Legend -->
+  <g transform="translate(60,825)">
+    <rect x="0"   y="0" width="14" height="14" rx="3" fill="#fab387"/>
+    <text x="22" y="12" fill="#a6adc8" font-size="12">local</text>
+    <rect x="90"  y="0" width="14" height="14" rx="3" fill="#f9e2af"/>
+    <text x="112" y="12" fill="#a6adc8" font-size="12">runtime</text>
+    <rect x="180" y="0" width="14" height="14" rx="3" fill="#89b4fa"/>
+    <text x="202" y="12" fill="#a6adc8" font-size="12">wire / HTTPS</text>
+    <rect x="300" y="0" width="14" height="14" rx="3" fill="#cba6f7"/>
+    <text x="322" y="12" fill="#a6adc8" font-size="12">dashboard</text>
+    <rect x="410" y="0" width="14" height="14" rx="3" fill="#94e2d5"/>
+    <text x="432" y="12" fill="#a6adc8" font-size="12">cloud</text>
+    <rect x="490" y="0" width="14" height="14" rx="3" fill="#a6e3a1"/>
+    <text x="512" y="12" fill="#a6adc8" font-size="12">persistent store</text>
+    <rect x="640" y="0" width="14" height="14" rx="3" fill="#f2cdcd"/>
+    <text x="662" y="12" fill="#a6adc8" font-size="12">external agent</text>
+  </g>
+</svg>
