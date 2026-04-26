@@ -27,6 +27,24 @@ type quoteChatAdapter struct {
 	emailSvc     *emailpkg.Service
 	publicURL    string
 	db           *sql.DB
+	// finalizeHook (opcional) — wave 8 lo usa para auto-sync al repo central
+	// cuando una session pasa a 'finalized'. Nil-safe.
+	finalizeHook quoteChatFinalizeHook
+}
+
+// quoteChatFinalizeHook captura el callback que knowledgebase.Service invoca
+// al cerrar una sesión con quote_id ya seteado.
+type quoteChatFinalizeHook interface {
+	OnQuoteFinalized(ctx context.Context, sessionID, quoteID string) error
+}
+
+// setFinalizeHook permite inyectar el callback de wave 8 sin acoplar el
+// adapter al paquete knowledgebase directamente.
+func (a *quoteChatAdapter) setFinalizeHook(h quoteChatFinalizeHook) {
+	if a == nil {
+		return
+	}
+	a.finalizeHook = h
 }
 
 // newQuoteChatAdapter wires the adapter. db, store, router, redactorSvc are
@@ -310,10 +328,17 @@ func (a *quoteChatAdapter) FinalizeSession(ctx context.Context, sessionID, byUID
 		if err := a.store.FinalizeChatSession(ctx, sessionID, q.ID); err != nil {
 			return "", err
 		}
+		// Wave 8: trigger knowledge-base sync. Async + nil-safe.
+		if a.finalizeHook != nil {
+			_ = a.finalizeHook.OnQuoteFinalized(ctx, sessionID, q.ID)
+		}
 		return q.ID, nil
 	}
 	if err := a.store.FinalizeChatSession(ctx, sessionID, ""); err != nil {
 		return "", err
+	}
+	if a.finalizeHook != nil {
+		_ = a.finalizeHook.OnQuoteFinalized(ctx, sessionID, sess.QuoteID.String)
 	}
 	return sess.QuoteID.String, nil
 }

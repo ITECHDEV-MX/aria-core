@@ -15,6 +15,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/constants"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboardsession"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/knowledgebase"
 	coreproject "github.com/ITECHDEV-MX/aria-core/internal/project"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
@@ -85,6 +86,8 @@ type CloudServer struct {
 	passwordResetMailer dashboard.PasswordResetMailerService
 	personalCockpit  dashboard.PersonalCockpitService
 	profile          dashboard.ProfileService
+	kb               knowledgebase.Service
+	kbDash           dashboard.KnowledgeBaseDashboardService
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -411,6 +414,25 @@ func WithQuoteChat(q dashboard.QuoteChatService) Option {
 	}
 }
 
+// WithKnowledgeBase inyecta el servicio knowledge-base sync (wave 8). Si nil,
+// los endpoints /v1/knowledge-base/*, /v1/cotizador/quotes/{id}/export/* y la
+// vista admin /dashboard/knowledge-base devuelven 503. El service también es
+// el QuoteChatHook que la chat orchestrator dispara al finalizar una sesión.
+func WithKnowledgeBase(kb knowledgebase.Service) Option {
+	return func(s *CloudServer) {
+		s.kb = kb
+	}
+}
+
+// WithKnowledgeBaseDashboard inyecta el adapter dashboard del módulo KB.
+// Separado de WithKnowledgeBase para que tests puedan inyectar mocks
+// independientes.
+func WithKnowledgeBaseDashboard(d dashboard.KnowledgeBaseDashboardService) Option {
+	return func(s *CloudServer) {
+		s.kbDash = d
+	}
+}
+
 // AriaMemService es el contrato de la capa de memoria ARIA.
 type AriaMemService interface {
 	Save(ctx context.Context, p AriaMemSaveInput) (*AriaMemObservation, error)
@@ -697,6 +719,7 @@ func (s *CloudServer) routes() {
 		ROI:               s.roiDash,
 		Pages:             s.pagesDash,
 		QuoteChat:         s.quoteChat,
+		KnowledgeBase:     s.kbDash,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -852,6 +875,16 @@ func (s *CloudServer) routes() {
 	// === Page databases + comments (DB module) ===
 	if s.pageDB != nil || s.pageComments != nil {
 		s.mountPagesDashboard()
+	}
+
+	// === Knowledge-base sync (wave 8) ===
+	if s.kb != nil {
+		s.mux.HandleFunc("POST /v1/knowledge-base/sync", s.withJWTRole([]string{"admin"}, s.handleV1KBSyncAll))
+		s.mux.HandleFunc("POST /v1/knowledge-base/sync/{projectID}", s.withJWTRole([]string{"admin"}, s.handleV1KBSyncProject))
+		s.mux.HandleFunc("GET /v1/knowledge-base/status", s.withJWTAuth(s.handleV1KBStatus))
+		s.mux.HandleFunc("GET /v1/cotizador/quotes/{quoteID}/export/docx", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1QuoteExportDOCX))
+		s.mux.HandleFunc("GET /v1/cotizador/quotes/{quoteID}/export/markdown", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1QuoteExportMarkdown))
+		s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/sync-to-kb", s.withJWTRole([]string{"admin", "agent", "cotizador"}, s.handleV1QuoteSyncToKB))
 	}
 }
 

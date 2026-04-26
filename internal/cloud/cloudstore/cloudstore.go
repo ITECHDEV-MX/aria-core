@@ -13,6 +13,7 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/chunkcodec"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/knowledgebase"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/attachments"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
@@ -1272,6 +1273,12 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		return fmt.Errorf("cloudstore: attachments migrate: %w", err)
 	}
 	// END ATTACHMENTS MIGRATIONS
+
+	// BEGIN KNOWLEDGE_BASE MIGRATIONS
+	if err := knowledgebase.Migrate(ctx, cs.db); err != nil {
+		return fmt.Errorf("cloudstore: knowledgebase migrate: %w", err)
+	}
+	// END KNOWLEDGE_BASE MIGRATIONS
 	return nil
 }
 

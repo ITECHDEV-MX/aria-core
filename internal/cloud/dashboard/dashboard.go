@@ -98,6 +98,54 @@ type MountConfig struct {
 	Pages PagesDashboardService
 	// QuoteChat (opcional) — habilita /dashboard/cotizador/quote-chat (wave 6).
 	QuoteChat QuoteChatService
+	// KnowledgeBase (opcional) — habilita /dashboard/knowledge-base (wave 8).
+	KnowledgeBase KnowledgeBaseDashboardService
+}
+
+// KnowledgeBaseDashboardService es el contrato que el adapter del knowledge-base
+// expone al dashboard. Espeja la API pública de knowledgebase.Service pero
+// con view-models propios para evitar import cíclico.
+type KnowledgeBaseDashboardService interface {
+	Available() bool
+	Status(ctx context.Context) (KBStatusView, error)
+	List(ctx context.Context, filter KBListFilterView) ([]KBSyncedEntityView, error)
+	ResyncFailed(ctx context.Context) (int, error)
+	ResyncProject(ctx context.Context, projectID string) (int, error)
+	SyncQuote(ctx context.Context, quoteID string) (string, string, error)
+	SyncPRD(ctx context.Context, pageID string) (string, string, error)
+	RefreshIndex(ctx context.Context) error
+	GenerateQuoteDOCX(ctx context.Context, quoteID string) ([]byte, error)
+}
+
+// KBStatusView resume estado de sync para el dashboard.
+type KBStatusView struct {
+	Total   int
+	OK      int
+	Pending int
+	Failed  int
+	Skipped int
+}
+
+// KBListFilterView filtra el listado del dashboard.
+type KBListFilterView struct {
+	EntityType string
+	ProjectID  string
+	Status     string
+	Limit      int
+}
+
+// KBSyncedEntityView es una fila del tracking visible en el dashboard.
+type KBSyncedEntityView struct {
+	ID            string
+	EntityType    string
+	EntityID      string
+	ProjectID     string
+	RepoPath      string
+	LastCommitSHA string
+	LastSyncedAt  time.Time
+	SyncStatus    string
+	LastError     string
+	GitHubURL     string
 }
 
 // QuoteChatService is the dashboard contract for the chat-quote workflow.
@@ -1066,6 +1114,18 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 
 	// Cmd+K Quick Switcher cross-everything (pages + obs + skills + recipes + leads + quotes).
 	mux.HandleFunc("GET /dashboard/quick-search", h.requireSession(h.handleQuickSearch))
+
+	// === Knowledge base sync (wave 8) — admin-gated ===
+	if cfg.KnowledgeBase != nil {
+		mux.HandleFunc("GET /dashboard/knowledge-base", h.requireAdmin(h.handleKnowledgeBasePage))
+		mux.HandleFunc("GET /dashboard/knowledge-base/list", h.requireAdmin(h.handleKnowledgeBaseList))
+		mux.HandleFunc("GET /dashboard/knowledge-base/status", h.requireAdmin(h.handleKnowledgeBaseStatus))
+		mux.HandleFunc("POST /dashboard/knowledge-base/resync-failed", h.requireAdmin(h.handleKnowledgeBaseResyncFailed))
+		mux.HandleFunc("POST /dashboard/knowledge-base/refresh-index", h.requireAdmin(h.handleKnowledgeBaseRefreshIndex))
+		mux.HandleFunc("POST /dashboard/knowledge-base/projects/{projectID}/resync", h.requireAdmin(h.handleKnowledgeBaseResyncProject))
+		// Sync de cotización: cualquier rol comercial puede triggerear el sync.
+		mux.HandleFunc("POST /dashboard/knowledge-base/quotes/{quoteID}/sync", h.requireAnyRole([]string{"admin", "cotizador"}, h.handleKnowledgeBaseSyncQuote))
+	}
 
 	// === Vault: bóveda de secretos (admin-gated) ===
 	mux.HandleFunc("GET /dashboard/vault", h.requireAdmin(h.handleVaultPage))

@@ -590,6 +590,10 @@ func main() {
 		cmdComments()
 	case "cotizador":
 		cmdCotizadorCLI(cfg)
+	case "kb", "knowledge-base":
+		cmdKB(cfg)
+	case "quote":
+		cmdQuote(cfg)
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -812,6 +816,11 @@ func runAriaCloudMCP(cfg store.Config) {
 	})
 	// Pages tools (mini-Notion): aria_page_create/get/search + aria_pages_tree.
 	mcp.RegisterAriaPagesTools(srv, mcp.PagesMCPConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	// Knowledge-base tools (wave 8): aria_kb_status/sync_*, aria_quote_export_docx.
+	mcp.RegisterAriaKnowledgeBaseTools(srv, mcp.KnowledgeBaseMCPConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})
