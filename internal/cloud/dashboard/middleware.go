@@ -42,3 +42,37 @@ func (h *handlers) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	})
 }
+
+// requireAnyRole envuelve requireSession y permite acceso si el usuario tiene
+// al menos uno de los roles dados. Admin siempre tiene acceso (super-rol).
+func (h *handlers) requireAnyRole(allowed []string, next http.HandlerFunc) http.HandlerFunc {
+	return h.requireSession(func(w http.ResponseWriter, r *http.Request) {
+		var userRoles []string
+		if h.cfg.GetRoles != nil {
+			userRoles = h.cfg.GetRoles(r)
+		}
+		ok := false
+		for _, want := range allowed {
+			for _, got := range userRoles {
+				if got == want {
+					ok = true
+					break
+				}
+			}
+			if ok {
+				break
+			}
+		}
+		if !ok {
+			if isHTMXRequest(r) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusForbidden)
+				_, _ = w.Write([]byte(`<div class="login-error" role="alert">Forbidden — required role not found</div>`))
+				return
+			}
+			http.Error(w, "forbidden: required role not assigned", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	})
+}

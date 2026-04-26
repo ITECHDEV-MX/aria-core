@@ -64,6 +64,52 @@ type MountConfig struct {
 	StatusProvider      SyncStatusProvider
 	// AdminUsers (opcional) — habilita CRUD de usuarios en /dashboard/admin/users.
 	AdminUsers AdminUserService
+	// Cotizador (opcional) — habilita módulo Cotizaciones en /dashboard/cotizador.
+	Cotizador CotizadorService
+}
+
+// CotizadorService es el contrato del módulo Cotizador para el dashboard.
+type CotizadorService interface {
+	ListLeads(ctx context.Context, status string) ([]CotizadorLeadView, error)
+	GetLead(ctx context.Context, id string) (*CotizadorLeadView, error)
+	CreateLead(ctx context.Context, p CreateLeadInput) (*CotizadorLeadView, error)
+	UpdateLead(ctx context.Context, id, name, company, email, phone, source, notes string) error
+	UpdateLeadStatus(ctx context.Context, id, newStatus, byUID, notes string) error
+	LeadHistory(ctx context.Context, leadID string, limit int) ([]CotizadorLeadHistoryView, error)
+	CountLeadsByStatus(ctx context.Context) (map[string]int, error)
+}
+
+type CotizadorLeadView struct {
+	ID            string
+	Name          string
+	Company       string
+	Email         string
+	Phone         string
+	Source        string
+	Status        string
+	Notes         string
+	CreatedByRole string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type CotizadorLeadHistoryView struct {
+	Action     string
+	FromStatus string
+	ToStatus   string
+	Notes      string
+	OccurredAt time.Time
+}
+
+type CreateLeadInput struct {
+	Name         string
+	Company      string
+	Email        string
+	Phone        string
+	Source       string
+	Notes        string
+	CreatedByUID string
+	Role         string
 }
 
 // AdminUserService expone el CRUD de usuarios al dashboard admin.
@@ -184,6 +230,15 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	// Audit log routes — admin-gated (REQ-408, REQ-409).
 	mux.HandleFunc("GET /dashboard/admin/audit-log", h.requireSession(h.handleAdminAuditLog))
 	mux.HandleFunc("GET /dashboard/admin/audit-log/list", h.requireSession(h.handleAdminAuditLogList))
+
+	// === Cotizador module — visible solo para roles admin + cotizador ===
+	cotizadorRoles := []string{"admin", "cotizador"}
+	mux.HandleFunc("GET /dashboard/cotizador", h.requireAnyRole(cotizadorRoles, h.handleCotizadorHome))
+	mux.HandleFunc("GET /dashboard/cotizador/leads/list", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadsList))
+	mux.HandleFunc("POST /dashboard/cotizador/leads/create", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadCreate))
+	mux.HandleFunc("GET /dashboard/cotizador/leads/{id}", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadDetail))
+	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/status", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadStatusChange))
+	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/update", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadUpdate))
 }
 
 func Handler() http.Handler {

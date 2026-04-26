@@ -504,6 +504,58 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		// ese mismo role o rol admin.
 		`ALTER TABLE cloud_chunks ADD COLUMN IF NOT EXISTS created_by_role TEXT NOT NULL DEFAULT 'shared'`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_chunks_created_by_role ON cloud_chunks(created_by_role)`,
+
+		// === Cotizador module (commit 2: leads + clients base) ===
+		// Estado del lead a lo largo del funnel.
+		`CREATE TABLE IF NOT EXISTS cotizador_leads (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			name TEXT NOT NULL,
+			company TEXT NOT NULL DEFAULT '',
+			email TEXT NOT NULL DEFAULT '',
+			phone TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'new',
+			notes TEXT NOT NULL DEFAULT '',
+			owner_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_by_role TEXT NOT NULL DEFAULT 'cotizador',
+			client_id UUID,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT cotizador_leads_status_check CHECK (status IN ('new','contacted','qualified','quoting','won','lost'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_leads_status ON cotizador_leads(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_leads_owner ON cotizador_leads(owner_uid)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_leads_created_at ON cotizador_leads(created_at DESC)`,
+
+		// Audit log de cambios de estado del lead.
+		`CREATE TABLE IF NOT EXISTS cotizador_lead_history (
+			id BIGSERIAL PRIMARY KEY,
+			lead_id UUID NOT NULL REFERENCES cotizador_leads(id) ON DELETE CASCADE,
+			action TEXT NOT NULL,
+			from_status TEXT,
+			to_status TEXT,
+			by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			notes TEXT NOT NULL DEFAULT '',
+			occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lead_history_lead ON cotizador_lead_history(lead_id, occurred_at DESC)`,
+
+		// Clientes confirmados (post-won). Más metadata que un lead.
+		`CREATE TABLE IF NOT EXISTS cotizador_clients (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			lead_id UUID REFERENCES cotizador_leads(id) ON DELETE SET NULL,
+			legal_name TEXT NOT NULL,
+			rfc TEXT NOT NULL DEFAULT '',
+			fiscal_address TEXT NOT NULL DEFAULT '',
+			billing_email TEXT NOT NULL DEFAULT '',
+			contacts_json JSONB NOT NULL DEFAULT '[]',
+			notes TEXT NOT NULL DEFAULT '',
+			created_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_clients_lead ON cotizador_clients(lead_id)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

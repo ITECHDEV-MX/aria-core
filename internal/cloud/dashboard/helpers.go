@@ -305,6 +305,42 @@ func hasAnyRole(roles []string, wanted ...string) bool {
 	return false
 }
 
+// cotizadorLeadStatuses retorna los estados del lead para selects/filtros.
+func cotizadorLeadStatuses() []RoleOption {
+	return []RoleOption{
+		{Value: "new", Label: "Nuevo"},
+		{Value: "contacted", Label: "Contactado"},
+		{Value: "qualified", Label: "Calificado"},
+		{Value: "quoting", Label: "Cotizando"},
+		{Value: "won", Label: "Ganado"},
+		{Value: "lost", Label: "Perdido"},
+	}
+}
+
+// cotizadorStatusLabel devuelve el display name de un status.
+func cotizadorStatusLabel(s string) string {
+	for _, st := range cotizadorLeadStatuses() {
+		if st.Value == s {
+			return st.Label
+		}
+	}
+	return s
+}
+
+// cotizadorStatusVariant devuelve clase CSS por estado para el badge.
+func cotizadorStatusVariant(s string) string {
+	switch s {
+	case "won":
+		return "success"
+	case "lost":
+		return "danger"
+	case "quoting", "qualified":
+		return "warning"
+	default:
+		return "muted"
+	}
+}
+
 // rolesBadge produce el subtítulo del header con los roles activos del usuario.
 func rolesBadge(roles []string) string {
 	if len(roles) == 0 {

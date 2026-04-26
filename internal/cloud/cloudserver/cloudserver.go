@@ -58,6 +58,7 @@ type CloudServer struct {
 	listenAndServe func(addr string, handler http.Handler) error
 	sessionCodec   *dashboardsession.Codec
 	userStore      DashboardUserService
+	cotizador      dashboard.CotizadorService
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
@@ -126,6 +127,13 @@ func WithSessionCodec(codec *dashboardsession.Codec) Option {
 func WithUserStore(us DashboardUserService) Option {
 	return func(s *CloudServer) {
 		s.userStore = us
+	}
+}
+
+// WithCotizador inyecta el servicio Cotizador para el dashboard.
+func WithCotizador(c dashboard.CotizadorService) Option {
+	return func(s *CloudServer) {
+		s.cotizador = c
 	}
 }
 
@@ -254,6 +262,7 @@ func (s *CloudServer) routes() {
 		MaxLoginBodyBytes: maxDashboardLoginBodyBytes,
 		StatusProvider:    s.syncStatus,
 		AdminUsers:        adminUsers,
+		Cotizador:         s.cotizador,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
