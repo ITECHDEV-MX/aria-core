@@ -556,6 +556,80 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cotizador_clients_lead ON cotizador_clients(lead_id)`,
+
+		// === Cotizador commit 4: RFPs + Quotes + items + FTS histórico ===
+		// RFPs analizados (texto pegado o pdf-extracted; analysis_json es output del análisis manual o IA).
+		`CREATE TABLE IF NOT EXISTS cotizador_rfps (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			lead_id UUID NOT NULL REFERENCES cotizador_leads(id) ON DELETE CASCADE,
+			source_type TEXT NOT NULL DEFAULT 'text',
+			source_content TEXT NOT NULL DEFAULT '',
+			analysis_json JSONB NOT NULL DEFAULT '{}',
+			created_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT cotizador_rfps_source_check CHECK (source_type IN ('text','pdf','url'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_rfps_lead ON cotizador_rfps(lead_id, created_at DESC)`,
+
+		// Cotizaciones (quotes). Una quote pertenece a un lead, opcionalmente vinculada a un RFP.
+		// version es auto-incremental por lead (v1, v2, v3 cuando se reedita).
+		`CREATE TABLE IF NOT EXISTS cotizador_quotes (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			lead_id UUID NOT NULL REFERENCES cotizador_leads(id) ON DELETE CASCADE,
+			rfp_id UUID REFERENCES cotizador_rfps(id) ON DELETE SET NULL,
+			version INTEGER NOT NULL DEFAULT 1,
+			status TEXT NOT NULL DEFAULT 'draft',
+			currency TEXT NOT NULL DEFAULT 'MXN',
+			subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
+			taxes NUMERIC(14,2) NOT NULL DEFAULT 0,
+			total NUMERIC(14,2) NOT NULL DEFAULT 0,
+			valid_until DATE,
+			terms TEXT NOT NULL DEFAULT '',
+			justification TEXT NOT NULL DEFAULT '',
+			approved_at TIMESTAMPTZ,
+			approved_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_by_role TEXT NOT NULL DEFAULT 'cotizador',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT cotizador_quotes_status_check CHECK (status IN ('draft','sent','in_review','approved','rejected','expired'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quotes_lead ON cotizador_quotes(lead_id, version DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quotes_status ON cotizador_quotes(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quotes_created_at ON cotizador_quotes(created_at DESC)`,
+
+		// Items de cada cotización.
+		`CREATE TABLE IF NOT EXISTS cotizador_quote_items (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			quote_id UUID NOT NULL REFERENCES cotizador_quotes(id) ON DELETE CASCADE,
+			sku TEXT NOT NULL DEFAULT '',
+			description TEXT NOT NULL,
+			qty NUMERIC(12,3) NOT NULL DEFAULT 1,
+			unit_price NUMERIC(14,2) NOT NULL DEFAULT 0,
+			subtotal NUMERIC(14,2) NOT NULL DEFAULT 0,
+			sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_items_quote ON cotizador_quote_items(quote_id, sort_order)`,
+		// FTS para búsqueda histórica de items (commit 5 lo va a usar full).
+		`ALTER TABLE cotizador_quote_items ADD COLUMN IF NOT EXISTS description_tsv tsvector
+		 GENERATED ALWAYS AS (to_tsvector('simple', coalesce(description,''))) STORED`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_items_fts ON cotizador_quote_items USING GIN (description_tsv)`,
+
+		// Audit log de cambios de estado de la quote (snapshot del momento).
+		`CREATE TABLE IF NOT EXISTS cotizador_quote_history (
+			id BIGSERIAL PRIMARY KEY,
+			quote_id UUID NOT NULL REFERENCES cotizador_quotes(id) ON DELETE CASCADE,
+			action TEXT NOT NULL,
+			from_status TEXT,
+			to_status TEXT,
+			by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			snapshot_json JSONB,
+			notes TEXT NOT NULL DEFAULT '',
+			occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_history_quote ON cotizador_quote_history(quote_id, occurred_at DESC)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

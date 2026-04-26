@@ -341,6 +341,57 @@ func cotizadorStatusVariant(s string) string {
 	}
 }
 
+// cotizadorQuoteStatusOptions retorna los estados de quote para selects.
+func cotizadorQuoteStatusOptions() []RoleOption {
+	return []RoleOption{
+		{Value: "draft", Label: "Borrador"},
+		{Value: "sent", Label: "Enviada"},
+		{Value: "in_review", Label: "En revisión"},
+		{Value: "approved", Label: "Aprobada"},
+		{Value: "rejected", Label: "Rechazada"},
+		{Value: "expired", Label: "Expirada"},
+	}
+}
+
+func cotizadorQuoteStatusLabel(s string) string {
+	for _, st := range cotizadorQuoteStatusOptions() {
+		if st.Value == s {
+			return st.Label
+		}
+	}
+	return s
+}
+
+func cotizadorQuoteStatusVariant(s string) string {
+	switch s {
+	case "approved":
+		return "success"
+	case "rejected", "expired":
+		return "danger"
+	case "sent", "in_review":
+		return "warning"
+	default:
+		return "muted"
+	}
+}
+
+// formatDateOrDash formatea time.Time → "02 Jan 2006" o "-" si nil/zero.
+func formatDateOrDash(t *time.Time) string {
+	if t == nil || t.IsZero() {
+		return "-"
+	}
+	return t.Local().Format("02 Jan 2006")
+}
+
+// truncateString recorta a max chars con "...".
+func truncateString(s string, max int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
 // rolesBadge produce el subtítulo del header con los roles activos del usuario.
 func rolesBadge(roles []string) string {
 	if len(roles) == 0 {

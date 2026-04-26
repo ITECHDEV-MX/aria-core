@@ -281,6 +281,16 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadGet))
 	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/status", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadStatus))
 	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}/history", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLeadHistory))
+	// RFPs
+	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/rfps", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorRFPCreate))
+	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}/rfps", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorRFPList))
+	s.mux.HandleFunc("GET /v1/cotizador/rfps/{rfpID}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorRFPGet))
+	s.mux.HandleFunc("POST /v1/cotizador/rfps/{rfpID}/analysis", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorRFPAnalysisUpdate))
+	// Quotes
+	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/quotes", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteCreate))
+	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}/quotes", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteList))
+	s.mux.HandleFunc("GET /v1/cotizador/quotes/{quoteID}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteGet))
+	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/status", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteStatus))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {

@@ -70,6 +70,7 @@ type MountConfig struct {
 
 // CotizadorService es el contrato del módulo Cotizador para el dashboard.
 type CotizadorService interface {
+	// Leads
 	ListLeads(ctx context.Context, status string) ([]CotizadorLeadView, error)
 	GetLead(ctx context.Context, id string) (*CotizadorLeadView, error)
 	CreateLead(ctx context.Context, p CreateLeadInput) (*CotizadorLeadView, error)
@@ -77,6 +78,91 @@ type CotizadorService interface {
 	UpdateLeadStatus(ctx context.Context, id, newStatus, byUID, notes string) error
 	LeadHistory(ctx context.Context, leadID string, limit int) ([]CotizadorLeadHistoryView, error)
 	CountLeadsByStatus(ctx context.Context) (map[string]int, error)
+	// RFPs
+	ListRFPsByLead(ctx context.Context, leadID string) ([]CotizadorRFPView, error)
+	GetRFP(ctx context.Context, id string) (*CotizadorRFPView, error)
+	CreateRFP(ctx context.Context, p CreateRFPInput) (*CotizadorRFPView, error)
+	UpdateRFPAnalysis(ctx context.Context, id, analysisJSON string) error
+	// Quotes
+	ListQuotesByLead(ctx context.Context, leadID string) ([]CotizadorQuoteView, error)
+	GetQuote(ctx context.Context, id string) (*CotizadorQuoteView, error)
+	ListQuoteItems(ctx context.Context, quoteID string) ([]CotizadorQuoteItemView, error)
+	CreateQuote(ctx context.Context, p CreateQuoteInput) (*CotizadorQuoteView, error)
+	UpdateQuoteStatus(ctx context.Context, quoteID, newStatus, byUID, notes string) error
+	QuoteHistory(ctx context.Context, quoteID string, limit int) ([]CotizadorQuoteHistoryView, error)
+}
+
+type CotizadorRFPView struct {
+	ID            string
+	LeadID        string
+	SourceType    string
+	SourceContent string
+	AnalysisJSON  string
+	CreatedAt     time.Time
+}
+
+type CreateRFPInput struct {
+	LeadID        string
+	SourceType    string
+	SourceContent string
+	AnalysisJSON  string
+	CreatedByUID  string
+}
+
+type CotizadorQuoteView struct {
+	ID            string
+	LeadID        string
+	RFPID         string
+	Version       int
+	Status        string
+	Currency      string
+	Subtotal      float64
+	Taxes         float64
+	Total         float64
+	ValidUntil    *time.Time
+	Terms         string
+	Justification string
+	CreatedByRole string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ApprovedAt    *time.Time
+}
+
+type CotizadorQuoteItemView struct {
+	ID          string
+	SKU         string
+	Description string
+	Qty         float64
+	UnitPrice   float64
+	Subtotal    float64
+	SortOrder   int
+}
+
+type CotizadorQuoteHistoryView struct {
+	Action     string
+	FromStatus string
+	ToStatus   string
+	Notes      string
+	OccurredAt time.Time
+}
+
+type CreateQuoteInput struct {
+	LeadID        string
+	RFPID         string
+	Currency      string
+	ValidUntil    *time.Time
+	Terms         string
+	Justification string
+	CreatedByUID  string
+	Role          string
+	Items         []CreateQuoteItemInput
+}
+
+type CreateQuoteItemInput struct {
+	SKU         string
+	Description string
+	Qty         float64
+	UnitPrice   float64
 }
 
 type CotizadorLeadView struct {
@@ -239,6 +325,15 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/cotizador/leads/{id}", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadDetail))
 	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/status", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadStatusChange))
 	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/update", h.requireAnyRole(cotizadorRoles, h.handleCotizadorLeadUpdate))
+	// RFPs
+	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/rfps/create", h.requireAnyRole(cotizadorRoles, h.handleCotizadorRFPCreate))
+	mux.HandleFunc("GET /dashboard/cotizador/rfps/{rfpID}", h.requireAnyRole(cotizadorRoles, h.handleCotizadorRFPDetail))
+	mux.HandleFunc("POST /dashboard/cotizador/rfps/{rfpID}/analysis", h.requireAnyRole(cotizadorRoles, h.handleCotizadorRFPAnalysisUpdate))
+	// Quotes
+	mux.HandleFunc("GET /dashboard/cotizador/leads/{id}/quotes/new", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteNewForm))
+	mux.HandleFunc("POST /dashboard/cotizador/leads/{id}/quotes/create", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteCreate))
+	mux.HandleFunc("GET /dashboard/cotizador/quotes/{quoteID}", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteDetail))
+	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/status", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteStatusChange))
 }
 
 func Handler() http.Handler {

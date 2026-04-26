@@ -79,7 +79,7 @@ func (h *handlers) handleCotizadorLeadCreate(w http.ResponseWriter, r *http.Requ
 	renderComponent(w, r, CotizadorLeadsPartial(leads, "", ""))
 }
 
-// handleCotizadorLeadDetail — GET: detalle de un lead + history.
+// handleCotizadorLeadDetail — GET: detalle completo del lead (info + RFPs + quotes + history).
 func (h *handlers) handleCotizadorLeadDetail(w http.ResponseWriter, r *http.Request) {
 	if h.cfg.Cotizador == nil {
 		http.Error(w, "cotizador module not configured", http.StatusServiceUnavailable)
@@ -92,8 +92,10 @@ func (h *handlers) handleCotizadorLeadDetail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	history, _ := h.cfg.Cotizador.LeadHistory(r.Context(), id, 50)
+	rfps, _ := h.cfg.Cotizador.ListRFPsByLead(r.Context(), id)
+	quotes, _ := h.cfg.Cotizador.ListQuotesByLead(r.Context(), id)
 	p := h.principalFromRequest(r)
-	component := CotizadorLeadDetail(lead, history)
+	component := CotizadorLeadDetailFull(lead, history, rfps, quotes)
 	if isHTMXRequest(r) {
 		renderComponent(w, r, component)
 		return
@@ -126,7 +128,9 @@ func (h *handlers) handleCotizadorLeadStatusChange(w http.ResponseWriter, r *htt
 		return
 	}
 	history, _ := h.cfg.Cotizador.LeadHistory(r.Context(), id, 50)
-	renderComponent(w, r, CotizadorLeadDetail(lead, history))
+	rfps, _ := h.cfg.Cotizador.ListRFPsByLead(r.Context(), id)
+	quotes, _ := h.cfg.Cotizador.ListQuotesByLead(r.Context(), id)
+	renderComponent(w, r, CotizadorLeadDetailFull(lead, history, rfps, quotes))
 }
 
 // handleCotizadorLeadUpdate — POST: edita campos del lead (no status).
@@ -152,5 +156,7 @@ func (h *handlers) handleCotizadorLeadUpdate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	history, _ := h.cfg.Cotizador.LeadHistory(r.Context(), id, 50)
-	renderComponent(w, r, CotizadorLeadDetail(lead, history))
+	rfps, _ := h.cfg.Cotizador.ListRFPsByLead(r.Context(), id)
+	quotes, _ := h.cfg.Cotizador.ListQuotesByLead(r.Context(), id)
+	renderComponent(w, r, CotizadorLeadDetailFull(lead, history, rfps, quotes))
 }
