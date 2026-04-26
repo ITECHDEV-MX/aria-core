@@ -41,6 +41,7 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 
 						<div class="sidebar-nav-section">Conocimiento</div>
 						@SidebarLink("/dashboard/memorias", "💡", "Memoria", "memorias", activeTab)
+						@SidebarLink("/dashboard/pages", "📄", "Wiki", "pages", activeTab)
 						if hasAnyRole(roles, "admin", "dev") {
 							@SidebarLink("/dashboard/browser", "🔄", "Sync", "browser", activeTab)
 						}
@@ -87,6 +88,8 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 				</main>
 			</div>
 			<div id="aria-toast-container" class="toast-container" hx-swap-oob="beforeend"></div>
+			@QuickSwitcherOverlay()
+			<script src="/dashboard/static/aria-quicksearch.js" defer></script>
 			<script>
 				// Auto-dismiss toasts after 4s
 				document.addEventListener('htmx:afterSwap', function(e) {
@@ -101,6 +104,30 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 			</script>
 		</body>
 	</html>
+}
+
+// QuickSwitcherOverlay — modal global Cmd+K (vanilla JS).
+// Renderiza siempre presente pero hidden por default. aria-quicksearch.js
+// se encarga de toggle (cmd/ctrl+k), navegación con arrows + Enter/Esc.
+templ QuickSwitcherOverlay() {
+	<div id="aria-quickswitcher" class="aria-qs-overlay" hidden role="dialog" aria-modal="true" aria-label="Quick switcher">
+		<div class="aria-qs-modal" role="document">
+			<input type="search"
+				id="aria-qs-input"
+				class="aria-qs-input"
+				placeholder="Buscar páginas, memorias, skills, recetas, leads, cotizaciones..."
+				autocomplete="off"
+				hx-get="/dashboard/quick-search"
+				hx-target="#aria-qs-results"
+				hx-swap="innerHTML"
+				hx-trigger="keyup changed delay:200ms, focus"
+				hx-include="this"
+				name="q"/>
+			<div id="aria-qs-results" class="aria-qs-results">
+				<p class="aria-qs-hint">Empezá a escribir... Esc para cerrar · ↑↓ navega · Enter abre</p>
+			</div>
+		</div>
+	</div>
 }
 
 // Toast — notificación efímera (auto-dismiss 4s vía JS en layout).

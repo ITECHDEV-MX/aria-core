@@ -584,6 +584,8 @@ func main() {
 		cmdROI()
 	case "recipe", "recipes":
 		cmdRecipe()
+	case "pages":
+		cmdPages()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -801,6 +803,11 @@ func runAriaCloudMCP(cfg store.Config) {
 	// Vault tools: ejecutan comandos locales con secrets cargados desde el cloud,
 	// nunca exponen el plaintext al modelo. Registrados en el mismo server.
 	mcp.RegisterAriaVaultTools(srv, mcp.VaultMCPConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	// Pages tools (mini-Notion): aria_page_create/get/search + aria_pages_tree.
+	mcp.RegisterAriaPagesTools(srv, mcp.PagesMCPConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})
@@ -2248,6 +2255,14 @@ Commands:
                                                      Ejecuta el recipe sincrónicamente
                        history [--key=X] [--days=30] Últimas ejecuciones
                        seed                          Carga 3 recipes builtin (idempotente)
+  pages <subcommand>  Mini-Notion wiki (cloud-side)
+                       list [--project=X]            Lista páginas no archivadas
+                       create --title="..." [--template=KEY] [--parent-id=UUID] [--by-uid=UUID]
+                                                     Crea una página
+                       export PAGE_ID [--format=md|html]
+                                                     Exporta contenido renderizado
+                       seed-templates --by-uid=UUID  Carga los 5 templates builtin
+                       import-notion ZIP_FILE        (TODO) Import export Notion .zip
   obsidian-export    Export memories to an Obsidian-compatible markdown vault
                        --vault         Path to Obsidian vault root (required)
                        --project       Filter export to a single project (optional)

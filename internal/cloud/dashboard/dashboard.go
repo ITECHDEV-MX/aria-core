@@ -84,6 +84,112 @@ type MountConfig struct {
 	// ROI (opcional) — habilita /dashboard/roi con métricas TTC/RDR/CWR/SVR/DTT
 	// y savings consolidados.
 	ROI ROIService
+	// Pages (opcional) — habilita /dashboard/pages con mini-Notion: tree + markdown editor + Cmd+K.
+	Pages PagesDashboardService
+}
+
+// PagesDashboardService es el contrato del módulo de páginas (mini-Notion) para
+// el dashboard. Implementación de referencia: internal/cloud/pages.PgStore (vía adapter).
+type PagesDashboardService interface {
+	Tree(ctx context.Context, project, scope string) ([]PageView, error)
+	Get(ctx context.Context, id string) (*PageView, error)
+	Create(ctx context.Context, in CreatePageInput) (*PageView, error)
+	Update(ctx context.Context, id string, in UpdatePageInput) (*PageView, error)
+	Move(ctx context.Context, id, newParentID string, newSortOrder int) error
+	Archive(ctx context.Context, id string) error
+	Restore(ctx context.Context, id string) error
+	ListRevisions(ctx context.Context, pageID string, limit int) ([]PageRevisionView, error)
+	RevertToRevision(ctx context.Context, pageID, revisionID, byUID string) error
+	ListTemplates() []PageTemplateView
+	QuickSearchAll(ctx context.Context, query string, limit int) (*QuickSearchView, error)
+}
+
+// PageView espeja pages.Page sin importar el paquete pages dentro de dashboard.
+type PageView struct {
+	ID            string
+	ParentID      string
+	Title         string
+	ContentMD     string
+	Icon          string
+	Project       string
+	Scope         string
+	ClientID      string
+	PageType      string
+	TemplateKey   string
+	Sensitivity   string
+	SortOrder     int
+	IsArchived    bool
+	CreatedByUID  string
+	CreatedAt     time.Time
+	UpdatedByUID  string
+	UpdatedAt     time.Time
+	ChildrenCount int
+	Path          []PageBreadcrumbView
+}
+
+type PageBreadcrumbView struct {
+	ID    string
+	Title string
+	Icon  string
+}
+
+type PageRevisionView struct {
+	ID          string
+	PageID      string
+	Title       string
+	ContentMD   string
+	EditedByUID string
+	EditSummary string
+	CreatedAt   time.Time
+}
+
+type PageTemplateView struct {
+	Key         string
+	Name        string
+	Description string
+	Icon        string
+}
+
+type CreatePageInput struct {
+	ParentID     string
+	Title        string
+	ContentMD    string
+	Icon         string
+	Project      string
+	Scope        string
+	Sensitivity  string
+	TemplateKey  string
+	CreatedByUID string
+}
+
+type UpdatePageInput struct {
+	Title        *string
+	ContentMD    *string
+	Icon         *string
+	Project      *string
+	Scope        *string
+	Sensitivity  *string
+	UpdatedByUID string
+	EditSummary  string
+}
+
+// QuickSearchView espeja pages.QuickSearchResult.
+type QuickSearchView struct {
+	Pages        []QuickHitView
+	Observations []QuickHitView
+	Skills       []QuickHitView
+	Recipes      []QuickHitView
+	Leads        []QuickHitView
+	Quotes       []QuickHitView
+}
+
+type QuickHitView struct {
+	ID       string
+	Type     string
+	Title    string
+	Subtitle string
+	URL      string
+	Score    float64
 }
 
 // ROIService es el contrato del módulo ROI consumido por el dashboard.
@@ -798,6 +904,23 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/roi", h.requireSession(h.handleROIPage))
 	mux.HandleFunc("GET /dashboard/roi/data", h.requireSession(h.handleROIData))
 	mux.HandleFunc("GET /dashboard/roi/export.csv", h.requireSession(h.handleROIExportCSV))
+
+	// === Pages (mini-Notion) ===
+	// Wave 5: fundación document-centric — tree padre-hijo + markdown editor + Cmd+K.
+	mux.HandleFunc("GET /dashboard/pages", h.requireSession(h.handlePagesHome))
+	mux.HandleFunc("GET /dashboard/pages/tree", h.requireSession(h.handlePagesTreePartial))
+	mux.HandleFunc("GET /dashboard/pages/editor", h.requireSession(h.handlePagesEditor))
+	mux.HandleFunc("POST /dashboard/pages/preview", h.requireSession(h.handlePagesPreview))
+	mux.HandleFunc("POST /dashboard/pages/create", h.requireSession(h.handlePagesCreate))
+	mux.HandleFunc("POST /dashboard/pages/{id}/update", h.requireSession(h.handlePagesUpdate))
+	mux.HandleFunc("POST /dashboard/pages/{id}/move", h.requireSession(h.handlePagesMove))
+	mux.HandleFunc("POST /dashboard/pages/{id}/archive", h.requireSession(h.handlePagesArchive))
+	mux.HandleFunc("POST /dashboard/pages/{id}/restore", h.requireSession(h.handlePagesRestore))
+	mux.HandleFunc("GET /dashboard/pages/{id}/revisions", h.requireSession(h.handlePagesRevisions))
+	mux.HandleFunc("POST /dashboard/pages/{id}/revisions/{rev}/revert", h.requireSession(h.handlePagesRevert))
+
+	// Cmd+K Quick Switcher cross-everything (pages + obs + skills + recipes + leads + quotes).
+	mux.HandleFunc("GET /dashboard/quick-search", h.requireSession(h.handleQuickSearch))
 
 	// === Vault: bóveda de secretos (admin-gated) ===
 	mux.HandleFunc("GET /dashboard/vault", h.requireAdmin(h.handleVaultPage))
