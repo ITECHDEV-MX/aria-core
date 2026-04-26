@@ -705,6 +705,19 @@ func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Com
 	}
 }
 
+// renderWithToast renders the primary HTMX partial and appends an out-of-band
+// toast to the global toast container. Variant: success | error | info.
+func renderWithToast(w http.ResponseWriter, r *http.Request, component templ.Component, message, variant string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := component.Render(r.Context(), w); err != nil {
+		log.Printf("dashboard: templ render error: %v", err)
+		return
+	}
+	if err := ToastOOB(message, variant).Render(r.Context(), w); err != nil {
+		log.Printf("dashboard: toast render error: %v", err)
+	}
+}
+
 // renderComponentStatus renders a templ component with a specific HTTP status code.
 func renderComponentStatus(w http.ResponseWriter, r *http.Request, status int, component templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -1318,15 +1331,15 @@ func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request)
 	}
 	password := r.PostForm.Get("password")
 	if err := h.cfg.AdminUsers.CreateUser(r.Context(), email, name, roles, password); err != nil {
-		renderComponent(w, r, AdminUsersListPartial(nil, fmt.Sprintf("error: %v", err)))
+		renderWithToast(w, r, AdminUsersListPartial(nil, fmt.Sprintf("error: %v", err)), "No se pudo crear el usuario: "+err.Error(), "error")
 		return
 	}
 	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
 	if err != nil {
-		renderComponent(w, r, AdminUsersListPartial(nil, "user creado pero no se pudo recargar la lista"))
+		renderWithToast(w, r, AdminUsersListPartial(nil, "user creado pero no se pudo recargar la lista"), "Usuario creado, pero no pudo recargar la lista", "info")
 		return
 	}
-	renderComponent(w, r, AdminUsersListPartial(users, ""))
+	renderWithToast(w, r, AdminUsersListPartial(users, ""), "Usuario "+email+" creado", "success")
 }
 
 // handleAdminUserAddRole POST /dashboard/admin/users/{uid}/roles/{role}/add
@@ -1425,15 +1438,16 @@ func (h *handlers) handleAdminInviteCreate(w http.ResponseWriter, r *http.Reques
 		invitedByEmail = h.cfg.GetDisplayName(r)
 	}
 	link, emailSent, info, err := h.cfg.Invites.CreateAndSend(r.Context(), emailAddr, roles, invitedByUID, invitedByEmail)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err != nil {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = fmt.Fprintf(w, `<div class="login-error" role="alert">No se pudo crear la invitación: %s</div>`, html.EscapeString(err.Error()))
+		_ = ToastOOB("No se pudo crear la invitación: "+err.Error(), "error").Render(r.Context(), w)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if emailSent {
 		_, _ = fmt.Fprintf(w, `<div class="muted" role="status">Invitación enviada a <strong>%s</strong>. Link: <code>%s</code></div>`,
 			html.EscapeString(emailAddr), html.EscapeString(link))
+		_ = ToastOOB("Invitación enviada a "+emailAddr, "success").Render(r.Context(), w)
 	} else {
 		msg := info
 		if strings.TrimSpace(msg) == "" {
@@ -1441,6 +1455,7 @@ func (h *handlers) handleAdminInviteCreate(w http.ResponseWriter, r *http.Reques
 		}
 		_, _ = fmt.Fprintf(w, `<div class="muted" role="status">%s <code>%s</code></div>`,
 			html.EscapeString(msg), html.EscapeString(link))
+		_ = ToastOOB("Invitación creada. Email no enviado — copiá el link.", "info").Render(r.Context(), w)
 	}
 }
 

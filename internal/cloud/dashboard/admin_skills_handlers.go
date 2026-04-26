@@ -23,7 +23,7 @@ func (h *handlers) handleAdminSkillsList(w http.ResponseWriter, r *http.Request)
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Skills", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Skills", p.DisplayName(), "admin-skills", p.Roles(), component))
 }
 
 // handleAdminSkillsListPartial — endpoint HTMX para refrescar la tabla de skills
@@ -63,7 +63,7 @@ func (h *handlers) handleAdminSkillNew(w http.ResponseWriter, r *http.Request) {
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Nuevo skill", p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Nuevo skill", p.DisplayName(), "admin-skills", p.Roles(), component))
 }
 
 func (h *handlers) handleAdminSkillEdit(w http.ResponseWriter, r *http.Request) {
@@ -83,7 +83,7 @@ func (h *handlers) handleAdminSkillEdit(w http.ResponseWriter, r *http.Request) 
 		renderComponent(w, r, component)
 		return
 	}
-	renderComponent(w, r, Layout("Editar skill — "+sk.Name, p.DisplayName(), "admin", p.Roles(), component))
+	renderComponent(w, r, Layout("Editar skill — "+sk.Name, p.DisplayName(), "admin-skills", p.Roles(), component))
 }
 
 func (h *handlers) handleAdminSkillUpsert(w http.ResponseWriter, r *http.Request) {

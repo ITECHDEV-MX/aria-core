@@ -57,6 +57,7 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 						if hasAnyRole(roles, "admin") {
 							<div class="sidebar-nav-section">Administración</div>
 							@SidebarLink("/dashboard/contributors", "👥", "Colaboradores", "contributors", activeTab)
+							@SidebarLink("/dashboard/admin/skills", "🎯", "Skills", "admin-skills", activeTab)
 							@SidebarLink("/dashboard/admin", "⚙️", "Admin", "admin", activeTab)
 						}
 					</nav>
@@ -80,8 +81,47 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 					@content
 				</main>
 			</div>
+			<div id="aria-toast-container" class="toast-container" hx-swap-oob="beforeend"></div>
+			<script>
+				// Auto-dismiss toasts after 4s
+				document.addEventListener('htmx:afterSwap', function(e) {
+					document.querySelectorAll('.toast:not([data-dismissed])').forEach(function(t) {
+						t.setAttribute('data-dismissed', '1');
+						setTimeout(function() {
+							t.classList.add('toast-leaving');
+							setTimeout(function() { t.remove(); }, 200);
+						}, 4000);
+					});
+				});
+			</script>
 		</body>
 	</html>
+}
+
+// Toast — notificación efímera (auto-dismiss 4s vía JS en layout).
+// Variants: success | error | info. Usar con hx-swap-oob para inyectar
+// desde cualquier handler sin cambiar el target principal.
+templ Toast(message, variant string) {
+	<div class={ "toast", "toast-" + variant }>
+		<span class="toast-icon">
+			if variant == "success" {
+				✓
+			} else if variant == "error" {
+				⚠
+			} else {
+				ℹ
+			}
+		</span>
+		<span class="toast-message">{ message }</span>
+	</div>
+}
+
+// ToastOOB — wrapper que inyecta un toast en el contenedor global vía HTMX OOB.
+// Usar al final de la response: @ToastOOB("Lead creado", "success")
+templ ToastOOB(message, variant string) {
+	<div id="aria-toast-container" class="toast-container" hx-swap-oob="beforeend">
+		@Toast(message, variant)
+	</div>
 }
 
 // SidebarLink — link del nav lateral con icono y estado activo.

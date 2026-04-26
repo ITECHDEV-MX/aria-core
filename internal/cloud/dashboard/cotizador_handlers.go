@@ -68,15 +68,15 @@ func (h *handlers) handleCotizadorLeadCreate(w http.ResponseWriter, r *http.Requ
 		Role:    role,
 	}
 	if _, err := h.cfg.Cotizador.CreateLead(r.Context(), input); err != nil {
-		renderComponent(w, r, CotizadorLeadsPartial(nil, fmt.Sprintf("error: %v", err), ""))
+		renderWithToast(w, r, CotizadorLeadsPartial(nil, fmt.Sprintf("error: %v", err), ""), "No se pudo crear el lead: "+err.Error(), "error")
 		return
 	}
 	leads, err := h.cfg.Cotizador.ListLeads(r.Context(), "")
 	if err != nil {
-		renderComponent(w, r, CotizadorLeadsPartial(nil, "lead creado pero no pudo recargar lista", ""))
+		renderWithToast(w, r, CotizadorLeadsPartial(nil, "lead creado pero no pudo recargar lista", ""), "Lead creado, pero no pudo recargar la lista", "info")
 		return
 	}
-	renderComponent(w, r, CotizadorLeadsPartial(leads, "", ""))
+	renderWithToast(w, r, CotizadorLeadsPartial(leads, "", ""), "Lead "+input.Name+" creado", "success")
 }
 
 // handleCotizadorLeadDetail — GET: detalle completo del lead (info + RFPs + quotes + history).
@@ -130,7 +130,7 @@ func (h *handlers) handleCotizadorLeadStatusChange(w http.ResponseWriter, r *htt
 	history, _ := h.cfg.Cotizador.LeadHistory(r.Context(), id, 50)
 	rfps, _ := h.cfg.Cotizador.ListRFPsByLead(r.Context(), id)
 	quotes, _ := h.cfg.Cotizador.ListQuotesByLead(r.Context(), id)
-	renderComponent(w, r, CotizadorLeadDetailFull(lead, history, rfps, quotes))
+	renderWithToast(w, r, CotizadorLeadDetailFull(lead, history, rfps, quotes), "Estado actualizado a "+cotizadorStatusLabel(newStatus), "success")
 }
 
 // handleCotizadorLeadUpdate — POST: edita campos del lead (no status).
