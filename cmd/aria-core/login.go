@@ -72,6 +72,7 @@ func cmdLogin(cfg store.Config) {
 		}
 	}
 	email := ""
+	passwordArg := ""
 	for i := 2; i < len(os.Args); i++ {
 		switch os.Args[i] {
 		case "--email":
@@ -82,6 +83,11 @@ func cmdLogin(cfg store.Config) {
 		case "--server":
 			if i+1 < len(os.Args) {
 				server = strings.TrimSpace(os.Args[i+1])
+				i++
+			}
+		case "--password":
+			if i+1 < len(os.Args) {
+				passwordArg = os.Args[i+1]
 				i++
 			}
 		}
@@ -102,15 +108,23 @@ func cmdLogin(cfg store.Config) {
 		exitFunc(1)
 		return
 	}
-	fmt.Print("Password: ")
-	pwBytes, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "read password: %v\n", err)
-		exitFunc(1)
-		return
+	password := passwordArg
+	if password == "" {
+		fmt.Print("Password: ")
+		if term.IsTerminal(int(syscall.Stdin)) {
+			pwBytes, err := term.ReadPassword(int(syscall.Stdin))
+			fmt.Println()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "read password: %v\n", err)
+				exitFunc(1)
+				return
+			}
+			password = string(pwBytes)
+		} else {
+			line, _ := reader.ReadString('\n')
+			password = strings.TrimRight(line, "\r\n")
+		}
 	}
-	password := string(pwBytes)
 	if password == "" {
 		fmt.Fprintln(os.Stderr, "password is required")
 		exitFunc(1)
