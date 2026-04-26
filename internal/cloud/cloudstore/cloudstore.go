@@ -970,9 +970,6 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		// END REDACTOR MIGRATIONS
 
 		// BEGIN ROI MIGRATIONS
-		// aria_search_log: persiste cada call a /v1/memory/search con stats
-		// (result_count, canon_hit_count, tokens) para alimentar la métrica RDR
-		// (Re-Discovery Rate). El paquete internal/cloud/roi documenta el schema.
 		`CREATE TABLE IF NOT EXISTS aria_search_log (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			query TEXT NOT NULL,
@@ -991,6 +988,49 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_search_log_recent ON aria_search_log(created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_search_log_project ON aria_search_log(project, created_at DESC)`,
 		// END ROI MIGRATIONS
+
+		// BEGIN RECIPE MIGRATIONS
+		`ALTER TABLE aria_recipes ADD COLUMN IF NOT EXISTS recipe_key TEXT`,
+		`UPDATE aria_recipes SET recipe_key = id WHERE recipe_key IS NULL OR btrim(recipe_key) = ''`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS aria_recipes_recipe_key_uidx ON aria_recipes(recipe_key) WHERE recipe_key IS NOT NULL`,
+		`ALTER TABLE aria_recipes ADD COLUMN IF NOT EXISTS steps JSONB DEFAULT '[]'::jsonb`,
+		`ALTER TABLE aria_recipes ADD COLUMN IF NOT EXISTS executable BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE aria_recipes ADD COLUMN IF NOT EXISTS expected_duration_seconds INT`,
+		`CREATE TABLE IF NOT EXISTS aria_recipe_executions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			recipe_id TEXT NOT NULL REFERENCES aria_recipes(id),
+			recipe_key TEXT NOT NULL,
+			executed_by_uid UUID,
+			project TEXT,
+			context JSONB DEFAULT '{}'::jsonb,
+			status TEXT NOT NULL DEFAULT 'running',
+			total_steps INT NOT NULL,
+			completed_steps INT NOT NULL DEFAULT 0,
+			failed_step_index INT,
+			started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			finished_at TIMESTAMPTZ,
+			total_duration_ms INT
+		)`,
+		`CREATE TABLE IF NOT EXISTS aria_recipe_step_results (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			execution_id UUID NOT NULL REFERENCES aria_recipe_executions(id) ON DELETE CASCADE,
+			step_index INT NOT NULL,
+			step_kind TEXT NOT NULL,
+			step_label TEXT,
+			status TEXT NOT NULL,
+			exit_code INT,
+			stdout TEXT,
+			stderr TEXT,
+			duration_ms INT,
+			started_at TIMESTAMPTZ,
+			finished_at TIMESTAMPTZ,
+			UNIQUE(execution_id, step_index)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_recent ON aria_recipe_executions(started_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_status ON aria_recipe_executions(status, started_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_key ON aria_recipe_executions(recipe_key, started_at DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_step_results_exec ON aria_recipe_step_results(execution_id, step_index)`,
+		// END RECIPE MIGRATIONS
 	}
 	for _, q := range queries {
 		if _, err := cs.db.ExecContext(ctx, q); err != nil {

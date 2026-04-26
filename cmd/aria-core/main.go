@@ -582,6 +582,8 @@ func main() {
 		cmdVault()
 	case "roi":
 		cmdROI()
+	case "recipe", "recipes":
+		cmdRecipe()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -2239,6 +2241,13 @@ Commands:
 	                        enroll     Enroll a project for cloud sync
 	                        config     Set cloud server URL
 	                        serve      Run cloud backend + dashboard
+  recipe <subcommand> Executable recipe runner (cloud-side)
+                       list                          Lista recipes con success rate (30d)
+                       show <key>                    Muestra steps de un recipe
+                       run <key> [--var k=v ...] [--dry-run]
+                                                     Ejecuta el recipe sincrónicamente
+                       history [--key=X] [--days=30] Últimas ejecuciones
+                       seed                          Carga 3 recipes builtin (idempotente)
   obsidian-export    Export memories to an Obsidian-compatible markdown vault
                        --vault         Path to Obsidian vault root (required)
                        --project       Filter export to a single project (optional)
