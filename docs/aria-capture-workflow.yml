@@ -1,0 +1,51 @@
+# aria-capture-workflow.yml — copy this into .github/workflows/ in your repo
+# to capture CI failures as ARIA observations automatically.
+#
+# Requires:
+#   secrets.ARIA_CORE_TOKEN  — bearer token for the ARIA cloud server
+#
+# The workflow runs only on failure: it pulls the failing run's logs via
+# `gh run view --log-failed`, pipes them into `aria-core ci capture`, and
+# the binary records a risk-typed observation per detected error signature.
+
+name: ARIA Capture on Failure
+
+on:
+  workflow_run:
+    workflows: ["*"] # adapt to specific workflows in production
+    types: [completed]
+
+jobs:
+  capture:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Install aria-core
+        run: |
+          curl -fsSL https://github.com/ITECHDEV-MX/aria-core/releases/latest/download/aria-core-linux-amd64 \
+            -o /usr/local/bin/aria-core
+          chmod +x /usr/local/bin/aria-core
+
+      - name: Fetch failing logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh run view ${{ github.event.workflow_run.id }} \
+            --repo ${{ github.repository }} \
+            --log-failed > ci.log
+
+      - name: ARIA capture
+        env:
+          ARIA_CORE_TOKEN: ${{ secrets.ARIA_CORE_TOKEN }}
+        run: |
+          aria-core ci capture \
+            --workflow="${{ github.event.workflow_run.name }}" \
+            --run="${{ github.event.workflow_run.id }}" \
+            --repo="${{ github.repository }}" \
+            --branch="${{ github.event.workflow_run.head_branch }}" \
+            --commit="${{ github.event.workflow_run.head_sha }}" \
+            --log-file=ci.log
