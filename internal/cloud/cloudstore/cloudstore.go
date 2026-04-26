@@ -630,6 +630,39 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_history_quote ON cotizador_quote_history(quote_id, occurred_at DESC)`,
+
+		// === Cotizador commit 5: memoria histórica ===
+		// Outcome final por quote (cuando se cierra: approved/rejected/expired).
+		// Una quote puede tener varios outcomes históricos si se reabre y vuelve a cerrar.
+		`CREATE TABLE IF NOT EXISTS cotizador_quote_outcomes (
+			id BIGSERIAL PRIMARY KEY,
+			quote_id UUID NOT NULL REFERENCES cotizador_quotes(id) ON DELETE CASCADE,
+			outcome TEXT NOT NULL,
+			reason TEXT NOT NULL DEFAULT '',
+			recorded_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			CONSTRAINT cotizador_quote_outcomes_check CHECK (outcome IN ('won','lost','expired'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_outcomes_quote ON cotizador_quote_outcomes(quote_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_quote_outcomes_outcome ON cotizador_quote_outcomes(outcome)`,
+
+		// Lecciones aprendidas (memoria libre, atadas a quote por decisión 4a, opcionalmente con tags).
+		`CREATE TABLE IF NOT EXISTS cotizador_lessons (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			quote_id UUID REFERENCES cotizador_quotes(id) ON DELETE SET NULL,
+			lead_id UUID REFERENCES cotizador_leads(id) ON DELETE SET NULL,
+			text TEXT NOT NULL,
+			tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+			created_by_uid UUID REFERENCES cloud_users(uid) ON DELETE SET NULL,
+			created_by_role TEXT NOT NULL DEFAULT 'cotizador',
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_quote ON cotizador_lessons(quote_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_lead ON cotizador_lessons(lead_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_tags ON cotizador_lessons USING GIN (tags)`,
+		`ALTER TABLE cotizador_lessons ADD COLUMN IF NOT EXISTS text_tsv tsvector
+		 GENERATED ALWAYS AS (to_tsvector('simple', coalesce(text,''))) STORED`,
+		`CREATE INDEX IF NOT EXISTS idx_cotizador_lessons_fts ON cotizador_lessons USING GIN (text_tsv)`,
 		`CREATE TABLE IF NOT EXISTS cloud_project_sessions (
 			project_name TEXT NOT NULL,
 			session_id TEXT NOT NULL,

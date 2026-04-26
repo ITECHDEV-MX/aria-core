@@ -291,6 +291,17 @@ func (s *CloudServer) routes() {
 	s.mux.HandleFunc("GET /v1/cotizador/leads/{id}/quotes", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteList))
 	s.mux.HandleFunc("GET /v1/cotizador/quotes/{quoteID}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteGet))
 	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/status", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteStatus))
+	// Memoria histórica (commit 5)
+	s.mux.HandleFunc("POST /v1/cotizador/quotes/{quoteID}/close", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorQuoteClose))
+	s.mux.HandleFunc("GET /v1/cotizador/memory/similar-items", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorSimilarItems))
+	s.mux.HandleFunc("GET /v1/cotizador/memory/outcome-stats", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorOutcomeStats))
+	s.mux.HandleFunc("GET /v1/cotizador/memory/client-history", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorClientHistory))
+	s.mux.HandleFunc("GET /v1/cotizador/memory/lessons", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLessonsSearch))
+	s.mux.HandleFunc("POST /v1/cotizador/memory/lessons", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorLessonCreate))
+	// Clients (commit 6)
+	s.mux.HandleFunc("POST /v1/cotizador/leads/{id}/promote", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorPromoteLead))
+	s.mux.HandleFunc("GET /v1/cotizador/clients", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorClientsList))
+	s.mux.HandleFunc("GET /v1/cotizador/clients/{clientID}", s.withJWTRole([]string{"admin", "cotizador"}, s.handleV1CotizadorClientGet))
 }
 
 func (s *CloudServer) withAuth(next http.HandlerFunc) http.HandlerFunc {

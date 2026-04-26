@@ -90,6 +90,98 @@ type CotizadorService interface {
 	CreateQuote(ctx context.Context, p CreateQuoteInput) (*CotizadorQuoteView, error)
 	UpdateQuoteStatus(ctx context.Context, quoteID, newStatus, byUID, notes string) error
 	QuoteHistory(ctx context.Context, quoteID string, limit int) ([]CotizadorQuoteHistoryView, error)
+	// Memoria histórica (commit 5)
+	CloseQuoteWithOutcome(ctx context.Context, quoteID, newStatus, byUID, reason, lessonText string, lessonTags []string) error
+	SearchSimilarItems(ctx context.Context, query string, limit int) ([]CotizadorSimilarItemView, error)
+	GetOutcomeStats(ctx context.Context) (CotizadorOutcomeStatsView, error)
+	GetClientHistory(ctx context.Context, query string) ([]CotizadorClientHistoryView, error)
+	SearchLessons(ctx context.Context, query, tag string, limit int) ([]CotizadorLessonView, error)
+	CreateLesson(ctx context.Context, p CreateLessonInput) (*CotizadorLessonView, error)
+	// Clients (commit 6)
+	PromoteLeadToClient(ctx context.Context, p PromoteLeadInput) (*CotizadorClientView, error)
+	ListClients(ctx context.Context) ([]CotizadorClientView, error)
+	GetClient(ctx context.Context, id string) (*CotizadorClientView, error)
+}
+
+type CotizadorClientView struct {
+	ID            string
+	LeadID        string
+	LegalName     string
+	RFC           string
+	FiscalAddress string
+	BillingEmail  string
+	ContactsJSON  string
+	Notes         string
+	CreatedAt     time.Time
+}
+
+type PromoteLeadInput struct {
+	LeadID         string
+	LegalName      string
+	RFC            string
+	FiscalAddress  string
+	BillingEmail   string
+	ContactsJSON   string
+	Notes          string
+	CreatedByUID   string
+}
+
+type CotizadorSimilarItemView struct {
+	QuoteID      string
+	Version      int
+	QuoteStatus  string
+	LeadID       string
+	LeadName     string
+	LeadCompany  string
+	SKU          string
+	Description  string
+	Qty          float64
+	UnitPrice    float64
+	Subtotal     float64
+	Currency     string
+	QuoteCreated time.Time
+	Rank         float64
+}
+
+type CotizadorOutcomeStatsView struct {
+	Total        int
+	Won          int
+	Lost         int
+	Expired      int
+	Open         int
+	WinRate      float64
+	AvgWonTotal  float64
+	AvgLostTotal float64
+}
+
+type CotizadorClientHistoryView struct {
+	LeadID      string
+	LeadName    string
+	Company     string
+	QuoteCount  int
+	WonCount    int
+	LostCount   int
+	TotalSold   float64
+	LastQuoteAt *time.Time
+}
+
+type CotizadorLessonView struct {
+	ID            string
+	QuoteID       string
+	LeadID        string
+	Text          string
+	Tags          []string
+	CreatedByRole string
+	CreatedAt     time.Time
+}
+
+type CreateLessonInput struct {
+	QuoteID      string
+	LeadID       string
+	Text         string
+	Tags         []string
+	CreatedByUID string
+	Role         string
 }
 
 type CotizadorRFPView struct {

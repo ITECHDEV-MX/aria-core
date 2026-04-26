@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -118,11 +119,72 @@ func RegisterCotizadorCloudTools(srv *server.MCPServer, cfg CotizadorCloudConfig
 	), cli.getQuote)
 
 	srv.AddTool(mcp.NewTool("cotizador_update_quote_status",
-		mcp.WithDescription("Cambia el estado de una cotización: draft|sent|in_review|approved|rejected|expired."),
+		mcp.WithDescription("Cambia el estado de una cotización: draft|sent|in_review|approved|rejected|expired. Para cierre con outcome+lesson usá cotizador_close_quote."),
 		mcp.WithString("id", mcp.Required(), mcp.Description("UUID de la quote")),
 		mcp.WithString("status", mcp.Required(), mcp.Description("Nuevo status")),
 		mcp.WithString("notes", mcp.Description("Notas opcionales")),
 	), cli.updateQuoteStatus)
+
+	// === Memoria histórica (commit 5) ===
+	srv.AddTool(mcp.NewTool("cotizador_close_quote",
+		mcp.WithDescription("Cierra una cotización con outcome registrado y lesson aprendida (recomendado). Status terminal: approved|rejected|expired."),
+		mcp.WithString("id", mcp.Required(), mcp.Description("UUID de la quote")),
+		mcp.WithString("status", mcp.Required(), mcp.Description("approved|rejected|expired")),
+		mcp.WithString("reason", mcp.Description("Razón del outcome (precio alto, ganada por relación, etc)")),
+		mcp.WithString("lesson_text", mcp.Description("Lección aprendida — recomendado guardar para alimentar memoria histórica")),
+		mcp.WithString("lesson_tags", mcp.Description("Tags separados por coma (ej: 'pricing,alcance')")),
+	), cli.closeQuote)
+
+	srv.AddTool(mcp.NewTool("cotizador_search_similar_items",
+		mcp.WithDescription("Busca items históricos cotizados antes que coincidan con la query (FTS sobre descripción). Útil para alimentar nuevas cotizaciones con precios y descripciones probadas."),
+		mcp.WithString("query", mcp.Required(), mcp.Description("Texto a buscar (ej: 'desarrollo inventarios', 'integración SAP')")),
+		mcp.WithString("limit", mcp.Description("Máximo de resultados (default 10)")),
+	), cli.searchSimilarItems)
+
+	srv.AddTool(mcp.NewTool("cotizador_get_outcome_stats",
+		mcp.WithDescription("Estadísticas globales: win rate, total cotizado, ganado, perdido, monto promedio won/lost."),
+	), cli.getOutcomeStats)
+
+	srv.AddTool(mcp.NewTool("cotizador_get_client_history",
+		mcp.WithDescription("Historial de cotizaciones de un cliente. Busca por nombre o empresa (LIKE). Devuelve quote_count, won_count, total_sold, last_quote_at."),
+		mcp.WithString("q", mcp.Required(), mcp.Description("Nombre o empresa del cliente")),
+	), cli.getClientHistory)
+
+	srv.AddTool(mcp.NewTool("cotizador_get_lessons_learned",
+		mcp.WithDescription("Busca lecciones aprendidas históricas (FTS sobre texto + filtro opcional por tag). Útil antes de redactar una nueva propuesta."),
+		mcp.WithString("q", mcp.Description("Query FTS (vacío = listar todas las recientes)")),
+		mcp.WithString("tag", mcp.Description("Filtrar por tag exacto (ej: 'pricing', 'alcance')")),
+		mcp.WithString("limit", mcp.Description("Máximo de resultados (default 20)")),
+	), cli.getLessonsLearned)
+
+	srv.AddTool(mcp.NewTool("cotizador_save_lesson",
+		mcp.WithDescription("Guarda una lección aprendida. Puede asociarse a una quote_id o lead_id. Tags ayudan a categorizar."),
+		mcp.WithString("text", mcp.Required(), mcp.Description("Lección aprendida")),
+		mcp.WithString("quote_id", mcp.Description("UUID de quote opcional")),
+		mcp.WithString("lead_id", mcp.Description("UUID de lead opcional")),
+		mcp.WithString("tags", mcp.Description("Tags separados por coma (ej: 'pricing,implementacion')")),
+	), cli.saveLesson)
+
+	// === Clients (commit 6) ===
+	srv.AddTool(mcp.NewTool("cotizador_promote_lead_to_client",
+		mcp.WithDescription("Convierte un lead won en cliente formal con datos fiscales. Crea entry en cotizador_clients y vincula bidireccionalmente."),
+		mcp.WithString("lead_id", mcp.Required(), mcp.Description("UUID del lead a promover")),
+		mcp.WithString("legal_name", mcp.Required(), mcp.Description("Razón social formal")),
+		mcp.WithString("rfc", mcp.Description("RFC fiscal")),
+		mcp.WithString("fiscal_address", mcp.Description("Dirección fiscal")),
+		mcp.WithString("billing_email", mcp.Description("Email para facturación")),
+		mcp.WithString("contacts_json", mcp.Description(`JSON array de contactos: [{"name":"","role":"","email":"","phone":""}, ...]`)),
+		mcp.WithString("notes", mcp.Description("Notas adicionales del cliente")),
+	), cli.promoteLead)
+
+	srv.AddTool(mcp.NewTool("cotizador_list_clients",
+		mcp.WithDescription("Lista los clientes formales (post-aprobación con datos fiscales)."),
+	), cli.listClients)
+
+	srv.AddTool(mcp.NewTool("cotizador_get_client",
+		mcp.WithDescription("Detalle de un cliente formal por ID."),
+		mcp.WithString("id", mcp.Required(), mcp.Description("UUID del cliente")),
+	), cli.getClient)
 }
 
 type cotizadorClient struct {
@@ -332,6 +394,152 @@ func (c *cotizadorClient) updateQuoteStatus(ctx context.Context, req mcp.CallToo
 	payload := map[string]string{"status": status, "notes": optString(req, "notes")}
 	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/cotizador/quotes/"+id+"/status", payload)
 	return mcpResultFromHTTP("update quote status", body, code, err2)
+}
+
+// === Memoria histórica ===
+
+func (c *cotizadorClient) closeQuote(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	status, err := req.RequireString("status")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	tagsStr := optString(req, "lesson_tags")
+	var tags []string
+	if tagsStr != "" {
+		for _, t := range strings.Split(tagsStr, ",") {
+			if v := strings.TrimSpace(t); v != "" {
+				tags = append(tags, v)
+			}
+		}
+	}
+	payload := map[string]any{
+		"status":      status,
+		"reason":      optString(req, "reason"),
+		"lesson_text": optString(req, "lesson_text"),
+		"lesson_tags": tags,
+	}
+	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/cotizador/quotes/"+id+"/close", payload)
+	return mcpResultFromHTTP("close quote", body, code, err2)
+}
+
+func (c *cotizadorClient) searchSimilarItems(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	query, err := req.RequireString("query")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	path := "/v1/cotizador/memory/similar-items?q=" + url.QueryEscape(query)
+	if l := optString(req, "limit"); l != "" {
+		path += "&limit=" + url.QueryEscape(l)
+	}
+	body, code, err2 := c.do(ctx, http.MethodGet, path, nil)
+	return mcpResultFromHTTP("search similar items", body, code, err2)
+}
+
+func (c *cotizadorClient) getOutcomeStats(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	body, code, err := c.do(ctx, http.MethodGet, "/v1/cotizador/memory/outcome-stats", nil)
+	return mcpResultFromHTTP("outcome stats", body, code, err)
+}
+
+func (c *cotizadorClient) getClientHistory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	q, err := req.RequireString("q")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	body, code, err2 := c.do(ctx, http.MethodGet, "/v1/cotizador/memory/client-history?q="+url.QueryEscape(q), nil)
+	return mcpResultFromHTTP("client history", body, code, err2)
+}
+
+func (c *cotizadorClient) getLessonsLearned(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	q := optString(req, "q")
+	tag := optString(req, "tag")
+	limit := optString(req, "limit")
+	path := "/v1/cotizador/memory/lessons?"
+	if q != "" {
+		path += "q=" + url.QueryEscape(q) + "&"
+	}
+	if tag != "" {
+		path += "tag=" + url.QueryEscape(tag) + "&"
+	}
+	if limit != "" {
+		path += "limit=" + url.QueryEscape(limit) + "&"
+	}
+	body, code, err := c.do(ctx, http.MethodGet, strings.TrimRight(path, "&?"), nil)
+	return mcpResultFromHTTP("lessons learned", body, code, err)
+}
+
+func (c *cotizadorClient) saveLesson(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	text, err := req.RequireString("text")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	tagsStr := optString(req, "tags")
+	var tags []string
+	if tagsStr != "" {
+		for _, t := range strings.Split(tagsStr, ",") {
+			if v := strings.TrimSpace(t); v != "" {
+				tags = append(tags, v)
+			}
+		}
+	}
+	payload := map[string]any{
+		"text":     text,
+		"quote_id": optString(req, "quote_id"),
+		"lead_id":  optString(req, "lead_id"),
+		"tags":     tags,
+	}
+	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/cotizador/memory/lessons", payload)
+	return mcpResultFromHTTP("save lesson", body, code, err2)
+}
+
+// === Clients ===
+
+func (c *cotizadorClient) promoteLead(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	leadID, err := req.RequireString("lead_id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	legalName, err := req.RequireString("legal_name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	contactsStr := optString(req, "contacts_json")
+	var contacts json.RawMessage
+	if contactsStr != "" {
+		if !json.Valid([]byte(contactsStr)) {
+			return mcp.NewToolResultError("contacts_json must be a valid JSON array"), nil
+		}
+		contacts = json.RawMessage(contactsStr)
+	}
+	payload := map[string]any{
+		"legal_name":     legalName,
+		"rfc":            optString(req, "rfc"),
+		"fiscal_address": optString(req, "fiscal_address"),
+		"billing_email":  optString(req, "billing_email"),
+		"notes":          optString(req, "notes"),
+	}
+	if contacts != nil {
+		payload["contacts"] = contacts
+	}
+	body, code, err2 := c.do(ctx, http.MethodPost, "/v1/cotizador/leads/"+leadID+"/promote", payload)
+	return mcpResultFromHTTP("promote lead", body, code, err2)
+}
+
+func (c *cotizadorClient) listClients(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	body, code, err := c.do(ctx, http.MethodGet, "/v1/cotizador/clients", nil)
+	return mcpResultFromHTTP("list clients", body, code, err)
+}
+
+func (c *cotizadorClient) getClient(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	id, err := req.RequireString("id")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	body, code, err2 := c.do(ctx, http.MethodGet, "/v1/cotizador/clients/"+id, nil)
+	return mcpResultFromHTTP("get client", body, code, err2)
 }
 
 func optString(req mcp.CallToolRequest, key string) string {
