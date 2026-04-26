@@ -14,6 +14,7 @@ import (
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/auth"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/channels"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudserver"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudusers"
@@ -206,6 +207,37 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	pageCommentsAdapter := newPageCommentsAdapter(cs, emailService, userStoreAdapter)
 	log.Printf("[aria-core-cloud] page databases + comments ready")
 
+	// === Wave 6: Channel router (claude-max-vps + gemma-local) ===
+	claudeBin := strings.TrimSpace(os.Getenv("ARIA_CORE_CLAUDE_BIN"))
+	if claudeBin == "" {
+		claudeBin = "/usr/bin/claude"
+	}
+	ollamaURL := strings.TrimSpace(os.Getenv("ARIA_CORE_OLLAMA_URL"))
+	if ollamaURL == "" {
+		ollamaURL = "http://127.0.0.1:11434"
+	}
+	gemmaModel := strings.TrimSpace(os.Getenv("ARIA_CORE_GEMMA_MODEL"))
+	if gemmaModel == "" {
+		gemmaModel = "gemma4:latest"
+	}
+	claudeChan := channels.NewClaudeMaxChannel(channels.ClaudeMaxConfig{
+		BinaryPath:   claudeBin,
+		DefaultModel: "sonnet",
+	})
+	gemmaChan := channels.NewGemmaLocalChannel(channels.GemmaLocalConfig{
+		BaseURL:      ollamaURL,
+		DefaultModel: gemmaModel,
+	})
+	channelRouter := channels.NewRouter(channels.RouterConfig{
+		ClaudeMax:  claudeChan,
+		GemmaLocal: gemmaChan,
+	})
+	log.Printf("[aria-core-cloud] channels router ready (claude-max=%s, ollama=%s/%s)", claudeBin, ollamaURL, gemmaModel)
+
+	// Quote-chat adapter (split-pane + email manual con preview).
+	quoteChatAdpt := newQuoteChatAdapter(cotizadorSvc.store, channelRouter, redactorSvc, emailService, publicURL, cs.DB())
+	log.Printf("[aria-core-cloud] quote-chat ready (wave 6)")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -232,6 +264,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithRecipeRunner(recipeRunner),
 			cloudserver.WithPagesDashboard(pagesAdpt),
+			cloudserver.WithQuoteChat(quoteChatAdpt),
 			cloudserver.WithPageAttachments(pageAttachmentsServiceOrNil(pageAttsAdapter)),
 			cloudserver.WithPageShares(pageSharesAdpt),
 			cloudserver.WithPagePublicView(pagePublicViewServiceOrNil(pagePublicView)),

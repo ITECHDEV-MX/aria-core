@@ -588,6 +588,8 @@ func main() {
 		cmdPages()
 	case "comments":
 		cmdComments()
+	case "cotizador":
+		cmdCotizadorCLI(cfg)
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -837,6 +839,10 @@ func runCotizadorCloudMCP(cfg store.Config) {
 	}
 	srv := mcp.NewBareServer("aria-core-cotizador", "0.1.0")
 	mcp.RegisterCotizadorCloudTools(srv, mcp.CotizadorCloudConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	mcp.RegisterQuoteChatTools(srv, mcp.CotizadorCloudConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})
