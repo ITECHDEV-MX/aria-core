@@ -266,6 +266,23 @@ func formatTimestampTime(t time.Time) string {
 	return t.Local().Format("02 Jan 2006 15:04")
 }
 
+// RoleOption representa una opción de rol para el <select> del UI.
+type RoleOption struct {
+	Value string
+	Label string
+}
+
+// AvailableRoles retorna los roles soportados con su display name.
+// Mantenelo sincronizado con cloudusers.AllRoles + cloudusers.RoleLabel.
+func AvailableRoles() []RoleOption {
+	return []RoleOption{
+		{Value: "admin", Label: "Admin"},
+		{Value: "dev", Label: "Dev"},
+		{Value: "cotizador", Label: "Cotizador (Ventas)"},
+		{Value: "project_admin", Label: "Administrador Proyectos"},
+	}
+}
+
 // countPausedProjects counts how many controls have SyncEnabled=false.
 // ADAPTED: cloudstore.ProjectSyncControl -> cloudstore.ProjectSyncControl (same name, new file).
 func countPausedProjects(controls []cloudstore.ProjectSyncControl) int {

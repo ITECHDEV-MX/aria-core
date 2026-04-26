@@ -13,18 +13,39 @@ import (
 )
 
 const (
-	RoleAdmin = "admin"
-	RoleDev   = "dev"
+	RoleAdmin        = "admin"
+	RoleDev          = "dev"
+	RoleCotizador    = "cotizador"
+	RoleProjectAdmin = "project_admin"
 
 	BcryptCost = 12
 )
+
+// AllRoles lista los roles soportados (orden = orden de aparición en UI).
+var AllRoles = []string{RoleAdmin, RoleDev, RoleCotizador, RoleProjectAdmin}
+
+// RoleLabel retorna el display name de un role.
+func RoleLabel(role string) string {
+	switch role {
+	case RoleAdmin:
+		return "Admin"
+	case RoleDev:
+		return "Dev"
+	case RoleCotizador:
+		return "Cotizador (Ventas)"
+	case RoleProjectAdmin:
+		return "Administrador Proyectos"
+	default:
+		return role
+	}
+}
 
 var (
 	ErrNotFound          = errors.New("user not found")
 	ErrInvalidCredential = errors.New("invalid credentials")
 	ErrInactive          = errors.New("user is inactive")
 	ErrEmailTaken        = errors.New("email already in use")
-	ErrInvalidRole       = errors.New("invalid role (must be admin or dev)")
+	ErrInvalidRole       = errors.New("invalid role (must be one of: admin, dev, cotizador, project_admin)")
 )
 
 type User struct {
@@ -48,7 +69,12 @@ func New(db *sql.DB) *Store {
 }
 
 func ValidRole(role string) bool {
-	return role == RoleAdmin || role == RoleDev
+	for _, r := range AllRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeEmail(s string) string {

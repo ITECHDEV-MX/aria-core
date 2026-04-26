@@ -889,8 +889,9 @@ templ adminUserRow(u AdminUserView) {
 		<td>
 			<form hx-post={ "/dashboard/admin/users/" + u.UID + "/role" } hx-target={ "#user-row-" + u.UID } hx-swap="outerHTML" style="display:inline">
 				<select name="role" onchange="this.form.requestSubmit()">
-					<option value="dev" selected?={ u.Role == "dev" }>dev</option>
-					<option value="admin" selected?={ u.Role == "admin" }>admin</option>
+					for _, r := range AvailableRoles() {
+						<option value={ r.Value } selected?={ u.Role == r.Value }>{ r.Label }</option>
+					}
 				</select>
 			</form>
 		</td>
@@ -966,8 +967,9 @@ templ AdminUsersPage() {
 			<label>
 				Rol
 				<select name="role">
-					<option value="dev">dev</option>
-					<option value="admin">admin</option>
+					for _, r := range AvailableRoles() {
+						<option value={ r.Value }>{ r.Label }</option>
+					}
 				</select>
 			</label>
 			<label>

@@ -453,9 +453,10 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS client_id UUID`,
 		`ALTER TABLE cloud_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
 		`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_users_role_check') THEN
-				ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev'));
+			IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'cloud_users_role_check') THEN
+				ALTER TABLE cloud_users DROP CONSTRAINT cloud_users_role_check;
 			END IF;
+			ALTER TABLE cloud_users ADD CONSTRAINT cloud_users_role_check CHECK (role IN ('admin','dev','cotizador','project_admin'));
 		END $$`,
 		`CREATE INDEX IF NOT EXISTS idx_cloud_users_email ON cloud_users(lower(email))`,
 		`CREATE TABLE IF NOT EXISTS cloud_chunks (
