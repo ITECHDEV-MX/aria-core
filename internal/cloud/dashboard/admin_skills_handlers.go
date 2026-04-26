@@ -16,13 +16,44 @@ func (h *handlers) handleAdminSkillsList(w http.ResponseWriter, r *http.Request)
 		http.Error(w, fmt.Sprintf("list skills: %v", err), http.StatusInternalServerError)
 		return
 	}
+	stacks, _ := h.cfg.AriaMem.ListUniqueStacks(r.Context())
 	p := h.principalFromRequest(r)
-	component := AdminSkillsListPage(skills)
+	component := AdminSkillsListPage(skills, stacks)
 	if isHTMXRequest(r) {
 		renderComponent(w, r, component)
 		return
 	}
 	renderComponent(w, r, Layout("Skills", p.DisplayName(), "admin", p.Roles(), component))
+}
+
+// handleAdminSkillsListPartial — endpoint HTMX para refrescar la tabla de skills
+// con search + filtros (stack, active, source). Devuelve solo la partial.
+func (h *handlers) handleAdminSkillsListPartial(w http.ResponseWriter, r *http.Request) {
+	if h.cfg.AriaMem == nil {
+		http.Error(w, "memoria no configurada", http.StatusServiceUnavailable)
+		return
+	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	stack := strings.TrimSpace(r.URL.Query().Get("stack"))
+	activeOnly := r.URL.Query().Get("active") == "on" || r.URL.Query().Get("active") == "true" || r.URL.Query().Get("active") == "1"
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+
+	skills, err := h.cfg.AriaMem.SearchSkills(r.Context(), q, stack, activeOnly)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("search skills: %v", err), http.StatusInternalServerError)
+		return
+	}
+	// Filter por source en memoria (raro que haya muchos sources distintos).
+	if source != "" {
+		filtered := make([]AriaSkillView, 0, len(skills))
+		for _, s := range skills {
+			if s.Source == source {
+				filtered = append(filtered, s)
+			}
+		}
+		skills = filtered
+	}
+	renderComponent(w, r, AdminSkillsListPartial(skills))
 }
 
 func (h *handlers) handleAdminSkillNew(w http.ResponseWriter, r *http.Request) {

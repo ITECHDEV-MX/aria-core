@@ -304,6 +304,22 @@ func (a *ariaMemDashboardAdapter) DeleteSkill(ctx context.Context, id string) er
 	return a.store.DeleteSkill(ctx, id)
 }
 
+func (a *ariaMemDashboardAdapter) SearchSkills(ctx context.Context, query, stack string, activeOnly bool) ([]dashboard.AriaSkillView, error) {
+	skills, err := a.store.SearchSkills(ctx, query, stack, activeOnly)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dashboard.AriaSkillView, 0, len(skills))
+	for _, s := range skills {
+		out = append(out, toSkillView(s))
+	}
+	return out, nil
+}
+
+func (a *ariaMemDashboardAdapter) ListUniqueStacks(ctx context.Context) ([]string, error) {
+	return a.store.ListUniqueStacks(ctx)
+}
+
 func toSkillView(s *ariamem.Skill) dashboard.AriaSkillView {
 	return dashboard.AriaSkillView{
 		ID: s.ID, Name: s.Name, Description: s.Description,

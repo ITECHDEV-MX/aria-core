@@ -2,8 +2,8 @@ package dashboard
 
 import "strings"
 
-// AdminSkillsListPage — shell + lista de skills admin.
-templ AdminSkillsListPage(skills []AriaSkillView) {
+// AdminSkillsListPage — shell + lista de skills admin con search + filtros.
+templ AdminSkillsListPage(skills []AriaSkillView, stacks []string) {
 	<section class="frame-section">
 		<div class="section-header">
 			<div>
@@ -16,7 +16,45 @@ templ AdminSkillsListPage(skills []AriaSkillView) {
 				<a href="/dashboard/admin/mcp" class="shell-button">Ver MCP & Tools</a>
 			</div>
 		</div>
-		<div id="admin-skills-content">
+
+		<div class="card">
+			<form id="admin-skills-filters"
+				hx-get="/dashboard/admin/skills/list"
+				hx-target="#admin-skills-content"
+				hx-swap="innerHTML"
+				hx-trigger="submit, change delay:200ms, keyup delay:300ms changed from:input[type=search]">
+				<div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:0.75rem;align-items:end">
+					<label style="margin:0">
+						<input type="search" name="q" placeholder="🔍 Buscar nombre, descripción o contenido..."/>
+					</label>
+					<label style="margin:0">
+						<select name="stack">
+							<option value="">Todos los stacks</option>
+							for _, st := range stacks {
+								<option value={ st }>{ st }</option>
+							}
+						</select>
+					</label>
+					<label style="margin:0">
+						<select name="source">
+							<option value="">Todos los sources</option>
+							<option value="manual">manual</option>
+							<option value="legacy_sqlite">legacy_sqlite</option>
+							<option value="imported">imported</option>
+						</select>
+					</label>
+					<label style="margin:0;display:flex;align-items:center;gap:6px;white-space:nowrap">
+						<input type="checkbox" name="active" value="on"/>
+						Solo activos
+					</label>
+				</div>
+			</form>
+		</div>
+
+		<div id="admin-skills-content"
+			hx-get="/dashboard/admin/skills/list"
+			hx-trigger="load"
+			hx-swap="innerHTML">
 			@AdminSkillsListPartial(skills)
 		</div>
 	</section>
@@ -24,8 +62,9 @@ templ AdminSkillsListPage(skills []AriaSkillView) {
 
 templ AdminSkillsListPartial(skills []AriaSkillView) {
 	if len(skills) == 0 {
-		@EmptyState("Sin skills", "No hay skills registrados. Crea uno con el botón de arriba.")
+		@EmptyState("Sin skills", "No hay skills que coincidan con los filtros activos. Probá ampliar la búsqueda o crear uno nuevo.")
 	} else {
+		<p class="muted" style="margin:0.5rem 0 1rem">{ formatCount(len(skills)) }</p>
 		<table class="data-table">
 			<thead>
 				<tr>
@@ -64,7 +103,7 @@ templ AdminSkillsListPartial(skills []AriaSkillView) {
 						</td>
 						<td>{ formatTimestampTime(s.UpdatedAt) }</td>
 						<td>
-							<a href={ templ.SafeURL("/dashboard/admin/skills/" + s.ID) } class="shell-button">Editar</a>
+							<a href={ templ.SafeURL("/dashboard/admin/skills/" + s.ID) } class="shell-button">✏️ Editar</a>
 							<form hx-post={ "/dashboard/admin/skills/" + s.ID + "/delete" } hx-confirm={ "Eliminar skill " + s.Name + "?" } style="display:inline">
 								<button type="submit" class="shell-button" style="background:#522">Eliminar</button>
 							</form>
@@ -76,7 +115,7 @@ templ AdminSkillsListPartial(skills []AriaSkillView) {
 	}
 }
 
-// AdminSkillEditor — form crear/editar.
+// AdminSkillEditor — form crear/editar con preview live + import .md + paste markdown.
 templ AdminSkillEditor(s *AriaSkillView) {
 	<section class="frame-section">
 		<div class="section-header">
@@ -92,38 +131,162 @@ templ AdminSkillEditor(s *AriaSkillView) {
 			<div><a href="/dashboard/admin/skills" class="shell-button">← Volver</a></div>
 		</div>
 
-		<form method="post" action="/dashboard/admin/skills/upsert" class="login-form" style="max-width:880px">
-			<label>
-				ID (slug, único — no editable después)
-				<input type="text" name="id" value={ skillID(s) } placeholder="aria-session-protocol" required readonly?={ s != nil }/>
-			</label>
-			<label>
-				Nombre
-				<input type="text" name="name" value={ skillName(s) } placeholder="ARIA Session Protocol" required/>
-			</label>
-			<label>
-				Descripción corta
-				<input type="text" name="description" value={ skillDescription(s) } placeholder="Protocolo para inicio/cierre de sesiones ARIA"/>
-			</label>
-			<label>
-				Stack (separado por comas)
-				<input type="text" name="stack" value={ skillStack(s) } placeholder="typescript, react, go"/>
-			</label>
-			<label>
-				Source
-				<input type="text" name="source" value={ skillSource(s) } placeholder="manual"/>
-			</label>
-			<label>
+		if s == nil {
+			<div class="card" style="margin-bottom:1rem">
+				<div class="card-header">
+					<div class="card-title">Atajos para arrancar más rápido</div>
+				</div>
+				<p class="muted" style="font-size:0.9rem">Importá un archivo Markdown desde tu disco o pegá el contenido directamente. El nombre y el id se autocompletan desde el primer encabezado <code>#</code>.</p>
+				<div style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center">
+					<label class="shell-button" style="cursor:pointer;margin:0">
+						📁 Importar desde archivo
+						<input id="skill-file-input" type="file" accept=".md,.markdown,text/markdown" style="display:none"/>
+					</label>
+					<button type="button" class="shell-button" onclick="document.getElementById('skill-paste-modal').style.display='flex'">📋 Pegar markdown</button>
+				</div>
+			</div>
+		}
+
+		<form method="post" action="/dashboard/admin/skills/upsert" class="login-form" style="max-width:none">
+			<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;align-items:start">
+				<div>
+					<label>
+						ID (slug, único — no editable después)
+						<input id="skill-id" type="text" name="id" value={ skillID(s) } placeholder="aria-session-protocol" required readonly?={ s != nil }/>
+					</label>
+					<label>
+						Nombre
+						<input id="skill-name" type="text" name="name" value={ skillName(s) } placeholder="ARIA Session Protocol" required/>
+					</label>
+					<label>
+						Descripción corta
+						<input id="skill-description" type="text" name="description" value={ skillDescription(s) } placeholder="Protocolo para inicio/cierre de sesiones ARIA"/>
+					</label>
+					<label>
+						Stack (separado por comas)
+						<input id="skill-stack" type="text" name="stack" value={ skillStack(s) } placeholder="typescript, react, go"/>
+					</label>
+					<label>
+						Source
+						<input type="text" name="source" value={ skillSource(s) } placeholder="manual"/>
+					</label>
+					<label style="display:flex;align-items:center;gap:8px">
+						<input type="checkbox" name="active" checked?={ s == nil || s.Active }/>
+						Activo (visible para aria_get_skills)
+					</label>
+				</div>
+				<div>
+					<p class="muted" style="margin:0 0 0.4rem;font-size:0.85rem">Vista previa (live, debounce 300ms)</p>
+					<div id="skill-preview"
+						class="card"
+						style="min-height:480px;max-height:560px;overflow-y:auto;font-size:0.9rem;line-height:1.6"></div>
+				</div>
+			</div>
+
+			<label style="margin-top:1rem">
 				Contenido (Markdown)
-				<textarea name="content" rows="20" style="font-family:monospace;font-size:0.85rem" placeholder="# Skill: ...&#10;&#10;## Cuándo usar&#10;...&#10;&#10;## Cómo usar&#10;...">{ skillContent(s) }</textarea>
+				<textarea id="skill-content" name="content" rows="22" style="font-family:monospace;font-size:0.85rem;width:100%" placeholder="# Skill: ...&#10;&#10;## Cuándo usar&#10;...&#10;&#10;## Cómo usar&#10;...">{ skillContent(s) }</textarea>
 			</label>
-			<label style="display:flex;align-items:center;gap:8px">
-				<input type="checkbox" name="active" checked?={ s == nil || s.Active }/>
-				Activo (visible para aria_get_skills)
-			</label>
-			<button type="submit" class="shell-button">Guardar</button>
+
+			<button type="submit" class="shell-button" style="margin-top:1rem">Guardar</button>
 		</form>
+
+		if s == nil {
+			<div id="skill-paste-modal"
+				style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;align-items:center;justify-content:center;padding:2rem"
+				onclick="if(event.target===this)this.style.display='none'">
+				<div class="card" style="max-width:760px;width:100%;max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">
+					<div class="card-header"><div class="card-title">📋 Pegar markdown</div></div>
+					<p class="muted" style="font-size:0.85rem">Pegá el contenido. Vamos a autocompletar nombre + id + content.</p>
+					<textarea id="skill-paste-textarea" rows="14" style="width:100%;font-family:monospace;font-size:0.85rem" placeholder="# Mi skill&#10;&#10;## Cuándo usar..."></textarea>
+					<div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.75rem">
+						<button type="button" class="shell-button" onclick="document.getElementById('skill-paste-modal').style.display='none'">Cancelar</button>
+						<button type="button" class="shell-button" onclick="ariaSkillsApplyPaste()">Aplicar</button>
+					</div>
+				</div>
+			</div>
+		}
+
+		@adminSkillsEditorScripts(s == nil)
 	</section>
+}
+
+// adminSkillsEditorScripts — JS vanilla: marked.js (CDN) + debounce preview +
+// FileReader import .md + paste-modal apply. Auto-derive name/slug del primer #.
+templ adminSkillsEditorScripts(allowImport bool) {
+	<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+	<script>
+		(function(){
+			const ta = document.getElementById('skill-content');
+			const preview = document.getElementById('skill-preview');
+			if (!ta || !preview) return;
+
+			let timer = null;
+			function render() {
+				try {
+					if (window.marked && typeof window.marked.parse === 'function') {
+						preview.innerHTML = window.marked.parse(ta.value || '');
+					} else {
+						preview.textContent = ta.value || '';
+					}
+				} catch (e) {
+					preview.innerHTML = '<p class="login-error">error rendering markdown: ' + (e && e.message ? e.message : e) + '</p>';
+				}
+			}
+			function schedule() {
+				if (timer) clearTimeout(timer);
+				timer = setTimeout(render, 300);
+			}
+			ta.addEventListener('input', schedule);
+			// Render inicial cuando marked.js termine de cargar.
+			if (window.marked) { render(); }
+			else { window.addEventListener('load', render); }
+
+			function slugify(s){
+				return (s||'')
+					.toLowerCase()
+					.normalize('NFD').replace(/[̀-ͯ]/g, '')
+					.replace(/[^a-z0-9\s-]/g, '')
+					.trim().replace(/\s+/g, '-').slice(0, 80);
+			}
+			function firstHeading(md){
+				const m = (md||'').match(/^\s*#\s+(.+?)\s*$/m);
+				return m ? m[1].trim() : '';
+			}
+			function applyMarkdown(md){
+				ta.value = md;
+				const h = firstHeading(md);
+				const nameInput = document.getElementById('skill-name');
+				const idInput = document.getElementById('skill-id');
+				if (h) {
+					if (nameInput && !nameInput.value) nameInput.value = h;
+					if (idInput && !idInput.value && !idInput.readOnly) idInput.value = slugify(h);
+				}
+				render();
+			}
+			window.ariaSkillsApplyMarkdown = applyMarkdown;
+
+			window.ariaSkillsApplyPaste = function(){
+				const src = document.getElementById('skill-paste-textarea');
+				if (!src) return;
+				applyMarkdown(src.value);
+				const modal = document.getElementById('skill-paste-modal');
+				if (modal) modal.style.display = 'none';
+			};
+
+			const fileInput = document.getElementById('skill-file-input');
+			if (fileInput) {
+				fileInput.addEventListener('change', function(ev){
+					const f = ev.target.files && ev.target.files[0];
+					if (!f) return;
+					const reader = new FileReader();
+					reader.onload = function(e){ applyMarkdown(String(e.target.result || '')); };
+					reader.onerror = function(){ alert('Error leyendo archivo'); };
+					reader.readAsText(f);
+				});
+			}
+		})();
+	</script>
 }
 
 // AdminMCPViewPage — vista de los 3 profiles MCP con sus tools.
