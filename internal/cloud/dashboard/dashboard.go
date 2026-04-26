@@ -526,6 +526,19 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/memorias/list", h.requireSession(h.handleAriaMemListPartial))
 	mux.HandleFunc("GET /dashboard/memorias/{id}", h.requireSession(h.handleAriaMemDetail))
 	mux.HandleFunc("POST /dashboard/memorias/{id}/promote-canon", h.requireSession(h.handleAriaMemPromoteCanon))
+
+	// Página de ayuda / guía de uso (visible para todos los autenticados).
+	mux.HandleFunc("GET /dashboard/ayuda", h.requireSession(h.handleAyudaPage))
+}
+
+func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {
+	p := h.principalFromRequest(r)
+	component := AyudaPage(p.Roles())
+	if isHTMXRequest(r) {
+		renderComponent(w, r, component)
+		return
+	}
+	renderComponent(w, r, Layout("Guía de uso", p.DisplayName(), "ayuda", p.Roles(), component))
 }
 
 func Handler() http.Handler {
