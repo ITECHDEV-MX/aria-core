@@ -601,6 +601,78 @@ func (s *Store) DeleteSkill(ctx context.Context, id string) error {
 	return nil
 }
 
+// SearchSkills filtra los skills por query FTS español accent-insensitive sobre
+// name+description+content, opcionalmente por stack y por activo. Si query está
+// vacío retorna la lista completa filtrada por stack/active.
+func (s *Store) SearchSkills(ctx context.Context, query, stackFilter string, activeOnly bool) ([]*Skill, error) {
+	conds := []string{}
+	args := []any{}
+	idx := 1
+	if q := strings.TrimSpace(query); q != "" {
+		conds = append(conds,
+			fmt.Sprintf("to_tsvector('spanish', unaccent(coalesce(name,'') || ' ' || coalesce(description,'') || ' ' || coalesce(content,''))) @@ plainto_tsquery('spanish', unaccent($%d))", idx))
+		args = append(args, q)
+		idx++
+	}
+	if st := strings.TrimSpace(stackFilter); st != "" {
+		conds = append(conds, fmt.Sprintf("$%d = ANY(stack)", idx))
+		args = append(args, st)
+		idx++
+	}
+	if activeOnly {
+		conds = append(conds, "active = TRUE")
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
+	}
+	q := `SELECT id, name, description, stack, content, source, active, created_at, updated_at
+		FROM aria_skills` + where + ` ORDER BY active DESC, name`
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Skill
+	for rows.Next() {
+		var sk Skill
+		var stack pq.StringArray
+		if err := rows.Scan(&sk.ID, &sk.Name, &sk.Description, &stack, &sk.Content, &sk.Source, &sk.Active, &sk.CreatedAt, &sk.UpdatedAt); err != nil {
+			return nil, err
+		}
+		sk.Stack = []string(stack)
+		out = append(out, &sk)
+	}
+	return out, rows.Err()
+}
+
+// ListUniqueStacks devuelve la lista distinct de stacks (unnest del array TEXT[])
+// presentes en la tabla aria_skills. Útil para popular dropdown de filtros.
+func (s *Store) ListUniqueStacks(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT unnest(stack) AS st
+		FROM aria_skills
+		WHERE stack IS NOT NULL
+		ORDER BY st
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var st string
+		if err := rows.Scan(&st); err != nil {
+			return nil, err
+		}
+		st = strings.TrimSpace(st)
+		if st != "" {
+			out = append(out, st)
+		}
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) ListSkills(ctx context.Context, stackFilter []string) ([]*Skill, error) {
 	var (
 		rows *sql.Rows

@@ -82,6 +82,8 @@ type AriaMemDashboardService interface {
 	UpsertSkill(ctx context.Context, p UpsertAriaSkillInput) error
 	SetSkillActive(ctx context.Context, id string, active bool) error
 	DeleteSkill(ctx context.Context, id string) error
+	SearchSkills(ctx context.Context, query, stack string, activeOnly bool) ([]AriaSkillView, error)
+	ListUniqueStacks(ctx context.Context) ([]string, error)
 }
 
 type AriaSkillView struct {
@@ -581,6 +583,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 
 	// === Admin: Skills CRUD + vista MCP profiles (commit 12) ===
 	mux.HandleFunc("GET /dashboard/admin/skills", h.requireAdmin(h.handleAdminSkillsList))
+	mux.HandleFunc("GET /dashboard/admin/skills/list", h.requireAdmin(h.handleAdminSkillsListPartial))
 	mux.HandleFunc("GET /dashboard/admin/skills/new", h.requireAdmin(h.handleAdminSkillNew))
 	mux.HandleFunc("GET /dashboard/admin/skills/{id}", h.requireAdmin(h.handleAdminSkillEdit))
 	mux.HandleFunc("POST /dashboard/admin/skills/upsert", h.requireAdmin(h.handleAdminSkillUpsert))
