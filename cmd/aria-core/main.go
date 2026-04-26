@@ -600,6 +600,10 @@ func main() {
 		cmdObsidianExport(cfg)
 	case "projects":
 		cmdProjects(cfg)
+	case "team-projects":
+		cmdTeamProjects(cfg)
+	case "tasks":
+		cmdTasks(cfg)
 	case "setup":
 		cmdSetup()
 	case "hooks":
@@ -812,6 +816,11 @@ func runAriaCloudMCP(cfg store.Config) {
 	})
 	// Pages tools (mini-Notion): aria_page_create/get/search + aria_pages_tree.
 	mcp.RegisterAriaPagesTools(srv, mcp.PagesMCPConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	// Team Projects (wave 7): aria_project_*, aria_task_*.
+	mcp.RegisterAriaTeamProjectsTools(srv, mcp.TeamProjectsMCPConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})

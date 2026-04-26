@@ -243,6 +243,18 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	quoteChatAdpt := newQuoteChatAdapter(cotizadorSvc.store, channelRouter, redactorSvc, emailService, publicURL, cs.DB())
 	log.Printf("[aria-core-cloud] quote-chat ready (wave 6)")
 
+	// Wave 7: Team projects + tasks Kanban + GitHub auto-create.
+	// systemUID para vault-by-name (creator-by-default es el bootstrap admin).
+	systemUID := strings.TrimSpace(os.Getenv("ARIA_CORE_SYSTEM_UID"))
+	if systemUID == "" {
+		// Fallback: lookup primer admin from cloud_users.
+		var fallback string
+		_ = cs.DB().QueryRow(`SELECT uid::text FROM cloud_users WHERE 'admin' = ANY(roles) AND is_active = TRUE ORDER BY created_at ASC LIMIT 1`).Scan(&fallback)
+		systemUID = fallback
+	}
+	teamProjectsAdpt := newTeamProjectsAdapter(cs, vaultAdpt, systemUID)
+	log.Printf("[aria-core-cloud] team-projects ready (wave 7)")
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -281,6 +293,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPageDatabases(pageDBAdapter),
 			cloudserver.WithPageComments(pageCommentsAdapter),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
+			cloudserver.WithTeamProjects(teamProjectsAdpt, teamProjectsAdpt),
 		),
 		store: cs,
 	}, nil

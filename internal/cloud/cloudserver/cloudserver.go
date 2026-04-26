@@ -85,6 +85,8 @@ type CloudServer struct {
 	passwordResetMailer dashboard.PasswordResetMailerService
 	personalCockpit  dashboard.PersonalCockpitService
 	profile          dashboard.ProfileService
+	teamProjects       TeamProjectsService
+	teamProjectsCreate TeamProjectsCreateAdapter
 }
 
 // ROIService es el contrato runtime del módulo ROI consumido por
@@ -852,6 +854,12 @@ func (s *CloudServer) routes() {
 	// === Page databases + comments (DB module) ===
 	if s.pageDB != nil || s.pageComments != nil {
 		s.mountPagesDashboard()
+	}
+
+	// === Team Projects (wave 7): plataforma de gestión de proyectos ===
+	if s.teamProjects != nil {
+		s.mountTeamProjectsDashboard()
+		s.mountV1TeamProjects()
 	}
 }
 

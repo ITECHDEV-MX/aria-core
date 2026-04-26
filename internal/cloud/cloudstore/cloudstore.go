@@ -15,6 +15,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/chunkcodec"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/attachments"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/teamprojects"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/vault"
 	coresync "github.com/ITECHDEV-MX/aria-core/internal/sync"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -1272,6 +1273,12 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 		return fmt.Errorf("cloudstore: attachments migrate: %w", err)
 	}
 	// END ATTACHMENTS MIGRATIONS
+
+	// BEGIN PROJECTS_TASKS MIGRATIONS
+	if err := teamprojects.Migrate(ctx, cs.db); err != nil {
+		return fmt.Errorf("cloudstore: teamprojects migrate: %w", err)
+	}
+	// END PROJECTS_TASKS MIGRATIONS
 	return nil
 }
 
