@@ -1,0 +1,48 @@
+# Workflow de checks de PR para aria-core.
+# Se dispara en eventos de pull_request (open / sync / reopen / edit).
+# Verifica:
+#   1. Que los commits sigan Conventional Commits (bloqueante).
+#   2. Que el PR tenga un label de tipo (`type:*`) — informativo, no bloquea.
+
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  commitlint:
+    name: Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validar mensajes de commit
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          # Config inline: tipos permitidos para aria-core.
+          configFile: .github/commitlint.config.cjs
+
+  pr-labels:
+    name: Labels de tipo (informativo)
+    runs-on: ubuntu-latest
+    # No bloquea: si falla solo deja un warning en el job summary.
+    continue-on-error: true
+    steps:
+      - name: Verificar label type:*
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels) }}
+        run: |
+          # Buscar al menos un label con prefijo `type:`
+          if echo "$LABELS" | grep -qE '"name":\s*"type:[a-z]+"'; then
+            echo "::notice::PR tiene label type:* — OK."
+          else
+            echo "::warning::PR no tiene label type:* (feat/fix/chore/docs/refactor/test/ci)."
+          fi
