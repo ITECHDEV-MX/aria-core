@@ -1,3 +1,15 @@
+// CLI for `aria-core pages <subcommand>`.
+//
+// Subcommands:
+//   list                       Lista páginas (filtrable por --project).
+//   create                     Crea una página (--title, --parent-id, --template, etc.).
+//   export PAGE_ID             Exporta a md|html.
+//   seed-templates             Carga los 5 templates builtin (idempotente).
+//   import-notion              (TODO) importa un export Notion .zip.
+//   attach FILE PAGE_ID        Upload archivo a una página (MIME validated).
+//   share PAGE_ID              Crea un public share link (--expires, --password).
+//   shares list                Lista share links activos (--page=ID).
+//   shares revoke SHARE_ID     Revoca un share link.
 package main
 
 import (
@@ -9,23 +21,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/yuin/goldmark"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages/attachments"
 )
 
-// cmdPages — CLI dispatch para `aria-core pages <subcommand>`.
-//
-//	list                       Lista páginas (filtrable por --project).
-//	create                     Crea una página (--title, --parent-id, --template, etc.).
-//	export PAGE_ID             Exporta a md|html.
-//	seed-templates             Carga los 5 templates builtin (idempotente).
-//	import-notion              (TODO) importa un export Notion .zip.
 func cmdPages() {
 	if len(os.Args) < 3 {
 		printPagesUsage()
@@ -46,6 +54,26 @@ func cmdPages() {
 	case "import-notion":
 		fmt.Fprintln(os.Stderr, "import-notion: TODO — preserva jerarquía de export Notion .zip y convierte links internos a slugs aria_pages.")
 		exitFunc(2)
+	case "attach":
+		runPagesCmd(args, pagesAttach)
+	case "share":
+		runPagesCmd(args, pagesShare)
+	case "shares":
+		if len(args) == 0 {
+			printPagesUsage()
+			exitFunc(2)
+			return
+		}
+		switch args[0] {
+		case "list":
+			runPagesCmd(args[1:], pagesSharesList)
+		case "revoke":
+			runPagesCmd(args[1:], pagesSharesRevoke)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown shares subcommand: %s\n", args[0])
+			printPagesUsage()
+			exitFunc(2)
+		}
 	case "help", "--help", "-h":
 		printPagesUsage()
 	default:
@@ -70,13 +98,33 @@ Subcommands:
                               Carga los 5 templates builtin (idempotente).
   import-notion ZIP_FILE      (TODO) Importa export Notion preservando jerarquía.
 
+  attach FILE PAGE_ID [--description="..."] [--uid=UUID]
+                              Upload archivo a una página. MIME validated.
+  share PAGE_ID [--expires=24h] [--password=...] [--copy-to-clipboard] [--uid=UUID]
+                              Crea un public share link. --expires: 1h|24h|7d|30d|never
+  shares list --page=ID [--include-revoked]
+                              Lista share links de una página.
+  shares revoke SHARE_ID [--uid=UUID]
+                              Revoca un share link.
+
 Templates builtin: prd-v1 | incident-v1 | one-on-one-v1 | adr-v1 | client-onboarding-v1
 
-Requiere ARIA_CORE_DATABASE_URL=postgres://...`)
+Requiere ARIA_CORE_DATABASE_URL=postgres://...
+Storage de attachments: ARIA_CORE_ATTACHMENTS_DIR (default: /var/lib/aria-core/attachments).`)
 }
 
-// runPagesCmd abre DB y entrega un PgStore al handler.
-func runPagesCmd(args []string, fn func(ctx context.Context, store *pages.PgStore, args []string) error) {
+// pagesCmdContext es el contexto compartido por todos los handlers; carga
+// ambos stores (PgStore para pages CRUD y attachment/share stores para uploads).
+type pagesCmdContext struct {
+	db          *sql.DB
+	pgStore     *pages.PgStore
+	attStore    *attachments.AttachmentStore
+	shareStore  *attachments.PgShareStore
+	storageRoot string
+}
+
+// runPagesCmd abre DB y entrega un pagesCmdContext al handler.
+func runPagesCmd(args []string, fn func(ctx context.Context, c *pagesCmdContext, args []string) error) {
 	dsn := strings.TrimSpace(os.Getenv("ARIA_CORE_DATABASE_URL"))
 	if dsn == "" {
 		fmt.Fprintln(os.Stderr, "ARIA_CORE_DATABASE_URL is required (postgres://...)")
@@ -95,16 +143,38 @@ func runPagesCmd(args []string, fn func(ctx context.Context, store *pages.PgStor
 		exitFunc(1)
 		return
 	}
-	st := pages.NewPgStore(db)
-	if err := fn(context.Background(), st, args); err != nil {
+
+	pgStore := pages.NewPgStore(db)
+
+	root := strings.TrimSpace(os.Getenv("ARIA_CORE_ATTACHMENTS_DIR"))
+	if root == "" {
+		root = defaultAttachmentsRoot()
+	}
+	storage, err := attachments.NewFilesystemStorage(root)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "init storage: %v\n", err)
+		exitFunc(1)
+		return
+	}
+	attStore := attachments.NewAttachmentStore(db, storage, attachments.Config{})
+	shareStore := attachments.NewPgShareStore(db)
+
+	c := &pagesCmdContext{
+		db:          db,
+		pgStore:     pgStore,
+		attStore:    attStore,
+		shareStore:  shareStore,
+		storageRoot: root,
+	}
+	if err := fn(context.Background(), c, args); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		exitFunc(1)
 	}
 }
 
-// ─── Subcommand implementations ─────────────────────────────────────────────
+// ─── PAGES subcommand handlers (CRUD) ───────────────────────────────────────
 
-func pagesList(ctx context.Context, store *pages.PgStore, args []string) error {
+func pagesList(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("pages list", flag.ExitOnError)
 	project := fs.String("project", "", "Filtrar por proyecto")
 	scope := fs.String("scope", "", "Filtrar por scope")
@@ -112,7 +182,7 @@ func pagesList(ctx context.Context, store *pages.PgStore, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	rs, err := store.Tree(ctx, *project, *scope)
+	rs, err := c.pgStore.Tree(ctx, *project, *scope)
 	if err != nil {
 		return err
 	}
@@ -134,7 +204,7 @@ func pagesList(ctx context.Context, store *pages.PgStore, args []string) error {
 	return tw.Flush()
 }
 
-func pagesCreate(ctx context.Context, store *pages.PgStore, args []string) error {
+func pagesCreate(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("pages create", flag.ExitOnError)
 	title := fs.String("title", "", "Título (requerido)")
 	parentID := fs.String("parent-id", "", "UUID del parent (opcional)")
@@ -174,7 +244,7 @@ func pagesCreate(ctx context.Context, store *pages.PgStore, args []string) error
 		contentMD = string(buf)
 	}
 
-	pg, err := store.Create(ctx, pages.CreateParams{
+	pg, err := c.pgStore.Create(ctx, pages.CreateParams{
 		ParentID:     *parentID,
 		Title:        *title,
 		ContentMD:    contentMD,
@@ -193,7 +263,7 @@ func pagesCreate(ctx context.Context, store *pages.PgStore, args []string) error
 	return nil
 }
 
-func pagesExport(ctx context.Context, store *pages.PgStore, args []string) error {
+func pagesExport(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("pages export", flag.ExitOnError)
 	format := fs.String("format", "md", "Formato: md | html")
 	if err := fs.Parse(args); err != nil {
@@ -203,7 +273,7 @@ func pagesExport(ctx context.Context, store *pages.PgStore, args []string) error
 		return fmt.Errorf("PAGE_ID requerido")
 	}
 	id := fs.Arg(0)
-	pg, err := store.Get(ctx, id)
+	pg, err := c.pgStore.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -227,7 +297,7 @@ func pagesExport(ctx context.Context, store *pages.PgStore, args []string) error
 	return nil
 }
 
-func pagesSeedTemplates(ctx context.Context, store *pages.PgStore, args []string) error {
+func pagesSeedTemplates(ctx context.Context, c *pagesCmdContext, args []string) error {
 	fs := flag.NewFlagSet("pages seed-templates", flag.ExitOnError)
 	byUID := fs.String("by-uid", "", "UUID del usuario que actúa como creador (requerido)")
 	if err := fs.Parse(args); err != nil {
@@ -236,7 +306,7 @@ func pagesSeedTemplates(ctx context.Context, store *pages.PgStore, args []string
 	if strings.TrimSpace(*byUID) == "" {
 		return fmt.Errorf("--by-uid es requerido (UUID del usuario)")
 	}
-	if err := store.SeedTemplates(ctx, *byUID); err != nil {
+	if err := c.pgStore.SeedTemplates(ctx, *byUID); err != nil {
 		return err
 	}
 	fmt.Printf("✓ %d templates seedeados (idempotente)\n", len(pages.BuiltinTemplates()))
@@ -245,6 +315,167 @@ func pagesSeedTemplates(ctx context.Context, store *pages.PgStore, args []string
 	}
 	return nil
 }
+
+// ─── ATTACH/SHARE subcommand handlers ──────────────────────────────────────
+
+func pagesAttach(ctx context.Context, c *pagesCmdContext, args []string) error {
+	fs := flag.NewFlagSet("attach", flag.ContinueOnError)
+	desc := fs.String("description", "", "optional description")
+	uid := fs.String("uid", "", "uploader UID (defaults to ARIA_CORE_DEFAULT_UID)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rest := fs.Args()
+	if len(rest) < 2 {
+		return fmt.Errorf("usage: pages attach FILE PAGE_ID [--description=...]")
+	}
+	file := rest[0]
+	pageID := rest[1]
+	uploaderUID := *uid
+	if uploaderUID == "" {
+		uploaderUID = strings.TrimSpace(os.Getenv("ARIA_CORE_DEFAULT_UID"))
+	}
+	if uploaderUID == "" {
+		return fmt.Errorf("either --uid or env ARIA_CORE_DEFAULT_UID is required")
+	}
+	f, err := os.Open(file)
+	if err != nil {
+		return fmt.Errorf("open %q: %w", file, err)
+	}
+	defer f.Close()
+	att, err := c.attStore.Upload(ctx, attachments.UploadParams{
+		PageID:           pageID,
+		OriginalFilename: file,
+		Body:             f,
+		UploadedByUID:    uploaderUID,
+		Description:      *desc,
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("uploaded %s\n  id=%s\n  size=%s\n  mime=%s\n  storage=%s\n",
+		att.OriginalFilename, att.ID, attachments.HumanSize(att.SizeBytes), att.MIMEType, att.StoragePath)
+	return nil
+}
+
+func pagesShare(ctx context.Context, c *pagesCmdContext, args []string) error {
+	fs := flag.NewFlagSet("share", flag.ContinueOnError)
+	expires := fs.String("expires", "24h", "1h|24h|7d|30d|never")
+	password := fs.String("password", "", "optional password (bcrypt-hashed)")
+	copyClip := fs.Bool("copy-to-clipboard", false, "copy URL to clipboard")
+	uid := fs.String("uid", "", "creator UID (defaults to ARIA_CORE_DEFAULT_UID)")
+	publicBase := fs.String("public-url", "", "public base URL for printed link (default: ARIA_CORE_PUBLIC_URL or localhost)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rest := fs.Args()
+	if len(rest) < 1 {
+		return fmt.Errorf("usage: pages share PAGE_ID [--expires=24h] [--password=...]")
+	}
+	pageID := rest[0]
+	creatorUID := *uid
+	if creatorUID == "" {
+		creatorUID = strings.TrimSpace(os.Getenv("ARIA_CORE_DEFAULT_UID"))
+	}
+	if creatorUID == "" {
+		return fmt.Errorf("either --uid or env ARIA_CORE_DEFAULT_UID is required")
+	}
+	var expiresAt *time.Time
+	if d, ok := parsePagesExpiry(*expires); ok {
+		t := time.Now().UTC().Add(d)
+		expiresAt = &t
+	}
+	link, err := c.shareStore.Create(ctx, attachments.CreateShareParams{
+		PageID:       pageID,
+		Password:     *password,
+		ExpiresAt:    expiresAt,
+		CreatedByUID: creatorUID,
+	})
+	if err != nil {
+		return err
+	}
+	base := strings.TrimRight(*publicBase, "/")
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(os.Getenv("ARIA_CORE_PUBLIC_URL")), "/")
+	}
+	if base == "" {
+		base = "http://localhost:8080"
+	}
+	url := base + "/p/" + link.Token
+	fmt.Printf("share link created\n  id=%s\n  url=%s\n  has_password=%v\n",
+		link.ID, url, link.HasPassword)
+	if link.ExpiresAt != nil {
+		fmt.Printf("  expires=%s\n", link.ExpiresAt.Format(time.RFC3339))
+	}
+	if *copyClip {
+		if err := tryCopyToClipboard(url); err != nil {
+			fmt.Fprintf(os.Stderr, "  (clipboard copy failed: %v)\n", err)
+		} else {
+			fmt.Println("  (URL copied to clipboard)")
+		}
+	}
+	return nil
+}
+
+func pagesSharesList(ctx context.Context, c *pagesCmdContext, args []string) error {
+	fs := flag.NewFlagSet("shares-list", flag.ContinueOnError)
+	page := fs.String("page", "", "filter by page id")
+	includeRevoked := fs.Bool("include-revoked", false, "show revoked links too")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *page == "" {
+		return fmt.Errorf("--page=ID is required (the share table is per-page)")
+	}
+	links, err := c.shareStore.ListByPage(ctx, *page, *includeRevoked)
+	if err != nil {
+		return err
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	defer tw.Flush()
+	fmt.Fprintln(tw, "ID\tTOKEN\tPW?\tVIEWS\tEXPIRES\tCREATED\tREVOKED")
+	for _, link := range links {
+		expires := "never"
+		if link.ExpiresAt != nil {
+			expires = link.ExpiresAt.Format(time.RFC3339)
+		}
+		pw := "no"
+		if link.HasPassword {
+			pw = "yes"
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\t%s\t%s\t%v\n",
+			link.ID, truncToken(link.Token), pw, link.ViewCount, expires,
+			link.CreatedAt.Format(time.RFC3339), link.IsRevoked)
+	}
+	if len(links) == 0 {
+		fmt.Fprintln(tw, "(no shares)")
+	}
+	return nil
+}
+
+func pagesSharesRevoke(ctx context.Context, c *pagesCmdContext, args []string) error {
+	fs := flag.NewFlagSet("shares-revoke", flag.ContinueOnError)
+	uid := fs.String("uid", "", "revoker UID (defaults to ARIA_CORE_DEFAULT_UID)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	rest := fs.Args()
+	if len(rest) < 1 {
+		return fmt.Errorf("usage: pages shares revoke SHARE_ID")
+	}
+	id := rest[0]
+	by := *uid
+	if by == "" {
+		by = strings.TrimSpace(os.Getenv("ARIA_CORE_DEFAULT_UID"))
+	}
+	if err := c.shareStore.Revoke(ctx, id, by); err != nil {
+		return err
+	}
+	fmt.Printf("revoked share %s\n", id)
+	return nil
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 func truncatePages(s string, max int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -266,4 +497,62 @@ func shortID(id string) string {
 func htmlEscape(s string) string {
 	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;")
 	return r.Replace(s)
+}
+
+func parsePagesExpiry(s string) (time.Duration, bool) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "":
+		return 0, false
+	case "1h":
+		return time.Hour, true
+	case "24h", "1d":
+		return 24 * time.Hour, true
+	case "7d":
+		return 7 * 24 * time.Hour, true
+	case "30d":
+		return 30 * 24 * time.Hour, true
+	case "never":
+		return 0, false
+	}
+	if d, err := time.ParseDuration(s); err == nil && d > 0 {
+		return d, true
+	}
+	return 0, false
+}
+
+func truncToken(t string) string {
+	if len(t) <= 12 {
+		return t
+	}
+	return t[:8] + "…" + t[len(t)-4:]
+}
+
+// tryCopyToClipboard pipes url to pbcopy/xclip/wl-copy depending on OS. Best
+// effort — returns the underlying error so the user can switch tools.
+func tryCopyToClipboard(url string) error {
+	candidates := [][]string{
+		{"pbcopy"},
+		{"wl-copy"},
+		{"xclip", "-selection", "clipboard"},
+	}
+	for _, c := range candidates {
+		path, err := exec.LookPath(c[0])
+		if err != nil || path == "" {
+			continue
+		}
+		cmd := exec.Command(path, c[1:]...)
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			continue
+		}
+		if err := cmd.Start(); err != nil {
+			continue
+		}
+		_, _ = stdin.Write([]byte(url))
+		_ = stdin.Close()
+		if err := cmd.Wait(); err == nil {
+			return nil
+		}
+	}
+	return fmt.Errorf("no clipboard tool found (install pbcopy/xclip/wl-copy)")
 }

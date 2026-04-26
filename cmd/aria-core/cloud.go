@@ -190,6 +190,17 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	pagesAdpt := newPagesDashboardAdapter(cs)
 	log.Printf("[aria-core-cloud] pages module ready (mini-Notion)")
 
+	// Page attachments + share links. Filesystem storage + thumbnails async.
+	pageAttsAdapter, attsErr := newPageAttachmentsAdapter(cs)
+	if attsErr != nil {
+		log.Printf("[aria-core-cloud] page attachments DISABLED: %v", attsErr)
+	}
+	pageSharesAdpt := newPageSharesAdapter(cs)
+	var pagePublicView *pagePublicViewAdapter
+	if pageAttsAdapter != nil {
+		pagePublicView = newPagePublicViewAdapter(cs, pageAttsAdapter)
+	}
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -216,6 +227,9 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithROIDashboard(roiDashAdapter),
 			cloudserver.WithRecipeRunner(recipeRunner),
 			cloudserver.WithPagesDashboard(pagesAdpt),
+			cloudserver.WithPageAttachments(pageAttachmentsServiceOrNil(pageAttsAdapter)),
+			cloudserver.WithPageShares(pageSharesAdpt),
+			cloudserver.WithPagePublicView(pagePublicViewServiceOrNil(pagePublicView)),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

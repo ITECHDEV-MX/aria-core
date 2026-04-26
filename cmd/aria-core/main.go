@@ -2255,7 +2255,7 @@ Commands:
                                                      Ejecuta el recipe sincrónicamente
                        history [--key=X] [--days=30] Últimas ejecuciones
                        seed                          Carga 3 recipes builtin (idempotente)
-  pages <subcommand>  Mini-Notion wiki (cloud-side)
+  pages <subcommand>  Mini-Notion wiki + attachments + share links (cloud-side)
                        list [--project=X]            Lista páginas no archivadas
                        create --title="..." [--template=KEY] [--parent-id=UUID] [--by-uid=UUID]
                                                      Crea una página
@@ -2263,6 +2263,12 @@ Commands:
                                                      Exporta contenido renderizado
                        seed-templates --by-uid=UUID  Carga los 5 templates builtin
                        import-notion ZIP_FILE        (TODO) Import export Notion .zip
+                       attach FILE PAGE_ID [--description=...]
+                                                     Sube un archivo a la página
+                       share PAGE_ID [--expires=24h] [--password=...] [--copy-to-clipboard]
+                                                     Crea un link público read-only
+                       shares list --page=ID         Lista links activos
+                       shares revoke SHARE_ID        Revoca un link
   obsidian-export    Export memories to an Obsidian-compatible markdown vault
                        --vault         Path to Obsidian vault root (required)
                        --project       Filter export to a single project (optional)
