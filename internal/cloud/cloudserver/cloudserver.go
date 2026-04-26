@@ -61,6 +61,7 @@ type CloudServer struct {
 	cotizador      dashboard.CotizadorService
 	ariaMem        AriaMemService
 	ariaMemDash    dashboard.AriaMemDashboardService
+	pdfClient      dashboard.PDFClient
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
@@ -150,6 +151,15 @@ func WithAriaMem(m AriaMemService) Option {
 func WithAriaMemDashboard(m dashboard.AriaMemDashboardService) Option {
 	return func(s *CloudServer) {
 		s.ariaMemDash = m
+	}
+}
+
+// WithPDFClient inyecta el cliente HTML→PDF (gotenberg) para los endpoints
+// de export PDF del dashboard. Si no se configura, los endpoints PDF
+// responden 503 "PDF export no configurado".
+func WithPDFClient(c dashboard.PDFClient) Option {
+	return func(s *CloudServer) {
+		s.pdfClient = c
 	}
 }
 
@@ -356,6 +366,7 @@ func (s *CloudServer) routes() {
 		AdminUsers:        adminUsers,
 		Cotizador:         s.cotizador,
 		AriaMem:           s.ariaMemDash,
+		PDFClient:         s.pdfClient,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
