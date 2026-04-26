@@ -55,6 +55,9 @@ templ Layout(title string, username string, activeTab string, roles []string, co
 							@SidebarLink("/dashboard/cotizador", "💼", "Cotizaciones", "cotizador", activeTab)
 						}
 
+						<div class="sidebar-nav-section">ROI</div>
+						@SidebarLink("/dashboard/roi", "📈", "ROI & Ahorro", "roi", activeTab)
+
 						if hasAnyRole(roles, "admin") {
 							<div class="sidebar-nav-section">Administración</div>
 							@SidebarLink("/dashboard/contributors", "👥", "Colaboradores", "contributors", activeTab)

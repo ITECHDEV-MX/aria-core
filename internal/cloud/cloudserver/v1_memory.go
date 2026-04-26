@@ -108,6 +108,7 @@ func (s *CloudServer) handleV1MemorySearch(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"error":"memory not configured"}`, http.StatusServiceUnavailable)
 		return
 	}
+	startedAt := time.Now()
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	tokenBudget, _ := strconv.Atoi(r.URL.Query().Get("token_budget"))
 	strategy := strings.TrimSpace(r.URL.Query().Get("strategy"))
@@ -118,12 +119,19 @@ func (s *CloudServer) handleV1MemorySearch(w http.ResponseWriter, r *http.Reques
 		ObservationType: strings.TrimSpace(r.URL.Query().Get("type")),
 		Limit:           limit,
 	}
+	// roiClaims se usa al final para LogSearch.
+	roiClaims, _ := claimsFromContext(r.Context())
+	roiDevUID := ""
+	if roiClaims != nil {
+		roiDevUID = roiClaims.UID
+	}
 	if tokenBudget > 0 {
 		results, truncated, tokens, err := s.ariaMem.SearchWithBudget(r.Context(), in, tokenBudget, strategy)
 		if err != nil {
 			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 			return
 		}
+		s.logROISearch(r.Context(), in, results, truncated, tokens, roiDevUID, startedAt)
 		jsonResponse(w, http.StatusOK, map[string]any{
 			"results":         results,
 			"count":           len(results),
@@ -138,6 +146,9 @@ func (s *CloudServer) handleV1MemorySearch(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 		return
 	}
+	// Hook ROI: registrar la búsqueda con stats antes del scrub para que el
+	// canon_hit_count refleje resultados crudos.
+	s.logROISearch(r.Context(), in, rs, 0, 0, roiDevUID, startedAt)
 
 	// Bóveda-de-cliente: para cada resultado decidir si puede salir tal cual,
 	// si necesita scrub, o si debe quedar bloqueado por confidential. El
@@ -524,4 +535,30 @@ func (s *CloudServer) handleV1MemoryRecipes(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	jsonResponse(w, http.StatusOK, map[string]any{"recipes": rs, "count": len(rs)})
+}
+
+// logROISearch persiste una fila en aria_search_log con stats de la búsqueda.
+// Tolerante a roi==nil (no-op). canon_hit_count se cuenta directamente sobre
+// los results retornados.
+func (s *CloudServer) logROISearch(ctx context.Context, in AriaMemSearchInput, results []*AriaMemObservation, truncated, tokens int, devUID string, startedAt time.Time) {
+	if s == nil || s.roi == nil {
+		return
+	}
+	canonHits := 0
+	for _, o := range results {
+		if o != nil && o.Canon {
+			canonHits++
+		}
+	}
+	_ = s.roi.LogSearch(ctx, ROILogSearchParams{
+		Query:          in.Query,
+		ResultCount:    len(results),
+		CanonHitCount:  canonHits,
+		TotalTokens:    tokens,
+		TruncatedCount: truncated,
+		DeveloperUID:   devUID,
+		Project:        in.Project,
+		Scope:          in.Scope,
+		DurationMs:     int(time.Since(startedAt).Milliseconds()),
+	})
 }

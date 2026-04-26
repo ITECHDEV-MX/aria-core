@@ -580,6 +580,8 @@ func main() {
 		cmdRedactor()
 	case "vault":
 		cmdVault()
+	case "roi":
+		cmdROI()
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
