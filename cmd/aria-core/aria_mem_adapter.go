@@ -7,6 +7,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/ariamem"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudserver"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
 )
 
 // ariaMemAdapter conecta ariamem.Store al contrato cloudserver.AriaMemService.
@@ -201,6 +202,98 @@ func toMemObs(o *ariamem.Observation) *cloudserver.AriaMemObservation {
 	if o.ValidUntil.Valid {
 		t := o.ValidUntil.Time
 		v.ValidUntil = &t
+	}
+	return v
+}
+
+// === Dashboard adapter — alimenta /dashboard/memorias con aria_observations ===
+
+type ariaMemDashboardAdapter struct {
+	store *ariamem.Store
+}
+
+func newAriaMemDashboardAdapter(cs *cloudstore.CloudStore) *ariaMemDashboardAdapter {
+	return &ariaMemDashboardAdapter{store: ariamem.New(cs.DB())}
+}
+
+func (a *ariaMemDashboardAdapter) Search(ctx context.Context, query, project, scope, obsType string, limit int) ([]dashboard.AriaMemoryView, error) {
+	rs, err := a.store.Search(ctx, ariamem.SearchParams{
+		Query: query, Project: project, Scope: scope, ObservationType: obsType, Limit: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]dashboard.AriaMemoryView, 0, len(rs))
+	for _, o := range rs {
+		out = append(out, toMemoryView(o))
+	}
+	return out, nil
+}
+
+func (a *ariaMemDashboardAdapter) GetByID(ctx context.Context, id string) (*dashboard.AriaMemoryView, error) {
+	o, err := a.store.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	v := toMemoryView(o)
+	return &v, nil
+}
+
+func (a *ariaMemDashboardAdapter) PromoteCanon(ctx context.Context, id, byUID string) error {
+	return a.store.PromoteCanon(ctx, id, byUID)
+}
+
+func (a *ariaMemDashboardAdapter) ListProjects(ctx context.Context) ([]string, error) {
+	rows, err := a.store.DBRaw().QueryContext(ctx, `
+		SELECT DISTINCT project FROM aria_observations WHERE project IS NOT NULL AND project <> '' ORDER BY project
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func toMemoryView(o *ariamem.Observation) dashboard.AriaMemoryView {
+	v := dashboard.AriaMemoryView{
+		ID: o.ID, Scope: o.Scope, ObservationType: o.ObservationType,
+		Title: o.Title, Source: o.Source, Canon: o.Canon,
+		CreatedAt: o.CreatedAt, UpdatedAt: o.UpdatedAt,
+	}
+	if o.SessionID.Valid {
+		v.SessionID = o.SessionID.String
+	}
+	if o.Project.Valid {
+		v.Project = o.Project.String
+	}
+	if o.Subtitle.Valid {
+		v.Subtitle = o.Subtitle.String
+	}
+	if o.Narrative.Valid {
+		v.Narrative = o.Narrative.String
+	}
+	if o.Facts.Valid {
+		v.Facts = o.Facts.String
+	}
+	if o.Concepts.Valid {
+		v.Concepts = o.Concepts.String
+	}
+	if o.FilesTouched.Valid {
+		v.FilesTouched = o.FilesTouched.String
+	}
+	if o.ReasoningTrace.Valid {
+		v.ReasoningTrace = o.ReasoningTrace.String
+	}
+	if o.TopicKey.Valid {
+		v.TopicKey = o.TopicKey.String
 	}
 	return v
 }

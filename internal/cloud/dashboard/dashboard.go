@@ -66,6 +66,36 @@ type MountConfig struct {
 	AdminUsers AdminUserService
 	// Cotizador (opcional) — habilita módulo Cotizaciones en /dashboard/cotizador.
 	Cotizador CotizadorService
+	// AriaMem (opcional) — habilita /dashboard/memorias con aria_observations.
+	AriaMem AriaMemDashboardService
+}
+
+// AriaMemDashboardService es el contrato dashboard para la capa de memoria ARIA.
+type AriaMemDashboardService interface {
+	Search(ctx context.Context, query, project, scope, obsType string, limit int) ([]AriaMemoryView, error)
+	GetByID(ctx context.Context, id string) (*AriaMemoryView, error)
+	PromoteCanon(ctx context.Context, id, byUID string) error
+	ListProjects(ctx context.Context) ([]string, error)
+}
+
+type AriaMemoryView struct {
+	ID              string
+	SessionID       string
+	Project         string
+	Scope           string
+	ObservationType string
+	Title           string
+	Subtitle        string
+	Narrative       string
+	Facts           string
+	Concepts        string
+	FilesTouched    string
+	ReasoningTrace  string // JSON
+	TopicKey        string
+	Source          string
+	Canon           bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // CotizadorService es el contrato del módulo Cotizador para el dashboard.
@@ -490,6 +520,12 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/upsert", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionUpsert))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/sections/{key}/delete", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteSectionDelete))
 	mux.HandleFunc("POST /dashboard/cotizador/quotes/{quoteID}/apply-template", h.requireAnyRole(cotizadorRoles, h.handleCotizadorQuoteApplyTemplate))
+
+	// === Memoria ARIA (commit 11) ===
+	mux.HandleFunc("GET /dashboard/memorias", h.requireSession(h.handleAriaMemList))
+	mux.HandleFunc("GET /dashboard/memorias/list", h.requireSession(h.handleAriaMemListPartial))
+	mux.HandleFunc("GET /dashboard/memorias/{id}", h.requireSession(h.handleAriaMemDetail))
+	mux.HandleFunc("POST /dashboard/memorias/{id}/promote-canon", h.requireSession(h.handleAriaMemPromoteCanon))
 }
 
 func Handler() http.Handler {

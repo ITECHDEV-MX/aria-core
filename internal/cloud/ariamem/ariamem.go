@@ -141,6 +141,9 @@ func New(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
+// DBRaw expone el *sql.DB para queries puntuales del adapter (e.g. ListProjects).
+func (s *Store) DBRaw() *sql.DB { return s.db }
+
 // === Observations ===
 
 type SaveParams struct {

@@ -3,14 +3,24 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 	_ "modernc.org/sqlite"
 )
+
+func jsonUnmarshalLocal(b []byte, v any) error {
+	return json.Unmarshal(b, v)
+}
+
+func pqStringArrayValueAdmin(v []string) any {
+	return pq.Array(v)
+}
 
 // adminMigrateFromLegacy lee el SQLite legacy de aria-global (~/.aria/aria.db por
 // default) y migra observations + sessions + session_summaries + skills al
@@ -269,9 +279,10 @@ func migrateSkills(ctx context.Context, src, dst *sql.DB, dryRun bool) (int, err
 		return 0, nil
 	}
 	_ = rows.Close()
-	// Schema mínimo común: id, name, description (resto opcional)
+	// Legacy schema: sync_id (pk), name, title, content_md, stack (json string), scope, version, synced_at
 	skillRows, err := src.QueryContext(ctx, `
-		SELECT id, name, COALESCE(description, '') FROM skills
+		SELECT sync_id, name, COALESCE(title,''), COALESCE(content_md,''), COALESCE(stack,'[]')
+		FROM skills
 	`)
 	if err != nil {
 		return 0, nil // No bloquea migración
@@ -279,25 +290,45 @@ func migrateSkills(ctx context.Context, src, dst *sql.DB, dryRun bool) (int, err
 	defer skillRows.Close()
 	n := 0
 	for skillRows.Next() {
-		var id, name, description string
-		if err := skillRows.Scan(&id, &name, &description); err != nil {
+		var id, name, title, content, stackJSON string
+		if err := skillRows.Scan(&id, &name, &title, &content, &stackJSON); err != nil {
 			return n, err
 		}
 		if dryRun {
 			n++
 			continue
 		}
+		// stack legacy es JSON string ["typescript","react",...]. Lo convertimos a TEXT[].
+		stack := parseStackJSON(stackJSON)
+		// description = title (legacy no tiene description separado)
 		_, err := dst.ExecContext(ctx, `
-			INSERT INTO aria_skills (id, name, description, source, active)
-			VALUES ($1, $2, $3, 'imported-legacy', TRUE)
+			INSERT INTO aria_skills (id, name, description, content, stack, source, active)
+			VALUES ($1, $2, $3, $4, $5, 'imported-legacy', TRUE)
 			ON CONFLICT (id) DO NOTHING
-		`, id, name, description)
+		`, id, name, title, content, pqStringArrayValueAdmin(stack))
 		if err != nil {
 			continue
 		}
 		n++
 	}
 	return n, skillRows.Err()
+}
+
+// parseStackJSON parsea ["a","b","c"] de SQLite a []string Go.
+func parseStackJSON(s string) []string {
+	var out []string
+	s = strings.TrimSpace(s)
+	if s == "" || s == "[]" {
+		return out
+	}
+	// Naive parse para mantener simple — ya está en formato JSON simple.
+	type wrap struct{}
+	_ = wrap{}
+	// Use json.Unmarshal sin importar otro paquete (ya está usado upstream).
+	if err := jsonUnmarshalLocal([]byte(s), &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 // === helpers ===

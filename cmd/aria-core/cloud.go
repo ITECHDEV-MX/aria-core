@@ -113,6 +113,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	userStoreAdapter := newDashboardUserAdapter(cs)
 	cotizadorSvc := newCotizadorAdapter(cs)
 	ariaMemSvc := newAriaMemAdapter(cs)
+	ariaMemDashSvc := newAriaMemDashboardAdapter(cs)
 
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
@@ -126,6 +127,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithUserStore(userStoreAdapter),
 			cloudserver.WithCotizador(cotizadorSvc),
 			cloudserver.WithAriaMem(ariaMemSvc),
+			cloudserver.WithAriaMemDashboard(ariaMemDashSvc),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 		),
 		store: cs,

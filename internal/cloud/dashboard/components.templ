@@ -14,8 +14,9 @@ import (
 templ NavTabs(activeTab string, roles []string) {
 	<div role="tablist">
 		@navTab("/dashboard/", "Inicio", "dashboard", activeTab)
+		@navTab("/dashboard/memorias", "Memoria", "memorias", activeTab)
 		if hasAnyRole(roles, "admin", "dev") {
-			@navTab("/dashboard/browser", "Memorias", "browser", activeTab)
+			@navTab("/dashboard/browser", "Sync", "browser", activeTab)
 		}
 		if hasAnyRole(roles, "admin", "dev", "project_admin") {
 			@navTab("/dashboard/projects", "Proyectos", "projects", activeTab)

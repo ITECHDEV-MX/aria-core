@@ -60,6 +60,7 @@ type CloudServer struct {
 	userStore      DashboardUserService
 	cotizador      dashboard.CotizadorService
 	ariaMem        AriaMemService
+	ariaMemDash    dashboard.AriaMemDashboardService
 }
 
 // DashboardUserService es el contrato que cloudserver necesita para CRUD de users.
@@ -142,6 +143,13 @@ func WithCotizador(c dashboard.CotizadorService) Option {
 func WithAriaMem(m AriaMemService) Option {
 	return func(s *CloudServer) {
 		s.ariaMem = m
+	}
+}
+
+// WithAriaMemDashboard inyecta el servicio dashboard de memoria.
+func WithAriaMemDashboard(m dashboard.AriaMemDashboardService) Option {
+	return func(s *CloudServer) {
+		s.ariaMemDash = m
 	}
 }
 
@@ -347,6 +355,7 @@ func (s *CloudServer) routes() {
 		StatusProvider:    s.syncStatus,
 		AdminUsers:        adminUsers,
 		Cotizador:         s.cotizador,
+		AriaMem:           s.ariaMemDash,
 	})
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))

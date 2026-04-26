@@ -1,0 +1,196 @@
+package dashboard
+
+import (
+	"strings"
+)
+
+// AriaMemListPage — shell de Memoria con filtros + lista vía HTMX.
+templ AriaMemListPage(projects []string) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">MEMORIA ARIA</p>
+				<h2>Memorias</h2>
+				<p class="muted">Observaciones, decisiones, lecciones y conocimiento del proyecto. Buscador full-text en español con tolerancia a acentos.</p>
+			</div>
+		</div>
+
+		<form id="aria-mem-filters" hx-get="/dashboard/memorias/list" hx-target="#aria-mem-content" hx-swap="innerHTML" hx-trigger="submit, change delay:300ms" class="login-form" style="max-width:980px">
+			<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px">
+				<input type="search" name="q" placeholder="Buscar (FTS español)..."/>
+				<select name="project">
+					<option value="">Todos los proyectos</option>
+					for _, p := range projects {
+						<option value={ p }>{ p }</option>
+					}
+				</select>
+				<select name="scope">
+					<option value="">Todos los scopes</option>
+					<option value="personal">Personal</option>
+					<option value="project">Proyecto</option>
+					<option value="team">Equipo</option>
+					<option value="global">Global</option>
+					<option value="client_knowledge">Cliente</option>
+				</select>
+				<select name="type">
+					<option value="">Todos los tipos</option>
+					<option value="general">General</option>
+					<option value="decision">Decisión</option>
+					<option value="architecture">Arquitectura</option>
+					<option value="bugfix">Bugfix</option>
+					<option value="feature">Feature</option>
+					<option value="adr">ADR</option>
+					<option value="tech_debt">Tech debt</option>
+					<option value="risk">Riesgo</option>
+					<option value="commitment">Compromiso</option>
+					<option value="meeting">Reunión</option>
+					<option value="i18n">i18n</option>
+					<option value="config">Config</option>
+				</select>
+			</div>
+		</form>
+
+		<div id="aria-mem-content"
+			hx-get="/dashboard/memorias/list"
+			hx-trigger="load"
+			hx-swap="innerHTML">
+			<p class="muted">Cargando memorias...</p>
+		</div>
+	</section>
+}
+
+// AriaMemListPartial — tabla de memorias.
+templ AriaMemListPartial(rs []AriaMemoryView, errorMsg string) {
+	if errorMsg != "" {
+		<div class="login-error" role="alert">{ errorMsg }</div>
+	}
+	if len(rs) == 0 {
+		@EmptyState("Sin memorias", "No se encontraron memorias para los filtros activos. Probá ampliar la búsqueda.")
+	} else {
+		<p class="muted" style="margin-top:0.5rem">{ formatCount(len(rs)) }</p>
+		<table class="data-table">
+			<thead>
+				<tr>
+					<th>Título</th>
+					<th>Proyecto</th>
+					<th>Scope</th>
+					<th>Tipo</th>
+					<th>Canon</th>
+					<th>Fecha</th>
+					<th>Acción</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, m := range rs {
+					<tr>
+						<td>
+							<strong>{ truncateString(m.Title, 80) }</strong>
+							if m.TopicKey != "" {
+								<br/><small class="muted">topic: { m.TopicKey }</small>
+							}
+						</td>
+						<td>{ m.Project }</td>
+						<td><span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span></td>
+						<td>{ m.ObservationType }</td>
+						<td>
+							if m.Canon {
+								<span class="badge badge-success">★ Canon</span>
+							}
+						</td>
+						<td>{ formatTimestampTime(m.CreatedAt) }</td>
+						<td><a href={ templ.SafeURL("/dashboard/memorias/" + m.ID) } class="shell-button">Abrir</a></td>
+					</tr>
+				}
+			</tbody>
+		</table>
+	}
+}
+
+// AriaMemDetail — vista completa de una observation con reasoning_trace.
+templ AriaMemDetail(m *AriaMemoryView) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">MEMORIA</p>
+				<h2>{ m.Title }</h2>
+				if m.Subtitle != "" {
+					<p class="muted">{ m.Subtitle }</p>
+				}
+				<div style="margin-top:0.5rem">
+					<span class={ "badge badge-" + scopeVariant(m.Scope) }>{ scopeLabel(m.Scope) }</span>
+					<span class="badge badge-muted">{ m.ObservationType }</span>
+					if m.Canon {
+						<span class="badge badge-success">★ CANON</span>
+					}
+					if m.Project != "" {
+						<span class="badge badge-muted">project: { m.Project }</span>
+					}
+					if m.TopicKey != "" {
+						<span class="badge badge-muted">topic: { m.TopicKey }</span>
+					}
+				</div>
+			</div>
+			<div>
+				<a href="/dashboard/memorias" class="shell-button">← Volver</a>
+				if !m.Canon {
+					<form hx-post={ "/dashboard/memorias/" + m.ID + "/promote-canon" } hx-target="closest section" hx-swap="outerHTML" style="display:inline">
+						<button type="submit" class="shell-button" style="background:#3a5">★ Promover a canon</button>
+					</form>
+				}
+			</div>
+		</div>
+
+		<p class="muted">Creado { formatTimestampTime(m.CreatedAt) } · actualizado { formatTimestampTime(m.UpdatedAt) } · source { m.Source } · id { m.ID }</p>
+
+		if m.Narrative != "" {
+			<h3 class="section-block-title">Contenido</h3>
+			<div style="white-space:pre-wrap;background:#0a0a0a;padding:1rem;border-radius:4px;font-size:0.9rem;line-height:1.6">{ m.Narrative }</div>
+		}
+
+		if m.Facts != "" {
+			<h3 class="section-block-title">Hechos</h3>
+			<ul>
+				for _, fact := range splitFacts(m.Facts) {
+					<li>{ fact }</li>
+				}
+			</ul>
+		}
+
+		if m.Concepts != "" {
+			<h3 class="section-block-title">Conceptos</h3>
+			<p>{ m.Concepts }</p>
+		}
+
+		if m.FilesTouched != "" {
+			<h3 class="section-block-title">Archivos relacionados</h3>
+			<ul style="font-family:monospace;font-size:0.85rem">
+				for _, f := range splitFacts(m.FilesTouched) {
+					<li>{ f }</li>
+				}
+			</ul>
+		}
+
+		if m.ReasoningTrace != "" {
+			<h3 class="section-block-title">Reasoning trace</h3>
+			<pre style="background:#0a0a0a;padding:1rem;border-radius:4px;overflow:auto;font-size:0.8rem">{ prettyJSON(m.ReasoningTrace) }</pre>
+		}
+
+		if m.SessionID != "" {
+			<p class="muted" style="margin-top:1rem">Sesión origen: <code>{ m.SessionID }</code></p>
+		}
+	</section>
+}
+
+// === helpers ===
+
+func splitFacts(s string) []string {
+	parts := strings.Split(s, "|")
+	var out []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}

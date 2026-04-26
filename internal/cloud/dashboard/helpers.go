@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"net/http"
@@ -389,6 +390,65 @@ func formatDateForInput(t *time.Time) string {
 		return ""
 	}
 	return t.Format("2006-01-02")
+}
+
+// scopeLabel devuelve display label de un scope.
+func scopeLabel(s string) string {
+	switch s {
+	case "personal":
+		return "Personal"
+	case "project":
+		return "Proyecto"
+	case "team":
+		return "Equipo"
+	case "global":
+		return "Global"
+	case "client_knowledge":
+		return "Cliente"
+	default:
+		return s
+	}
+}
+
+// scopeVariant clase CSS por scope.
+func scopeVariant(s string) string {
+	switch s {
+	case "global":
+		return "danger"
+	case "team":
+		return "warning"
+	case "client_knowledge":
+		return "success"
+	case "project":
+		return "muted"
+	default:
+		return "muted"
+	}
+}
+
+// formatCount string user-friendly.
+func formatCount(n int) string {
+	if n == 1 {
+		return "1 memoria encontrada"
+	}
+	return strconv.Itoa(n) + " memorias encontradas"
+}
+
+// prettyJSON intenta indentar un JSON; si falla devuelve original.
+func prettyJSON(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return s
+	}
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return s
+	}
+	return string(b)
 }
 
 // truncateString recorta a max chars con "...".
