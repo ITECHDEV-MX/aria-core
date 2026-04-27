@@ -14,6 +14,7 @@ import (
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cloudstore"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cotizador"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/dashboard"
+	"github.com/ITECHDEV-MX/aria-core/internal/cloud/github"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/knowledgebase"
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/pages"
 )
@@ -336,7 +337,7 @@ func (a *kbDashboardAdapter) GenerateQuoteDOCX(ctx context.Context, quoteID stri
 // Si las env vars de GitHub no están seteadas, retorna un service en modo
 // degraded (Available()==false) — los endpoints devolverán 503 hasta que
 // wave 7 mergee el GitHub client.
-func newKnowledgeBaseRuntime(cs *cloudstore.CloudStore, cotizadorStore *cotizador.Store, pagesStore pages.Store, publicURL string) (knowledgebase.Service, dashboard.KnowledgeBaseDashboardService) {
+func newKnowledgeBaseRuntime(cs *cloudstore.CloudStore, cotizadorStore *cotizador.Store, pagesStore pages.Store, publicURL string, ghClient *github.Client) (knowledgebase.Service, dashboard.KnowledgeBaseDashboardService) {
 	org := strings.TrimSpace(os.Getenv("ARIA_CORE_GITHUB_ORG"))
 	if org == "" {
 		org = "ITECHDEV-MX"
@@ -360,11 +361,12 @@ func newKnowledgeBaseRuntime(cs *cloudstore.CloudStore, cotizadorStore *cotizado
 		log.Printf("[aria-core-cloud] knowledgebase pandoc DOCX export ready")
 	}
 
-	// GitHub client — wave 7 lo construye en internal/cloud/github/.
-	// Hasta que mergeen, dejamos GitHubLike=nil → service en modo degraded.
+	// GitHub client — adapter envuelve github.Client (wave 7) para implementar
+	// knowledgebase.GitHubLike. Si ghClient es nil (vault degraded o token
+	// faltante), el service arranca en modo degraded (Available()==false).
 	var gh knowledgebase.GitHubLike
-	if v := strings.TrimSpace(os.Getenv("ARIA_CORE_GITHUB_TOKEN")); v != "" {
-		log.Printf("[aria-core-cloud] knowledgebase: ARIA_CORE_GITHUB_TOKEN set, but GitHub adapter not yet wired (wave 7 pendiente). Service started in degraded mode.")
+	if ghClient != nil {
+		gh = newKBGitHubAdapter(ghClient)
 	}
 
 	svc := knowledgebase.NewService(knowledgebase.Config{

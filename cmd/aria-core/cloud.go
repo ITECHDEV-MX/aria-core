@@ -256,8 +256,7 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	log.Printf("[aria-core-cloud] team-projects ready (wave 7)")
 
 	// Knowledge-base sync (wave 8): repo central + auto-sync + DOCX export.
-	// Modo degraded por ahora — adapter github.Client → knowledgebase.GitHubLike pendiente.
-	kbSvc, kbDashSvc := newKnowledgeBaseRuntime(cs, cotizadorSvc.store, pagesAdpt.store, publicURL)
+	kbSvc, kbDashSvc := newKnowledgeBaseRuntime(cs, cotizadorSvc.store, pagesAdpt.store, publicURL, teamProjectsAdpt.GitHubClient())
 	if kbSvc.Available() {
 		log.Printf("[aria-core-cloud] knowledge-base sync ready (wave 8)")
 	} else {

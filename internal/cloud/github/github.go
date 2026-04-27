@@ -19,6 +19,7 @@ package github
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,20 @@ import (
 	"strings"
 	"time"
 )
+
+// encodeBase64 retorna content como base64 standard (sin saltos de línea — la
+// API de GitHub acepta ambas formas pero envía con line breaks; nosotros
+// mandamos compacto).
+func encodeBase64(content []byte) string {
+	return base64.StdEncoding.EncodeToString(content)
+}
+
+// decodeBase64Lines acepta base64 con o sin line breaks (la API de GitHub
+// retorna content separado en líneas de 60 chars).
+func decodeBase64Lines(s string) ([]byte, error) {
+	cleaned := strings.NewReplacer("\n", "", "\r", "", " ", "").Replace(s)
+	return base64.StdEncoding.DecodeString(cleaned)
+}
 
 const defaultBaseURL = "https://api.github.com"
 
@@ -264,6 +279,135 @@ func (c *Client) ListCommits(ctx context.Context, owner, repo string, since, unt
 		return nil, err
 	}
 	return out, nil
+}
+
+// ─── Repos: Get ─────────────────────────────────────────────────────────
+
+// GetRepo lee un repo. Retorna (nil, nil) si no existe (404 → no error).
+func (c *Client) GetRepo(ctx context.Context, owner, repo string) (*Repo, error) {
+	if c == nil {
+		return nil, fmt.Errorf("github: nil client")
+	}
+	var r Repo
+	if err := c.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/%s", owner, repo), nil, &r); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &r, nil
+}
+
+// ─── Contents: Files ────────────────────────────────────────────────────
+
+// FileContent es la respuesta de GET /repos/{owner}/{repo}/contents/{path}
+// cuando path apunta a un archivo.
+type FileContent struct {
+	Type        string `json:"type"`
+	Path        string `json:"path"`
+	Name        string `json:"name"`
+	SHA         string `json:"sha"`
+	Size        int64  `json:"size"`
+	Content     string `json:"content"`  // base64-encoded
+	Encoding    string `json:"encoding"` // "base64"
+	HTMLURL     string `json:"html_url"`
+	DownloadURL string `json:"download_url"`
+}
+
+// FileEntry es una entrada del listado de directorio.
+type FileEntry struct {
+	Type    string `json:"type"` // "file" | "dir"
+	Path    string `json:"path"`
+	Name    string `json:"name"`
+	SHA     string `json:"sha"`
+	Size    int64  `json:"size"`
+	HTMLURL string `json:"html_url"`
+}
+
+// PutFileResult espeja la respuesta de PUT /contents/{path}.
+type PutFileResult struct {
+	Content struct {
+		Path    string `json:"path"`
+		SHA     string `json:"sha"`
+		HTMLURL string `json:"html_url"`
+	} `json:"content"`
+	Commit struct {
+		SHA     string `json:"sha"`
+		HTMLURL string `json:"html_url"`
+	} `json:"commit"`
+}
+
+// GetFile lee un archivo del repo. Retorna (nil, nil) si no existe.
+// El Content viene base64-decoded.
+func (c *Client) GetFile(ctx context.Context, owner, repo, branch, path string) (*FileContent, error) {
+	if c == nil {
+		return nil, fmt.Errorf("github: nil client")
+	}
+	q := ""
+	if strings.TrimSpace(branch) != "" {
+		q = "?ref=" + url.QueryEscape(branch)
+	}
+	var f FileContent
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/%s/contents/%s%s", owner, repo, path, q), nil, &f)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if f.Encoding == "base64" && f.Content != "" {
+		decoded, derr := decodeBase64Lines(f.Content)
+		if derr != nil {
+			return nil, fmt.Errorf("github: decode file content: %w", derr)
+		}
+		f.Content = string(decoded)
+		f.Encoding = "utf-8"
+	}
+	return &f, nil
+}
+
+// PutFile crea o actualiza un archivo. Si previousSHA está vacío, asume
+// creación; GitHub rechaza creates sobre archivos existentes con 422,
+// así que el caller debe haber hecho GetFile antes para obtener el SHA.
+func (c *Client) PutFile(ctx context.Context, owner, repo, branch, path string, content []byte, message, previousSHA string) (*PutFileResult, error) {
+	if c == nil {
+		return nil, fmt.Errorf("github: nil client")
+	}
+	body := map[string]any{
+		"message": message,
+		"content": encodeBase64(content),
+	}
+	if strings.TrimSpace(branch) != "" {
+		body["branch"] = branch
+	}
+	if strings.TrimSpace(previousSHA) != "" {
+		body["sha"] = previousSHA
+	}
+	var res PutFileResult
+	if err := c.do(ctx, http.MethodPut, fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, path), body, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
+}
+
+// ListFiles lista los entries del directorio. Si path es "", lista la raíz.
+func (c *Client) ListFiles(ctx context.Context, owner, repo, branch, path string) ([]FileEntry, error) {
+	if c == nil {
+		return nil, fmt.Errorf("github: nil client")
+	}
+	q := ""
+	if strings.TrimSpace(branch) != "" {
+		q = "?ref=" + url.QueryEscape(branch)
+	}
+	var entries []FileEntry
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/repos/%s/%s/contents/%s%s", owner, repo, path, q), nil, &entries)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return entries, nil
 }
 
 // ─── HTTP plumbing ──────────────────────────────────────────────────────

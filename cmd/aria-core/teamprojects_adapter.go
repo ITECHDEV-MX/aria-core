@@ -90,6 +90,16 @@ func newTeamProjectsAdapter(cs *cloudstore.CloudStore, vaultAdpt *vaultAdapter, 
 	return a
 }
 
+// GitHubClient retorna el *github.Client si está configurado (vault con
+// GITHUB_API_TOKEN). Si vault está degraded o el token no se pudo cargar,
+// retorna nil. Wave 8 (knowledgebase) lo usa para construir su adapter.
+func (a *teamProjectsAdapter) GitHubClient() *github.Client {
+	if a == nil {
+		return nil
+	}
+	return a.github
+}
+
 // ─── teamprojects.ProjectStore (passthrough) ─────────────────────────────
 
 // Implements cloudserver.TeamProjectsService.
