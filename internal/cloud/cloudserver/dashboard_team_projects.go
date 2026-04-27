@@ -126,9 +126,57 @@ func (s *CloudServer) mountTeamProjectsDashboard() {
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/close", guard(allowedRoles, s.handleTeamTaskClose))
 	s.mux.HandleFunc("POST /dashboard/tasks/{id}/comments", guard(allowedRoles, s.handleTeamTaskComment))
 	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/prds", guard(allowedRoles, s.handleTeamProjectPRDs))
+	s.mux.HandleFunc("GET /dashboard/team-projects/{id}/edit", guard(allowedRoles, s.handleTeamProjectEdit))
+	s.mux.HandleFunc("POST /dashboard/team-projects/{id}/edit", guard(allowedRoles, s.handleTeamProjectUpdate))
 
 	// Cockpit personal: tab "Mis tareas" — lista tasks abiertas asignadas al user.
 	s.mux.HandleFunc("GET /dashboard/me/tasks", guard(nil, s.handleMyTasks))
+}
+
+// teamProjectActiveUsers retorna users activos para selectores de "agregar
+// miembro" / "asignar task". Si userStore no está inyectado, retorna nil.
+type teamProjectUserOption struct {
+	UID, Name, Email string
+}
+
+func (s *CloudServer) teamProjectActiveUsers(ctx context.Context) []teamProjectUserOption {
+	if s == nil || s.userStore == nil {
+		return nil
+	}
+	users, err := s.userStore.List(ctx)
+	if err != nil {
+		return nil
+	}
+	out := make([]teamProjectUserOption, 0, len(users))
+	for _, u := range users {
+		if u == nil || !u.IsActive {
+			continue
+		}
+		out = append(out, teamProjectUserOption{UID: u.UID, Name: u.Name, Email: u.Email})
+	}
+	return out
+}
+
+func renderUserSelect(b *strings.Builder, name, currentUID string, users []teamProjectUserOption, allowEmpty bool) {
+	b.WriteString(`<select name="` + html.EscapeString(name) + `">`)
+	if allowEmpty {
+		b.WriteString(`<option value="">— elegir —</option>`)
+	}
+	for _, u := range users {
+		sel := ""
+		if u.UID == currentUID {
+			sel = ` selected`
+		}
+		label := u.Name
+		if label == "" {
+			label = u.Email
+		} else if u.Email != "" {
+			label = label + " (" + u.Email + ")"
+		}
+		b.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`,
+			html.EscapeString(u.UID), sel, html.EscapeString(label)))
+	}
+	b.WriteString(`</select>`)
 }
 
 func (s *CloudServer) handleMyTasks(w http.ResponseWriter, r *http.Request) {
@@ -163,17 +211,34 @@ func (s *CloudServer) handleMyTasks(w http.ResponseWriter, r *http.Request) {
 			}
 			b.WriteString(fmt.Sprintf(`<h3><a href="/dashboard/team-projects/%s">%s</a> <small class="muted">%s</small></h3>`,
 				html.EscapeString(projectID), html.EscapeString(projName), html.EscapeString(projSlug)))
-			b.WriteString(`<ul>`)
+			b.WriteString(`<table class="data-table"><thead><tr><th>Task</th><th>Status</th><th>Priority</th><th>Due</th><th>Acciones</th></tr></thead><tbody>`)
 			for _, t := range list {
 				urgency := ""
-				if t.DueDate != nil && time.Until(*t.DueDate) < 72*time.Hour {
-					urgency = ` <span style="color:#f44">⏰ urgente</span>`
+				due := "—"
+				if t.DueDate != nil {
+					due = t.DueDate.Format("2006-01-02")
+					if time.Until(*t.DueDate) < 72*time.Hour {
+						urgency = ` <span style="color:#f44">⏰</span>`
+					}
 				}
-				b.WriteString(fmt.Sprintf(`<li><a href="/dashboard/team-projects/%s/tasks/%s">%s</a> · %s · %s%s</li>`,
+				b.WriteString(fmt.Sprintf(
+					`<tr><td><a href="/dashboard/team-projects/%s/tasks/%s">%s</a></td><td>%s</td><td>%s</td><td>%s%s</td><td>`,
 					html.EscapeString(projectID), html.EscapeString(t.ID), html.EscapeString(t.Title),
-					html.EscapeString(t.Status), html.EscapeString(t.Priority), urgency))
+					statusBadge(t.Status), html.EscapeString(t.Priority), due, urgency))
+				// Quick actions: pasar a in_progress (si está en todo), a review (si en in_progress), o cerrar.
+				if t.Status == "todo" {
+					b.WriteString(fmt.Sprintf(
+						`<form method="post" action="/dashboard/tasks/%s/status" style="display:inline;margin:0"><input type="hidden" name="status" value="in_progress"/><button class="shell-button" type="submit" style="font-size:0.8rem">▶ Empezar</button></form> `,
+						html.EscapeString(t.ID)))
+				}
+				if t.Status == "in_progress" || t.Status == "review" {
+					b.WriteString(fmt.Sprintf(
+						`<form method="post" action="/dashboard/tasks/%s/close" style="display:inline;margin:0" onsubmit="return confirm('¿Cerrar y capturar knowledge de la task?')"><button class="shell-button" type="submit" style="font-size:0.8rem">✓ Cerrar</button></form>`,
+						html.EscapeString(t.ID)))
+				}
+				b.WriteString(`</td></tr>`)
 			}
-			b.WriteString(`</ul>`)
+			b.WriteString(`</tbody></table>`)
 		}
 	}
 	b.WriteString(`<p><a href="/dashboard/me">← Volver al cockpit</a></p>`)
@@ -351,6 +416,7 @@ func (s *CloudServer) handleTeamProjectDetail(w http.ResponseWriter, r *http.Req
 	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/tasks" class="shell-button">Kanban</a>`, pr.ID))
 	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/members" class="shell-button">Miembros</a>`, pr.ID))
 	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/prds" class="shell-button">PRDs</a>`, pr.ID))
+	b.WriteString(fmt.Sprintf(`<a href="/dashboard/team-projects/%s/edit" class="shell-button">⚙ Editar</a>`, pr.ID))
 	b.WriteString(`</nav>`)
 	b.WriteString(`</section>`)
 
@@ -371,19 +437,48 @@ func (s *CloudServer) handleTeamProjectMembers(w http.ResponseWriter, r *http.Re
 	b.WriteString(`<section class="frame-section">`)
 	b.WriteString(fmt.Sprintf(`<p class="section-kicker">PROYECTO · %s · MIEMBROS</p>`, html.EscapeString(pr.Slug)))
 	b.WriteString(fmt.Sprintf(`<h2>%s — Miembros</h2>`, html.EscapeString(pr.Name)))
+	users := s.teamProjectActiveUsers(r.Context())
+	memberSet := make(map[string]bool, len(members))
+	for _, m := range members {
+		memberSet[m.UserUID] = true
+	}
+	available := make([]teamProjectUserOption, 0, len(users))
+	for _, u := range users {
+		if !memberSet[u.UID] {
+			available = append(available, u)
+		}
+	}
 	b.WriteString(`<form method="post" action="/dashboard/team-projects/` + html.EscapeString(pr.ID) + `/members" class="frame-form">`)
-	b.WriteString(`<label>UID del usuario <input name="user_uid" required/></label>`)
+	b.WriteString(`<label>Usuario `)
+	renderUserSelect(&b, "user_uid", "", available, true)
+	b.WriteString(`</label>`)
 	b.WriteString(`<label>Role <select name="role">`)
 	for _, role := range []string{"member", "lead", "owner", "viewer"} {
 		b.WriteString(fmt.Sprintf(`<option value="%s">%s</option>`, role, role))
 	}
 	b.WriteString(`</select></label>`)
 	b.WriteString(`<button class="shell-button">Agregar</button></form>`)
-	b.WriteString(`<table class="data-table"><thead><tr><th>UID</th><th>Role</th><th>Agregado</th><th></th></tr></thead><tbody>`)
+	if len(available) == 0 {
+		b.WriteString(`<p class="muted">Todos los usuarios activos ya son miembros, o no hay usuarios. <a href="/dashboard/admin/users">Crear usuario</a>.</p>`)
+	}
+	// Map UID → display name for the table.
+	userByUID := make(map[string]teamProjectUserOption, len(users))
+	for _, u := range users {
+		userByUID[u.UID] = u
+	}
+	b.WriteString(`<table class="data-table"><thead><tr><th>Usuario</th><th>Role</th><th>Agregado</th><th></th></tr></thead><tbody>`)
 	for _, m := range members {
+		who := truncateUID(m.UserUID)
+		if u, ok := userByUID[m.UserUID]; ok {
+			if u.Name != "" {
+				who = u.Name
+			} else if u.Email != "" {
+				who = u.Email
+			}
+		}
 		b.WriteString(fmt.Sprintf(
-			`<tr><td><code>%s</code></td><td>%s</td><td>%s</td><td><form method="post" action="/dashboard/team-projects/%s/members/%s/remove" style="margin:0"><button class="shell-button" type="submit">×</button></form></td></tr>`,
-			html.EscapeString(truncateUID(m.UserUID)), html.EscapeString(m.Role), m.AddedAt.Format("2006-01-02"),
+			`<tr><td>%s</td><td>%s</td><td>%s</td><td><form method="post" action="/dashboard/team-projects/%s/members/%s/remove" style="margin:0" onsubmit="return confirm('¿Quitar a este miembro?')"><button class="shell-button" type="submit">×</button></form></td></tr>`,
+			html.EscapeString(who), html.EscapeString(m.Role), m.AddedAt.Format("2006-01-02"),
 			html.EscapeString(pr.ID), html.EscapeString(m.UserUID),
 		))
 	}
@@ -462,8 +557,22 @@ func (s *CloudServer) handleTeamProjectKanban(w http.ResponseWriter, r *http.Req
 				urgency = ` <span style="color:#f00" title="due en menos de 72h">⏰</span>`
 			}
 			b.WriteString(fmt.Sprintf(
-				`<div class="kanban-card" data-task-id="%s" style="background:rgba(255,255,255,0.06);padding:0.5rem;margin-bottom:0.5rem;border-radius:4px"><a href="/dashboard/team-projects/%s/tasks/%s">%s</a> <small>(%s)</small>%s</div>`,
+				`<div class="kanban-card" data-task-id="%s" style="background:rgba(255,255,255,0.06);padding:0.5rem;margin-bottom:0.5rem;border-radius:4px"><a href="/dashboard/team-projects/%s/tasks/%s">%s</a> <small>(%s)</small>%s`,
 				html.EscapeString(t.ID), html.EscapeString(pr.ID), html.EscapeString(t.ID), html.EscapeString(t.Title), html.EscapeString(t.Priority), urgency))
+			// Quick-action buttons inline en cada card (sin drag, pragmatic).
+			b.WriteString(`<div style="display:flex;gap:0.25rem;margin-top:0.35rem;flex-wrap:wrap">`)
+			for _, target := range []struct{ status, label string }{
+				{"todo", "← todo"}, {"in_progress", "→ in progress"}, {"review", "→ review"}, {"done", "✓ done"},
+			} {
+				if target.status == t.Status {
+					continue
+				}
+				b.WriteString(fmt.Sprintf(
+					`<form method="post" action="/dashboard/tasks/%s/status" style="margin:0"><input type="hidden" name="status" value="%s"/><button type="submit" class="shell-button" style="font-size:0.75rem;padding:0.15rem 0.4rem">%s</button></form>`,
+					html.EscapeString(t.ID), target.status, target.label))
+			}
+			b.WriteString(`</div>`)
+			b.WriteString(`</div>`)
 		}
 		b.WriteString(`</div>`)
 	}
@@ -542,14 +651,50 @@ func (s *CloudServer) handleTeamTaskDetail(w http.ResponseWriter, r *http.Reques
 		b.WriteString(`<button class="shell-button" type="submit">✓ Cerrar + capturar knowledge</button></form>`)
 	}
 
-	// Assign form
+	// Assign form: picker de usuarios miembros del proyecto.
+	projectMembers, _ := s.teamProjects.ListMembers(r.Context(), pr.ID)
+	allUsers := s.teamProjectActiveUsers(r.Context())
+	userByUID := make(map[string]teamProjectUserOption, len(allUsers))
+	for _, u := range allUsers {
+		userByUID[u.UID] = u
+	}
+	memberUsers := make([]teamProjectUserOption, 0, len(projectMembers))
+	assignedSet := make(map[string]bool, len(assignees))
+	for _, a := range assignees {
+		assignedSet[a] = true
+	}
+	for _, m := range projectMembers {
+		if assignedSet[m.UserUID] {
+			continue
+		}
+		if u, ok := userByUID[m.UserUID]; ok {
+			memberUsers = append(memberUsers, u)
+		}
+	}
 	b.WriteString(`<h3>Asignados</h3><ul>`)
 	for _, a := range assignees {
-		b.WriteString(fmt.Sprintf(`<li><code>%s</code></li>`, html.EscapeString(truncateUID(a))))
+		who := truncateUID(a)
+		if u, ok := userByUID[a]; ok {
+			if u.Name != "" {
+				who = u.Name
+			} else if u.Email != "" {
+				who = u.Email
+			}
+		}
+		b.WriteString(fmt.Sprintf(`<li>%s</li>`, html.EscapeString(who)))
+	}
+	if len(assignees) == 0 {
+		b.WriteString(`<li class="muted">Sin asignar</li>`)
 	}
 	b.WriteString(`</ul>`)
-	b.WriteString(`<form method="post" action="/dashboard/tasks/` + html.EscapeString(t.ID) + `/assign" class="frame-form">`)
-	b.WriteString(`<label>UID <input name="user_uid"/></label><button class="shell-button">Asignar</button></form>`)
+	if len(memberUsers) > 0 {
+		b.WriteString(`<form method="post" action="/dashboard/tasks/` + html.EscapeString(t.ID) + `/assign" class="frame-form">`)
+		b.WriteString(`<label>Asignar a `)
+		renderUserSelect(&b, "user_uid", "", memberUsers, true)
+		b.WriteString(`</label><button class="shell-button">Asignar</button></form>`)
+	} else {
+		b.WriteString(`<p class="muted">No hay miembros disponibles para asignar. <a href="/dashboard/team-projects/` + html.EscapeString(pr.ID) + `/members">Agregar miembro al proyecto</a> primero.</p>`)
+	}
 
 	// Linked obs/sessions
 	if len(obs) > 0 {
@@ -593,9 +738,15 @@ func (s *CloudServer) handleTeamTaskStatusChange(w http.ResponseWriter, r *http.
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// Redirect back to the page that triggered the action (kanban / me-tasks /
+	// task-detail) instead of forcing detail. Falls back to project kanban.
+	if ref := r.Header.Get("Referer"); ref != "" {
+		http.Redirect(w, r, ref, http.StatusSeeOther)
+		return
+	}
 	t, _ := s.teamProjects.GetTask(r.Context(), id)
 	if t != nil {
-		http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks/%s", t.ProjectID, t.ID), http.StatusSeeOther)
+		http.Redirect(w, r, fmt.Sprintf("/dashboard/team-projects/%s/tasks", t.ProjectID), http.StatusSeeOther)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -682,6 +833,92 @@ func (s *CloudServer) handleTeamProjectPRDs(w http.ResponseWriter, r *http.Reque
 	b.WriteString(`<a class="shell-button" href="/dashboard/pages?project=` + url_QueryEscape(pr.Slug) + `&template=prd-v1">Abrir PRDs en Pages →</a>`)
 	b.WriteString(`</section>`)
 	renderTeamProjectsLayout(w, r, pr.Name+" · PRDs", displayName, roles, b.String())
+}
+
+// handleTeamProjectEdit renders edit form for project metadata + GitHub link.
+func (s *CloudServer) handleTeamProjectEdit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	pr, err := s.teamProjects.GetProject(r.Context(), id)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	roles := s.dashboardRolesFromRequest(r)
+	displayName := s.displayNameFor(r)
+	var b strings.Builder
+	b.WriteString(`<section class="frame-section">`)
+	b.WriteString(fmt.Sprintf(`<p class="section-kicker">PROYECTO · %s · EDITAR</p>`, html.EscapeString(pr.Slug)))
+	b.WriteString(fmt.Sprintf(`<h2>Editar %s</h2>`, html.EscapeString(pr.Name)))
+	b.WriteString(fmt.Sprintf(`<form method="post" action="/dashboard/team-projects/%s/edit" class="frame-form" style="max-width:640px">`, html.EscapeString(pr.ID)))
+	b.WriteString(fmt.Sprintf(`<label>Nombre <input name="name" value="%s" required/></label>`, html.EscapeString(pr.Name)))
+	b.WriteString(fmt.Sprintf(`<label>Descripción <textarea name="description" rows="4">%s</textarea></label>`, html.EscapeString(pr.Description)))
+	b.WriteString(`<label>Status <select name="status">`)
+	for _, st := range []string{"active", "paused", "archived"} {
+		sel := ""
+		if st == pr.Status {
+			sel = " selected"
+		}
+		b.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, st, sel, st))
+	}
+	b.WriteString(`</select></label>`)
+	b.WriteString(`<h3 style="margin-top:1.5rem">GitHub repo</h3>`)
+	b.WriteString(`<p class="muted">Si el repo no se pudo crear automáticamente, podés linkearlo manualmente. Pegá la URL completa (ej: <code>https://github.com/ITECHDEV-MX/mi-repo</code>) y rellenamos owner/name.</p>`)
+	b.WriteString(fmt.Sprintf(`<label>URL del repo <input name="github_repo_url" value="%s" placeholder="https://github.com/org/repo (vacío = sin repo)"/></label>`, html.EscapeString(pr.GitHubRepoURL)))
+	b.WriteString(`<button class="shell-button" type="submit">Guardar cambios</button> `)
+	b.WriteString(fmt.Sprintf(`<a class="shell-button" href="/dashboard/team-projects/%s">Cancelar</a>`, html.EscapeString(pr.ID)))
+	b.WriteString(`</form></section>`)
+	renderTeamProjectsLayout(w, r, "Editar "+pr.Name, displayName, roles, b.String())
+}
+
+// handleTeamProjectUpdate persists edits.
+func (s *CloudServer) handleTeamProjectUpdate(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	desc := strings.TrimSpace(r.FormValue("description"))
+	status := strings.TrimSpace(r.FormValue("status"))
+	repoURL := strings.TrimSpace(r.FormValue("github_repo_url"))
+
+	owner, repoName := parseGitHubURL(repoURL)
+	upd := teamprojects.UpdateProjectParams{
+		Name:            &name,
+		Description:     &desc,
+		Status:          &status,
+		GitHubRepoURL:   &repoURL,
+		GitHubRepoOwner: &owner,
+		GitHubRepoName:  &repoName,
+	}
+	if err := s.teamProjects.UpdateProject(r.Context(), id, upd); err != nil {
+		http.Error(w, "update: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/dashboard/team-projects/"+id, http.StatusSeeOther)
+}
+
+// parseGitHubURL extrae owner/repo de una URL como
+// https://github.com/foo/bar (sin trailing slash o con /tree/main, etc).
+// Retorna ("","") si no matchea el patrón.
+func parseGitHubURL(u string) (owner, repo string) {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return "", ""
+	}
+	rest := u
+	for _, p := range []string{"https://github.com/", "http://github.com/", "github.com/", "git@github.com:"} {
+		if strings.HasPrefix(rest, p) {
+			rest = strings.TrimPrefix(rest, p)
+			break
+		}
+	}
+	rest = strings.TrimSuffix(rest, ".git")
+	parts := strings.Split(rest, "/")
+	if len(parts) < 2 {
+		return "", ""
+	}
+	return parts[0], parts[1]
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────

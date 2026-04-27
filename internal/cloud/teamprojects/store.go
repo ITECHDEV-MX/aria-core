@@ -64,10 +64,13 @@ type CreateProjectParams struct {
 
 // UpdateProjectParams agrupa updates parciales.
 type UpdateProjectParams struct {
-	Name        *string
-	Description *string
-	ClientID    *string
-	Status      *string
+	Name            *string
+	Description     *string
+	ClientID        *string
+	Status          *string
+	GitHubRepoURL   *string
+	GitHubRepoOwner *string
+	GitHubRepoName  *string
 }
 
 // ListFilter filtra ListProjects.
@@ -391,6 +394,21 @@ func (s *PgStore) UpdateProject(ctx context.Context, id string, u UpdateProjectP
 	if u.Status != nil {
 		sets = append(sets, fmt.Sprintf("status = $%d", idx))
 		args = append(args, *u.Status)
+		idx++
+	}
+	if u.GitHubRepoURL != nil {
+		sets = append(sets, fmt.Sprintf("github_repo_url = NULLIF($%d,'')", idx))
+		args = append(args, strings.TrimSpace(*u.GitHubRepoURL))
+		idx++
+	}
+	if u.GitHubRepoOwner != nil {
+		sets = append(sets, fmt.Sprintf("github_repo_owner = NULLIF($%d,'')", idx))
+		args = append(args, strings.TrimSpace(*u.GitHubRepoOwner))
+		idx++
+	}
+	if u.GitHubRepoName != nil {
+		sets = append(sets, fmt.Sprintf("github_repo_name = NULLIF($%d,'')", idx))
+		args = append(args, strings.TrimSpace(*u.GitHubRepoName))
 		idx++
 	}
 	q := "UPDATE aria_team_projects SET " + strings.Join(sets, ", ") + " WHERE id = $1::uuid"
