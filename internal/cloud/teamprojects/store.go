@@ -234,8 +234,8 @@ func (s *PgStore) CreateProject(ctx context.Context, p CreateProjectParams) (*Pr
 	if p.CreatedByUID == "" {
 		return nil, fmt.Errorf("%w: created_by_uid required", ErrInvalidInput)
 	}
-	slug := strings.TrimSpace(p.Slug)
-	if slug == "" {
+	slug := SlugFromName(p.Slug)
+	if slug == "" || strings.HasPrefix(slug, "project-") {
 		slug = SlugFromName(name)
 	}
 	branch := strings.TrimSpace(p.GitHubDefaultBranch)
