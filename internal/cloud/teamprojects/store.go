@@ -528,7 +528,7 @@ func scanProject(r scanRow) (*Project, error) {
 
 func nullableUUIDArg(v string) any {
 	v = strings.TrimSpace(v)
-	if v == "" {
+	if v == "" || !isUUID(v) {
 		return sql.NullString{}
 	}
 	return v
