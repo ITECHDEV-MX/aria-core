@@ -255,6 +255,17 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 	teamProjectsAdpt := newTeamProjectsAdapter(cs, vaultAdpt, systemUID)
 	log.Printf("[aria-core-cloud] team-projects ready (wave 7)")
 
+	// Knowledge-base sync (wave 8): repo central + auto-sync + DOCX export.
+	// Modo degraded por ahora — adapter github.Client → knowledgebase.GitHubLike pendiente.
+	kbSvc, kbDashSvc := newKnowledgeBaseRuntime(cs, cotizadorSvc.store, pagesAdpt.store, publicURL)
+	if kbSvc.Available() {
+		log.Printf("[aria-core-cloud] knowledge-base sync ready (wave 8)")
+	} else {
+		log.Printf("[aria-core-cloud] knowledge-base sync in DEGRADED mode (no GitHub client wired)")
+	}
+	// Conectar el hook on-finalize del chat-quote al sync wave 8 (best-effort, nil-safe).
+	quoteChatAdpt.setFinalizeHook(kbSvc)
+
 	return &defaultCloudRuntime{
 		server: cloudserver.New(
 			cs,
@@ -292,6 +303,8 @@ var newCloudRuntime = func(cfg cloud.Config) (cloudServerRuntime, error) {
 			cloudserver.WithPagePublicView(pagePublicViewServiceOrNil(pagePublicView)),
 			cloudserver.WithPageDatabases(pageDBAdapter),
 			cloudserver.WithPageComments(pageCommentsAdapter),
+			cloudserver.WithKnowledgeBase(kbSvc),
+			cloudserver.WithKnowledgeBaseDashboard(kbDashSvc),
 			cloudserver.WithSyncStatusProvider(cloudDashboardStatusProvider{store: cs, projects: allowedProjects}),
 			cloudserver.WithTeamProjects(teamProjectsAdpt, teamProjectsAdpt),
 		),

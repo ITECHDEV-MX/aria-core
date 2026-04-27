@@ -590,6 +590,10 @@ func main() {
 		cmdComments()
 	case "cotizador":
 		cmdCotizadorCLI(cfg)
+	case "kb", "knowledge-base":
+		cmdKB(cfg)
+	case "quote":
+		cmdQuote(cfg)
 	case "login":
 		cmdLogin(cfg)
 	case "logout":
@@ -821,6 +825,11 @@ func runAriaCloudMCP(cfg store.Config) {
 	})
 	// Team Projects (wave 7): aria_project_*, aria_task_*.
 	mcp.RegisterAriaTeamProjectsTools(srv, mcp.TeamProjectsMCPConfig{
+		ServerURL: sess.Server,
+		Token:     sess.Token,
+	})
+	// Knowledge-base tools (wave 8): aria_kb_status/sync_*, aria_quote_export_docx.
+	mcp.RegisterAriaKnowledgeBaseTools(srv, mcp.KnowledgeBaseMCPConfig{
 		ServerURL: sess.Server,
 		Token:     sess.Token,
 	})
