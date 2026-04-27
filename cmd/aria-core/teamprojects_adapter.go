@@ -230,27 +230,40 @@ func (a *teamProjectsAdapter) CreateProjectWithRepo(ctx context.Context, in clou
 		CreatedByUID:        in.CreatedByUID,
 	}
 	warning := ""
-	// Intentar crear repo si GH disponible y NoGitHub=false.
+	// Intentar crear/linkear repo si GH disponible y NoGitHub=false.
 	if !in.NoGitHub {
 		if a.github == nil {
 			warning = "Repo GitHub NO creado: GITHUB_API_TOKEN no configurado en vault. Agregalo en /dashboard/vault con name=GITHUB_API_TOKEN, category=api_token, scope=personal."
 		} else {
-			repo, err := a.github.CreateRepo(ctx, github.CreateRepoParams{
-				Name:        slug,
-				Description: in.Description,
-				Private:     true,
-				AutoInit:    true,
-				GitIgnore:   "Go",
-				License:     "mit",
-			})
-			if err != nil {
-				warning = fmt.Sprintf("Repo GitHub falló (%v); proyecto creado sin repo. Configurar GITHUB_API_TOKEN o crearlo manualmente luego.", err)
+			// 1) Si el repo ya existe en la org → linkear en lugar de crear.
+			existing, getErr := a.github.GetRepo(ctx, a.org, slug)
+			if getErr == nil && existing != nil {
+				params.GitHubRepoURL = existing.HTMLURL
+				params.GitHubRepoOwner = existing.Owner.Login
+				params.GitHubRepoName = existing.Name
+				if existing.DefaultBranch != "" {
+					params.GitHubDefaultBranch = existing.DefaultBranch
+				}
+				warning = fmt.Sprintf("Repo %s/%s ya existía en GitHub — linkeado al proyecto en vez de crear uno nuevo.", a.org, slug)
 			} else {
-				params.GitHubRepoURL = repo.HTMLURL
-				params.GitHubRepoOwner = repo.Owner.Login
-				params.GitHubRepoName = repo.Name
-				if repo.DefaultBranch != "" {
-					params.GitHubDefaultBranch = repo.DefaultBranch
+				// 2) No existe → crear nuevo.
+				repo, err := a.github.CreateRepo(ctx, github.CreateRepoParams{
+					Name:        slug,
+					Description: in.Description,
+					Private:     true,
+					AutoInit:    true,
+					GitIgnore:   "Go",
+					License:     "mit",
+				})
+				if err != nil {
+					warning = fmt.Sprintf("Repo GitHub falló al crearse (%v); proyecto creado sin repo. Verificá permisos del PAT o creá el repo manualmente y editá el proyecto para linkearlo.", err)
+				} else {
+					params.GitHubRepoURL = repo.HTMLURL
+					params.GitHubRepoOwner = repo.Owner.Login
+					params.GitHubRepoName = repo.Name
+					if repo.DefaultBranch != "" {
+						params.GitHubDefaultBranch = repo.DefaultBranch
+					}
 				}
 			}
 		}
