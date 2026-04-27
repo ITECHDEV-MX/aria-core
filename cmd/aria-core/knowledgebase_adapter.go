@@ -382,6 +382,22 @@ func newKnowledgeBaseRuntime(cs *cloudstore.CloudStore, cotizadorStore *cotizado
 		Async:              true,
 	})
 	dashAdapter := &kbDashboardAdapter{svc: svc, org: org, repo: repo}
+
+	// Bootstrap async: si hay GitHub client, asegurá que el repo central
+	// exista + plantillas. Best-effort: errores se loggean pero no bloquean
+	// startup. Sin GH client el servicio queda en degraded mode y este goroutine
+	// es no-op vía Available().
+	if svc.Available() {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := svc.EnsureCentralRepo(ctx); err != nil {
+				log.Printf("[aria-core-cloud] knowledgebase EnsureCentralRepo: %v", err)
+				return
+			}
+			log.Printf("[aria-core-cloud] knowledgebase central repo ready (%s/%s)", org, repo)
+		}()
+	}
 	return svc, dashAdapter
 }
 
