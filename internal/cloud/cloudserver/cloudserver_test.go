@@ -245,8 +245,8 @@ func TestHandlerDashboardLoginFlowSetsCookieForBrowserUse(t *testing.T) {
 	if loginPage.Code != http.StatusOK {
 		t.Fatalf("expected /dashboard/login=200, got %d", loginPage.Code)
 	}
-	// UPDATED: new templ login page renders "Sign In" heading + "AriaCore Cloud" brand.
-	if !strings.Contains(loginPage.Body.String(), "AriaCore Cloud") || !strings.Contains(loginPage.Body.String(), "name=\"token\"") {
+	// UPDATED: new templ login page renders "Sign In" heading + "ARIA CORE" brand.
+	if !strings.Contains(loginPage.Body.String(), "ARIA CORE") || !strings.Contains(loginPage.Body.String(), "name=\"token\"") {
 		t.Fatalf("expected dashboard login page html, body=%q", loginPage.Body.String())
 	}
 

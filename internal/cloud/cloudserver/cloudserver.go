@@ -612,7 +612,10 @@ func (s *CloudServer) Handler() http.Handler {
 	if s.mux == nil {
 		s.routes()
 	}
-	return s.mux
+	// Wrap every request body with a size cap (32 MiB default,
+	// 128 MiB on attachment/upload routes). Returns 413 to clients
+	// that exceed the cap. See dashboard/middleware.go.
+	return dashboard.WrapWithBodyLimit(s.mux)
 }
 
 func (s *CloudServer) routes() {

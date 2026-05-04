@@ -996,7 +996,7 @@ func TestLoginPageTokenFormAndCopy(t *testing.T) {
 	body := rec.Body.String()
 	for _, marker := range []string{
 		`name="token"`,
-		"AriaCore Cloud",
+		"ARIA CORE",
 		"CLOUD ACTIVE",
 		`name="next"`,
 	} {
@@ -1253,7 +1253,7 @@ func TestMountRouteParityAndHTTPFallbacks(t *testing.T) {
 		for _, token := range []string{
 			"shell-body",
 			"shell-main",
-			"Welcome to AriaCore Cloud",
+			"Welcome to ARIA CORE",
 		} {
 			if !strings.Contains(body, token) {
 				t.Fatalf("expected mounted /dashboard route to include %q, body=%q", token, body)
@@ -1728,7 +1728,7 @@ func TestCopyParityStrings(t *testing.T) {
 		{"/dashboard/projects?auth=ok", "PROJECT ATLAS"},
 		{"/dashboard/contributors?auth=ok", "CONTRIBUTOR SIGNAL"},
 		{"/dashboard/admin?auth=ok", "ADMIN SURFACE"},
-		{"/dashboard/login", "AriaCore Cloud"},
+		{"/dashboard/login", "ARIA CORE"},
 		{"/dashboard/login", "CLOUD ACTIVE"},
 	}
 
