@@ -53,6 +53,7 @@ type CloudServer struct {
 	auth           Authenticator
 	projectAuth    ProjectAuthorizer
 	dashboardAdmin string
+	insecureMode   bool
 	port           int
 	host           string
 	mux            *http.ServeMux
@@ -251,6 +252,21 @@ func WithProjectAuthorizer(authorizer ProjectAuthorizer) Option {
 func WithDashboardAdminToken(adminToken string) Option {
 	return func(s *CloudServer) {
 		s.dashboardAdmin = strings.TrimSpace(adminToken)
+	}
+}
+
+// WithInsecureMode toggles the dashboard into "no-auth" mode: any request to
+// /dashboard/* is allowed and the login page redirects straight to /dashboard/.
+// Use ONLY for local dev fixtures or single-tenant sandboxes — production
+// deployments must always run with a real Authenticator.
+//
+// Why an explicit opt-in: there are test fixtures (e.g. internal/cloud/cloudserver
+// public-pages tests) that build `&CloudServer{}` with auth=nil but expect
+// strict denial. An implicit "auth==nil ⇒ insecure" rule would silently flip
+// those into open mode. The flag forces callers to declare intent.
+func WithInsecureMode() Option {
+	return func(s *CloudServer) {
+		s.insecureMode = true
 	}
 }
 
@@ -930,6 +946,9 @@ func (s *CloudServer) withAuthHandler(next http.Handler) http.Handler {
 }
 
 func (s *CloudServer) authorizeDashboardRequest(r *http.Request) error {
+	if s.insecureMode {
+		return nil
+	}
 	if _, err := s.dashboardClaimsFromRequest(r); err != nil {
 		return err
 	}
