@@ -1,0 +1,20 @@
+# CODEOWNERS for ARIA Core
+#
+# Skill files require review from a designated maintainer. GitHub
+# enforces this when branch protection on `main` requires CODEOWNERS
+# review (configure separately in repo settings).
+#
+# Anyone listed multiple times for the same path is alternative-ok
+# (any one of them can approve).
+
+# Skills surface — must be reviewed by skill maintainers.
+/skills/                        @jcguajardo82
+/skills/schema/                 @jcguajardo82
+
+# Validator and lockfile machinery — must be reviewed by skill maintainers
+# AND a code owner of the Go core.
+/internal/skills/               @jcguajardo82
+
+# Governance docs and PR templates — same review bar.
+/.github/PULL_REQUEST_TEMPLATE/skill.md   @jcguajardo82
+/.github/workflows/skills-validate.yml    @jcguajardo82
