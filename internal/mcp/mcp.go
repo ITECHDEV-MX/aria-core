@@ -32,6 +32,20 @@ import (
 // JW6: DefaultProject removed — it was populated but never read (dead code).
 // Project is always auto-detected from cwd at call time via resolveWriteProject/resolveReadProject.
 type MCPConfig struct {
+	// Version is the aria-core build version (e.g. "v0.2.0"). Used for
+	// diagnostics tooling such as aria_doctor.
+	Version string
+
+	// StoreConfig is the store.Config the local store was opened with.
+	// Diagnostic tools need access to Config.DataDir for filesystem checks.
+	StoreConfig StoreConfigShape
+}
+
+// StoreConfigShape is the subset of store.Config that diagnostic
+// tooling needs. Defined as a small interface to avoid pulling
+// store import cycles.
+type StoreConfigShape struct {
+	DataDir string
 }
 
 var suggestTopicKey = store.SuggestTopicKey
@@ -629,6 +643,12 @@ Duplicates are automatically detected and skipped — safe to call multiple time
 			handleCurrentProject(s),
 		)
 	}
+
+	// aria_doctor — read-only diagnostics (B.1)
+	if shouldRegister("aria_doctor", allowlist) {
+		registerAriaDoctor(srv, s, cfg.Version)
+	}
+
 }
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────

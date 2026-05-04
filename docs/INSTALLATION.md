@@ -41,6 +41,7 @@ aria-core save "decision: use Postgres" "Picked Postgres over MongoDB because...
 aria-core search "postgres"
 aria-core tui                  # interactive terminal UI
 aria-core serve                # HTTP API on port 7437
+aria-core doctor               # read-only health check (CLI + MCP tool aria_doctor)
 ```
 
 That's the whole loop. Below is the full reference.
