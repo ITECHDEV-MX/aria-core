@@ -12,11 +12,11 @@
 package autosync
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"runtime/debug"
@@ -332,7 +332,7 @@ func (m *Manager) safeRun(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			stack := string(debug.Stack())
-			log.Printf("[autosync] PANIC in cycle: %v\n%s", r, stack)
+			obs.L().Info(fmt.Sprintf("[autosync] PANIC in cycle: %v\n%s", r, stack))
 			m.mu.Lock()
 			m.status.Phase = PhaseBackoff
 			m.status.ReasonCode = "internal_error"

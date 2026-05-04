@@ -1,9 +1,9 @@
 package dashboard
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"encoding/csv"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -122,25 +122,25 @@ func (h *handlers) buildROIVM(r *http.Request) ROIPageVM {
 	}
 
 	if savings, err := h.cfg.ROI.CalculateSavings(ctx, effectiveDev, since, now); err != nil {
-		log.Printf("dashboard: roi calculate-savings error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: roi calculate-savings error: %v", err))
 	} else if savings != nil {
 		vm.Savings = *savings
 	}
 
 	if weekly, err := h.cfg.ROI.WeeklyTimeline(ctx, effectiveDev, 12, h.cfg.ROI.CostMXNPerMin()); err != nil {
-		log.Printf("dashboard: roi weekly timeline error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: roi weekly timeline error: %v", err))
 	} else {
 		vm.Weekly = weekly
 	}
 
 	if vm.IsAdmin {
 		if contrib, err := h.cfg.ROI.TopContributors(ctx, since, 5); err != nil {
-			log.Printf("dashboard: roi top contributors error: %v", err)
+			obs.L().Info(fmt.Sprintf("dashboard: roi top contributors error: %v", err))
 		} else {
 			vm.Contributors = contrib
 		}
 		if perClient, err := h.cfg.ROI.PerClientBreakdown(ctx, since); err != nil {
-			log.Printf("dashboard: roi per-client breakdown error: %v", err)
+			obs.L().Info(fmt.Sprintf("dashboard: roi per-client breakdown error: %v", err))
 		} else {
 			vm.PerClient = perClient
 		}

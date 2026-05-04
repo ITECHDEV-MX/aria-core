@@ -1,10 +1,10 @@
 package dashboard
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -233,32 +233,32 @@ func (h *handlers) buildPersonalCockpitVM(ctx context.Context, p Principal) Pers
 	uid := p.UID()
 
 	if stats, err := svc.Stats(ctx, uid, now); err != nil {
-		log.Printf("dashboard: cockpit stats error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit stats error uid=%s: %v", uid, err))
 	} else {
 		vm.Stats = stats
 	}
 	if sessions, err := svc.OpenSessions(ctx, uid); err != nil {
-		log.Printf("dashboard: cockpit open sessions error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit open sessions error uid=%s: %v", uid, err))
 	} else {
 		vm.OpenSessions = sessions
 	}
 	if heatmap, err := svc.Heatmap(ctx, uid, now); err != nil {
-		log.Printf("dashboard: cockpit heatmap error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit heatmap error uid=%s: %v", uid, err))
 	} else if len(heatmap) > 0 {
 		vm.Heatmap = mergeHeatmap(emptyHeatmap(now), heatmap)
 	}
 	if timeline, err := svc.Timeline(ctx, uid, 50); err != nil {
-		log.Printf("dashboard: cockpit timeline error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit timeline error uid=%s: %v", uid, err))
 	} else {
 		vm.Timeline = timeline
 	}
 	if pending, err := svc.Pending(ctx, uid, now); err != nil {
-		log.Printf("dashboard: cockpit pending error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit pending error uid=%s: %v", uid, err))
 	} else {
 		vm.Pending = pending
 	}
 	if contrib, err := svc.Contributions(ctx, uid); err != nil {
-		log.Printf("dashboard: cockpit contributions error uid=%s: %v", uid, err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit contributions error uid=%s: %v", uid, err))
 	} else {
 		vm.Contributions = contrib
 	}
@@ -282,7 +282,7 @@ func (h *handlers) handleSessionResume(w http.ResponseWriter, r *http.Request) {
 	}
 	owner, err := h.cfg.PersonalCockpit.IsSessionOwner(r.Context(), id, uid)
 	if err != nil {
-		log.Printf("dashboard: cockpit resume IsSessionOwner err: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit resume IsSessionOwner err: %v", err))
 		http.Error(w, "session lookup failed", http.StatusInternalServerError)
 		return
 	}
@@ -292,7 +292,7 @@ func (h *handlers) handleSessionResume(w http.ResponseWriter, r *http.Request) {
 	}
 	project, err := h.cfg.PersonalCockpit.ResumeSession(r.Context(), id, uid)
 	if err != nil {
-		log.Printf("dashboard: cockpit resume err: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit resume err: %v", err))
 		http.Error(w, "resume failed", http.StatusInternalServerError)
 		return
 	}
@@ -330,7 +330,7 @@ func (h *handlers) handleSessionClose(w http.ResponseWriter, r *http.Request) {
 	summary := strings.TrimSpace(r.PostForm.Get("summary"))
 	owner, err := h.cfg.PersonalCockpit.IsSessionOwner(r.Context(), id, uid)
 	if err != nil {
-		log.Printf("dashboard: cockpit close IsSessionOwner err: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit close IsSessionOwner err: %v", err))
 		http.Error(w, "session lookup failed", http.StatusInternalServerError)
 		return
 	}
@@ -339,7 +339,7 @@ func (h *handlers) handleSessionClose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.PersonalCockpit.CloseSession(r.Context(), id, uid, summary); err != nil {
-		log.Printf("dashboard: cockpit close err: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: cockpit close err: %v", err))
 		if errors.Is(err, ErrSessionNotFound) {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return

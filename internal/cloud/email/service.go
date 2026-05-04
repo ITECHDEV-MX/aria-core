@@ -1,10 +1,10 @@
 package email
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -133,7 +133,7 @@ func (s *Service) SendWelcome(ctx context.Context, wc WelcomeContext) error {
 // internal use-case).
 func (s *Service) SendRawHTML(ctx context.Context, to string, bcc []string, subject, htmlBody string) error {
 	if s == nil || s.client == nil || !s.client.IsConfigured() {
-		log.Printf("email: SKIP raw send (not configured) to=%s subject=%q", to, subject)
+		obs.L().Info(fmt.Sprintf("email: SKIP raw send (not configured) to=%s subject=%q", to, subject))
 		return ErrNotConfigured
 	}
 	if strings.TrimSpace(to) == "" {
@@ -153,11 +153,11 @@ func (s *Service) SendRawHTML(ctx context.Context, to string, bcc []string, subj
 // can continue (per spec: "los hooks loggean info y siguen").
 func (s *Service) send(ctx context.Context, to, subject, templateName string, data any, bcc []string) error {
 	if s == nil || s.client == nil || !s.client.IsConfigured() {
-		log.Printf("email: SKIP send (not configured) to=%s subject=%q template=%s", to, subject, templateName)
+		obs.L().Info(fmt.Sprintf("email: SKIP send (not configured) to=%s subject=%q template=%s", to, subject, templateName))
 		return nil
 	}
 	if strings.TrimSpace(to) == "" {
-		log.Printf("email: SKIP send (empty recipient) subject=%q template=%s", subject, templateName)
+		obs.L().Info(fmt.Sprintf("email: SKIP send (empty recipient) subject=%q template=%s", subject, templateName))
 		return nil
 	}
 	htmlBody, err := s.client.Render(templateName, data)

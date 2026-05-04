@@ -3,12 +3,12 @@ package dashboard
 //go:generate go tool templ generate
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"context"
 	"errors"
 	"fmt"
 	"html"
 	"io/fs"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -1238,7 +1238,7 @@ func (h *handlers) handleHealth(w http.ResponseWriter, _ *http.Request) {
 func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := component.Render(r.Context(), w); err != nil {
-		log.Printf("dashboard: templ render error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: templ render error: %v", err))
 	}
 }
 
@@ -1247,11 +1247,11 @@ func renderComponent(w http.ResponseWriter, r *http.Request, component templ.Com
 func renderWithToast(w http.ResponseWriter, r *http.Request, component templ.Component, message, variant string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := component.Render(r.Context(), w); err != nil {
-		log.Printf("dashboard: templ render error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: templ render error: %v", err))
 		return
 	}
 	if err := ToastOOB(message, variant).Render(r.Context(), w); err != nil {
-		log.Printf("dashboard: toast render error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: toast render error: %v", err))
 	}
 }
 
@@ -1260,7 +1260,7 @@ func renderComponentStatus(w http.ResponseWriter, r *http.Request, status int, c
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	if err := component.Render(r.Context(), w); err != nil {
-		log.Printf("dashboard: templ render error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: templ render error: %v", err))
 	}
 }
 
@@ -1455,12 +1455,12 @@ func (h *handlers) handleBrowserObservations(w http.ResponseWriter, r *http.Requ
 		if refetched, _, err := h.cfg.Store.ListRecentObservationsPaginated(project, query, obsType, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch observations page %d: %v (using first-page rows)", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch observations page %d: %v (using first-page rows)", pg.Page, err))
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListRecentObservationsPaginated(project, query, obsType, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback observations page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback observations page 1: %v", fallbackErr))
 				}
 			}
 		}
@@ -1497,12 +1497,12 @@ func (h *handlers) handleBrowserSessions(w http.ResponseWriter, r *http.Request)
 		if refetched, _, err := h.cfg.Store.ListRecentSessionsPaginated(project, query, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch sessions page %d: %v (using first-page rows)", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch sessions page %d: %v (using first-page rows)", pg.Page, err))
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListRecentSessionsPaginated(project, query, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback sessions page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback sessions page 1: %v", fallbackErr))
 				}
 			}
 		}
@@ -1539,12 +1539,12 @@ func (h *handlers) handleBrowserPrompts(w http.ResponseWriter, r *http.Request) 
 		if refetched, _, err := h.cfg.Store.ListRecentPromptsPaginated(project, query, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch prompts page %d: %v (using first-page rows)", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch prompts page %d: %v (using first-page rows)", pg.Page, err))
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListRecentPromptsPaginated(project, query, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback prompts page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback prompts page 1: %v", fallbackErr))
 				}
 			}
 		}
@@ -1636,7 +1636,7 @@ func (h *handlers) handleContributorsList(w http.ResponseWriter, r *http.Request
 		var err error
 		rows, total, err = h.cfg.Store.ListContributorsPaginated(query, pageSize, (reqPage-1)*pageSize)
 		if err != nil {
-			log.Printf("dashboard: contributors list store error: %v", err)
+			obs.L().Info(fmt.Sprintf("dashboard: contributors list store error: %v", err))
 			renderComponentStatus(w, r, http.StatusBadGateway, EmptyState("Service Unavailable", "Dashboard data is temporarily unavailable."))
 			return
 		}
@@ -1646,12 +1646,12 @@ func (h *handlers) handleContributorsList(w http.ResponseWriter, r *http.Request
 		if refetched, _, err := h.cfg.Store.ListContributorsPaginated(query, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch contributors list page %d: %v", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch contributors list page %d: %v", pg.Page, err))
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListContributorsPaginated(query, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback contributors list page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback contributors list page 1: %v", fallbackErr))
 				}
 			}
 		}
@@ -1744,7 +1744,7 @@ func (h *handlers) handleProjectsList(w http.ResponseWriter, r *http.Request) {
 		rows, total, err = h.cfg.Store.ListProjectsPaginated(query, pageSize, (reqPage-1)*pageSize)
 		if err != nil {
 			// R6-2: partial-only endpoint — always render fragment, never full Layout (even non-HTMX).
-			log.Printf("dashboard: projects list store error: %v", err)
+			obs.L().Info(fmt.Sprintf("dashboard: projects list store error: %v", err))
 			renderComponentStatus(w, r, http.StatusBadGateway, EmptyState("Service Unavailable", "Dashboard data is temporarily unavailable."))
 			return
 		}
@@ -1760,13 +1760,13 @@ func (h *handlers) handleProjectsList(w http.ResponseWriter, r *http.Request) {
 		if refetched, _, err := h.cfg.Store.ListProjectsPaginated(query, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch projects list page %d: %v (using first-page rows)", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch projects list page %d: %v (using first-page rows)", pg.Page, err))
 			// R5-3: tier-3 fallback to page 1 when re-fetch fails and rows are empty.
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListProjectsPaginated(query, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback projects list page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback projects list page 1: %v", fallbackErr))
 				}
 			}
 		}
@@ -1842,7 +1842,7 @@ func (h *handlers) handleAdminUsersList(w http.ResponseWriter, r *http.Request) 
 	}
 	users, err := h.cfg.AdminUsers.ListUsers(r.Context())
 	if err != nil {
-		log.Printf("dashboard: admin users list error: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: admin users list error: %v", err))
 		renderComponent(w, r, AdminUsersListPartial(nil, "no se pudo cargar la lista de usuarios"))
 		return
 	}
@@ -1893,7 +1893,7 @@ func (h *handlers) handleAdminUserCreate(w http.ResponseWriter, r *http.Request)
 				CreatedBy: creator,
 			})
 			if err != nil {
-				log.Printf("dashboard: send welcome email failed: %v", err)
+				obs.L().Info(fmt.Sprintf("dashboard: send welcome email failed: %v", err))
 				mailNote = " (email no enviado: " + err.Error() + ")"
 			} else {
 				mailNote = " · email de bienvenida enviado"
@@ -2204,7 +2204,7 @@ func (h *handlers) handlePromptDetail(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) renderStoreError(w http.ResponseWriter, r *http.Request, activeTab string, contextLabel string, err error) {
 	status, headline, message := classifyStoreError(contextLabel, err)
-	log.Printf("dashboard: %s store error: %v", strings.ToLower(strings.TrimSpace(contextLabel)), err)
+	obs.L().Info(fmt.Sprintf("dashboard: %s store error: %v", strings.ToLower(strings.TrimSpace(contextLabel)), err))
 	fragment := fmt.Sprintf(`<div class="empty-state" role="alert"><h3>%s</h3><p>%s</p></div>`, html.EscapeString(headline), html.EscapeString(message))
 	if isHTMXRequest(r) {
 		renderHTMLStatus(w, status, fragment)
@@ -2316,7 +2316,7 @@ func (h *handlers) handleAdminAuditLogList(w http.ResponseWriter, r *http.Reques
 		var err error
 		rows, total, err = h.cfg.Store.ListAuditEntriesPaginated(r.Context(), filter, pageSize, (reqPage-1)*pageSize)
 		if err != nil {
-			log.Printf("dashboard: audit log list store error: %v", err)
+			obs.L().Info(fmt.Sprintf("dashboard: audit log list store error: %v", err))
 			renderComponentStatus(w, r, http.StatusBadGateway, EmptyState("Service Unavailable", "Audit log data is temporarily unavailable."))
 			return
 		}
@@ -2330,12 +2330,12 @@ func (h *handlers) handleAdminAuditLogList(w http.ResponseWriter, r *http.Reques
 		if refetched, _, err := h.cfg.Store.ListAuditEntriesPaginated(r.Context(), filter, pageSize, pg.Offset()); err == nil {
 			rows = refetched
 		} else {
-			log.Printf("dashboard: re-fetch audit log list page %d: %v (using first-page rows)", pg.Page, err)
+			obs.L().Info(fmt.Sprintf("dashboard: re-fetch audit log list page %d: %v (using first-page rows)", pg.Page, err))
 			if len(rows) == 0 {
 				if fallback, _, fallbackErr := h.cfg.Store.ListAuditEntriesPaginated(r.Context(), filter, pageSize, 0); fallbackErr == nil {
 					rows = fallback
 				} else {
-					log.Printf("dashboard: fallback audit log list page 1: %v", fallbackErr)
+					obs.L().Info(fmt.Sprintf("dashboard: fallback audit log list page 1: %v", fallbackErr))
 				}
 			}
 		}
