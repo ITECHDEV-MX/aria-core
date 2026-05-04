@@ -953,12 +953,19 @@ type handlers struct {
 	cfg MountConfig
 }
 
-func Mount(mux *http.ServeMux, cfg MountConfig) {
+// Mount registers all dashboard routes onto mux.
+//
+// Returns an error if the embedded static FS sub-tree is unavailable.
+// Callers (typically cloudserver) decide whether to halt startup,
+// degrade to API-only, or surface the error to operators. We MUST
+// NOT log.Fatal in a leaf module — that takes down the whole binary
+// (#5 from the 2026-05-04 improvement audit).
+func Mount(mux *http.ServeMux, cfg MountConfig) error {
 	h := &handlers{cfg: cfg}
 
 	staticSub, err := fs.Sub(StaticFS, "static")
 	if err != nil {
-		log.Fatalf("dashboard: failed to create static sub FS: %v", err)
+		return fmt.Errorf("dashboard: create static sub FS: %w", err)
 	}
 	mux.Handle("GET /dashboard/static/", http.StripPrefix("/dashboard/static/", http.FileServer(http.FS(staticSub))))
 
@@ -1142,6 +1149,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("POST /dashboard/vault/{id}/delete", h.requireAdmin(h.handleVaultDelete))
 	mux.HandleFunc("GET /dashboard/vault/{id}/audit", h.requireAdmin(h.handleVaultAuditDetail))
 	mux.HandleFunc("GET /dashboard/vault/audit", h.requireAdmin(h.handleVaultAuditGlobal))
+	return nil
 }
 
 func (h *handlers) handleAyudaPage(w http.ResponseWriter, r *http.Request) {
