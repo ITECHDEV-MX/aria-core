@@ -61,7 +61,7 @@ changelog:
 # Homebrew tap publish — solo cuando hay HOMEBREW_TAP_TOKEN configurado
 # (en GitHub Actions secret). Snapshot/PR builds no publican.
 brews:
-  - skip_upload: auto
+  - skip_upload: '{{ if eq .Env.HOMEBREW_TAP_TOKEN "" }}true{{ else }}auto{{ end }}'
     repository:
       owner: ITECHDEV-MX
       name: homebrew-tap
