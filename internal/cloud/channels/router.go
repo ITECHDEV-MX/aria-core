@@ -79,7 +79,7 @@ func (r *defaultRouter) Query(ctx context.Context, req Request) (*Response, erro
 			fallback.Error = fmt.Sprintf("primary %s failed: %v; fallback %s used", primary.Name(), err, r.gemma.Name())
 			return fallback, nil
 		}
-		return nil, fmt.Errorf("primary %s: %w; fallback %s: %v", primary.Name(), err, r.gemma.Name(), fbErr)
+		return nil, fmt.Errorf("primary %s: %w; fallback %s: %w", primary.Name(), err, r.gemma.Name(), fbErr)
 	}
 
 	return nil, err

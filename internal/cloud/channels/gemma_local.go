@@ -124,9 +124,9 @@ func (c *GemmaLocalChannel) Query(ctx context.Context, req Request) (*Response, 
 	elapsed := time.Since(start)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-			return nil, fmt.Errorf("%w: gemma timeout: %v", ErrChannelUnavailable, err)
+			return nil, fmt.Errorf("%w: gemma timeout: %w", ErrChannelUnavailable, err)
 		}
-		return nil, fmt.Errorf("%w: gemma transport: %v", ErrChannelUnavailable, err)
+		return nil, fmt.Errorf("%w: gemma transport: %w", ErrChannelUnavailable, err)
 	}
 	defer resp.Body.Close()
 

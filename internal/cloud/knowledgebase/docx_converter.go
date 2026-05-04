@@ -36,12 +36,12 @@ func (realPandoc) binary() string {
 func (r realPandoc) Available(ctx context.Context) error {
 	bin := r.binary()
 	if _, err := exec.LookPath(bin); err != nil {
-		return fmt.Errorf("%w: looked up %q (set %s to override): %v",
+		return fmt.Errorf("%w: looked up %q (set %s to override): %w",
 			ErrPandocNotAvailable, bin, PandocBinaryEnv, err)
 	}
 	cmd := exec.CommandContext(ctx, bin, "--version")
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%w: pandoc --version exit error: %v", ErrPandocNotAvailable, err)
+		return fmt.Errorf("%w: pandoc --version exit error: %w", ErrPandocNotAvailable, err)
 	}
 	return nil
 }
@@ -59,7 +59,7 @@ func (r realPandoc) Run(ctx context.Context, fromFormat, toFormat string, input 
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("knowledgebase: pandoc convert (%s → %s) failed: %v: %s",
+		return nil, fmt.Errorf("knowledgebase: pandoc convert (%s → %s) failed: %w: %s",
 			fromFormat, toFormat, err, strings.TrimSpace(stderr.String()))
 	}
 	return out.Bytes(), nil

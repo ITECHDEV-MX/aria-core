@@ -342,7 +342,7 @@ func isVaultErr(err, target error) bool {
 func errorsIs(err, target error) bool {
 	type isInterface interface{ Is(error) bool }
 	for cur := err; cur != nil; {
-		if cur == target {
+		if cur == target { //nolint:errorlint // identity check inside the unwrap loop is the whole point
 			return true
 		}
 		if x, ok := cur.(isInterface); ok && x.Is(target) {
