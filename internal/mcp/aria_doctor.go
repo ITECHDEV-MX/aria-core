@@ -17,6 +17,8 @@ import (
 // as `aria-core doctor --json` so agents and CI share a parser.
 func registerAriaDoctor(srv *server.MCPServer, s *store.Store, version string) {
 	srv.AddTool(mcp.NewTool("aria_doctor",
+		mcp.WithTitleAnnotation("Run Doctor Diagnostics"),
+		mcp.WithReadOnlyHintAnnotation(true),
 		mcp.WithDescription("Read-only operational diagnostics for the local aria-core store. Returns a Report with 8 health checks: config_dir, db_file, schema_version, core_tables, fts5_index, disk_space, recent_activity, session. Always safe to call."),
 		mcp.WithString("format", mcp.Description(`"json" (default) or "text"`)),
 	), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
