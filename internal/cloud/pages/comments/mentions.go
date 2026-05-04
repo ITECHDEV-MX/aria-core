@@ -4,9 +4,10 @@
 package comments
 
 import (
+	"fmt"
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"context"
 	"errors"
-	"log"
 	"regexp"
 	"strings"
 
@@ -134,7 +135,7 @@ func (s *Store) NotifyMentioned(ctx context.Context, commentID string, emailSvc 
 		// Si no hay email configurado o no resolvimos to_email, sólo marcamos
 		// notified_at para no reintentar infinitamente y logueamos.
 		if emailSvc == nil || !emailSvc.IsConfigured() || toEmail == "" {
-			log.Printf("comments.NotifyMentioned: SKIP send (degraded) comment=%s uid=%s", commentID, pm.uid)
+			obs.L().Info(fmt.Sprintf("comments.NotifyMentioned: SKIP send (degraded) comment=%s uid=%s", commentID, pm.uid))
 		} else {
 			if err := emailSvc.SendMentionNotification(ctx, MentionEmailContext{
 				ToEmail:        toEmail,
@@ -145,7 +146,7 @@ func (s *Store) NotifyMentioned(ctx context.Context, commentID string, emailSvc 
 				CommentSnippet: snippet,
 				MentionedBy:    mentionedBy,
 			}); err != nil {
-				log.Printf("comments.NotifyMentioned: send failed comment=%s uid=%s err=%v", commentID, pm.uid, err)
+				obs.L().Info(fmt.Sprintf("comments.NotifyMentioned: send failed comment=%s uid=%s err=%v", commentID, pm.uid, err))
 				continue
 			}
 		}

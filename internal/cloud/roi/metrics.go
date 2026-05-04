@@ -382,3 +382,53 @@ func (m *MetricsStore) WeeklyTimeline(ctx context.Context, devUID string, weeks 
 	}
 	return out, nil
 }
+
+// CalcDTTFromRecipes computes Deploy Total Time using the actual
+// recipe-execution log instead of the legacy "session.goal LIKE deploy"
+// heuristic. It averages (finished_at - started_at) over executions
+// whose recipe_key matches one of the deploy-flavored patterns
+// (deploy*, release*, ship*, prod-*).
+//
+// Returns the fallback CalcDTT result if recipe_executions is empty
+// for the period (so dashboards stay stable during the migration).
+func (m *MetricsStore) CalcDTTFromRecipes(ctx context.Context, devUID string, since, until time.Time) (avgMinutes float64, err error) {
+	if m == nil || m.db == nil {
+		return 0, nil
+	}
+
+	// Optional dev filter, mirroring CalcDTT semantics.
+	args := []any{since, until}
+	devClause := ""
+	if devUID != "" {
+		devClause = "AND executed_by_uid = $3"
+		args = append(args, devUID)
+	}
+
+	q := fmt.Sprintf(`
+		SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (finished_at - started_at)) / 60.0), 0)
+		FROM aria_recipe_executions
+		WHERE started_at >= $1
+		  AND started_at <  $2
+		  AND finished_at IS NOT NULL
+		  AND status = 'completed'
+		  AND (
+		    recipe_key ILIKE 'deploy%%'
+		    OR recipe_key ILIKE 'release%%'
+		    OR recipe_key ILIKE 'ship%%'
+		    OR recipe_key ILIKE 'prod-%%'
+		  )
+		  %s
+	`, devClause)
+
+	var avg float64
+	if err := m.db.QueryRowContext(ctx, q, args...).Scan(&avg); err != nil {
+		return 0, fmt.Errorf("CalcDTTFromRecipes scan: %w", err)
+	}
+
+	// Fallback to the legacy session.goal heuristic if recipe log was
+	// empty for the period.
+	if avg == 0 {
+		return m.CalcDTT(ctx, devUID, since, until)
+	}
+	return avg, nil
+}

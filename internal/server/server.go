@@ -5,11 +5,11 @@
 package server
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -94,7 +94,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return fmt.Errorf("aria-core server: listen %s: %w", addr, err)
 	}
-	log.Printf("[aria-core] HTTP server listening on %s", addr)
+	obs.L().Info(fmt.Sprintf("[aria-core] HTTP server listening on %s", addr))
 	return serveFn(ln, s.mux)
 }
 
@@ -621,7 +621,7 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.store.MigrateProject(body.OldProject, body.NewProject)
 	if err != nil {
-		log.Printf("[aria-core] project migration failed: %v", err)
+		obs.L().Info(fmt.Sprintf("[aria-core] project migration failed: %v", err))
 		jsonError(w, http.StatusInternalServerError, "migration failed")
 		return
 	}
@@ -631,10 +631,9 @@ func (s *Server) handleMigrateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[aria-core] migrated project %q → %q (obs: %d, sessions: %d, prompts: %d)",
+	obs.L().Info(fmt.Sprintf("[aria-core] migrated project %q → %q (obs: %d, sessions: %d, prompts: %d)",
 		body.OldProject, body.NewProject,
-		result.ObservationsUpdated, result.SessionsUpdated, result.PromptsUpdated)
-
+		result.ObservationsUpdated, result.SessionsUpdated, result.PromptsUpdated))
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"status":       "migrated",
 		"old_project":  body.OldProject,

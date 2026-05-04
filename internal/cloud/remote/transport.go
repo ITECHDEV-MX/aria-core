@@ -1,12 +1,12 @@
 package remote
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -404,7 +404,7 @@ func newMutationHTTPStatusError(operation string, statusCode int, body []byte) e
 	errorCode := strings.TrimSpace(payload.ErrorCode)
 	if statusCode == http.StatusNotFound {
 		errorCode = "server_unsupported"
-		log.Printf("[autosync] cloud mutation endpoint returned 404 (server_unsupported); deploy the new server first before enabling ARIA_CORE_CLOUD_AUTOSYNC=1")
+		obs.L().Info(fmt.Sprintf("[autosync] cloud mutation endpoint returned 404 (server_unsupported); deploy the new server first before enabling ARIA_CORE_CLOUD_AUTOSYNC=1"))
 	}
 
 	return &HTTPStatusError{

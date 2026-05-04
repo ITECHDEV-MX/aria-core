@@ -1,9 +1,9 @@
 package dashboard
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -79,13 +79,13 @@ func (h *handlers) handleForgotPasswordSubmit(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if h.cfg.PasswordSelf == nil {
-		log.Printf("forgot-password: PasswordSelf no configurado, ignorando email=%s", email)
+		obs.L().Info(fmt.Sprintf("forgot-password: PasswordSelf no configurado, ignorando email=%s", email))
 		renderComponent(w, r, ForgotPasswordPage(true))
 		return
 	}
 	token, _, found, err := h.cfg.PasswordSelf.CreatePasswordResetToken(r.Context(), email)
 	if err != nil {
-		log.Printf("forgot-password: error creating token for %s: %v", email, err)
+		obs.L().Info(fmt.Sprintf("forgot-password: error creating token for %s: %v", email, err))
 		// Aún así retornamos submitted (anti-enumeration)
 		renderComponent(w, r, ForgotPasswordPage(true))
 		return
@@ -97,9 +97,9 @@ func (h *handlers) handleForgotPasswordSubmit(w http.ResponseWriter, r *http.Req
 		}
 		link := base + "/dashboard/reset-password/" + token
 		if err := h.cfg.PasswordResetMailer.SendPasswordReset(r.Context(), email, link); err != nil {
-			log.Printf("forgot-password: send email failed for %s: %v", email, err)
+			obs.L().Info(fmt.Sprintf("forgot-password: send email failed for %s: %v", email, err))
 		} else {
-			log.Printf("forgot-password: reset link sent to %s", email)
+			obs.L().Info(fmt.Sprintf("forgot-password: reset link sent to %s", email))
 		}
 	}
 	renderComponent(w, r, ForgotPasswordPage(true))
@@ -144,7 +144,7 @@ func (h *handlers) handleResetPasswordSubmit(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		msg := "El link es inválido o expiró. Pedí uno nuevo desde Olvidé mi contraseña."
 		if !errors.Is(err, ErrPasswordResetTokenInvalid) {
-			log.Printf("reset-password: consume token failed: %v", err)
+			obs.L().Info(fmt.Sprintf("reset-password: consume token failed: %v", err))
 		}
 		renderComponent(w, r, ResetPasswordPage(token, msg, false))
 		return

@@ -1,8 +1,8 @@
 package dashboard
 
 import (
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -27,7 +27,7 @@ func (h *handlers) handleCotizadorLeadsList(w http.ResponseWriter, r *http.Reque
 	status := strings.TrimSpace(r.URL.Query().Get("status"))
 	leads, err := h.cfg.Cotizador.ListLeads(r.Context(), status)
 	if err != nil {
-		log.Printf("dashboard: cotizador list leads: %v", err)
+		obs.L().Info(fmt.Sprintf("dashboard: cotizador list leads: %v", err))
 		renderComponent(w, r, CotizadorLeadsPartial(nil, fmt.Sprintf("error: %v", err), status))
 		return
 	}

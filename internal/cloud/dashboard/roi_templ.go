@@ -401,7 +401,7 @@ func ROIStatCards(vm ROIPageVM) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div><p class=\"muted\" style=\"margin:0.4rem 0 0;font-size:0.7rem\">Sesiones con goal \"deploy\" (placeholder hasta recipe runner)</p></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div><p class=\"muted\" style=\"margin:0.4rem 0 0;font-size:0.7rem\">Promedio de duración de recipe-executions tipo deploy/release/ship</p></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
