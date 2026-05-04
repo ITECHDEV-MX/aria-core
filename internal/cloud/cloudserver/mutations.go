@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"net/http"
 	"strconv"
 	"strings"
@@ -151,10 +152,10 @@ func (s *CloudServer) handleMutationPush(w http.ResponseWriter, r *http.Request)
 					EntryCount:  len(req.Entries),
 					ReasonCode:  "sync-paused",
 				}); aerr != nil {
-					log.Printf("cloudserver: audit insert failed (mutation push): %v", aerr)
+					obs.L().Info(fmt.Sprintf("cloudserver: audit insert failed (mutation push): %v", aerr))
 				}
 			} else {
-				log.Printf("cloudserver: store (%T) does not implement InsertAuditEntry; audit skipped", s.store)
+				obs.L().Info(fmt.Sprintf("cloudserver: store (%T) does not implement InsertAuditEntry; audit skipped", s.store))
 			}
 			// REQ-414: include project envelope in 409 response alongside error fields.
 			jsonResponse(w, http.StatusConflict, map[string]any{
@@ -218,7 +219,7 @@ func (s *CloudServer) handleMutationPull(w http.ResponseWriter, r *http.Request)
 		} else {
 			// EnrolledProjectsProvider not implemented: fail closed with empty list.
 			// Log a warning so operators know the contract is violated.
-			log.Printf("[cloudserver] WARNING: projectAuth (%T) does not implement EnrolledProjectsProvider; mutation pull returns empty to prevent cross-tenant leak", s.projectAuth)
+			obs.L().Info(fmt.Sprintf("[cloudserver] WARNING: projectAuth (%T) does not implement EnrolledProjectsProvider; mutation pull returns empty to prevent cross-tenant leak", s.projectAuth))
 			allowedProjects = []string{}
 		}
 	}

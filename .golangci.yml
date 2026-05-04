@@ -1,0 +1,38 @@
+# golangci-lint config for ARIA Core.
+#
+# Scope: enable a small, useful set of linters that catch real bugs
+# without flooding contributors with style noise. Add linters
+# incrementally as the codebase migrates.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    - errcheck       # unchecked errors
+    - errorlint      # `errors.Is`/`As` correctness, %w wrapping
+    - gosimple       # simplification opportunities
+    - govet          # standard go vet rules
+    - ineffassign    # assignments whose value is never used
+    - staticcheck    # broad static checks (replaces megacheck)
+    - unused         # unused variables, constants, types
+    - misspell       # English spelling
+    - bodyclose      # http.Response.Body always closed
+
+issues:
+  # We are migrating to %w wrapping incrementally — do not fail the
+  # build on errorlint for files we have not touched yet. Critical
+  # packages (vault, redactor) are linted strict in CI from now on.
+  exclude-dirs:
+    - dist
+    - vendor
+
+linters-settings:
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true

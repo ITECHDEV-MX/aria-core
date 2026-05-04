@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 	"net/http"
 	"strings"
 	"time"
@@ -604,7 +605,7 @@ func (s *CloudServer) Start() error {
 		host = defaultHost
 	}
 	addr := fmt.Sprintf("%s:%d", host, s.port)
-	log.Printf("[aria-core-cloud] listening on %s", addr)
+	obs.L().Info(fmt.Sprintf("[aria-core-cloud] listening on %s", addr))
 	return s.listenAndServe(addr, s.Handler())
 }
 
@@ -612,10 +613,13 @@ func (s *CloudServer) Handler() http.Handler {
 	if s.mux == nil {
 		s.routes()
 	}
-	// Wrap every request body with a size cap (32 MiB default,
-	// 128 MiB on attachment/upload routes). Returns 413 to clients
-	// that exceed the cap. See dashboard/middleware.go.
-	return dashboard.WrapWithBodyLimit(s.mux)
+	// Wrap order matters:
+	//   outer: obs.WithRequestID — every request gets request_id header,
+	//          a context-bound logger, and an end-of-request structured
+	//          log line.
+	//   inner: dashboard.WrapWithBodyLimit — cap request body sizes.
+	// Body limit is innermost so it sees the same context the handlers do.
+	return obs.WithRequestID(dashboard.WrapWithBodyLimit(s.mux))
 }
 
 func (s *CloudServer) routes() {
@@ -726,7 +730,7 @@ func (s *CloudServer) routes() {
 		QuoteChat:         s.quoteChat,
 		KnowledgeBase:     s.kbDash,
 	}); err != nil {
-		log.Printf("cloudserver: dashboard mount failed (degrading to API-only): %v", err)
+		obs.L().Info(fmt.Sprintf("cloudserver: dashboard mount failed (degrading to API-only): %v", err))
 	}
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
@@ -1150,10 +1154,10 @@ func (s *CloudServer) handlePushChunk(w http.ResponseWriter, r *http.Request) {
 					Outcome:     cloudstore.AuditOutcomeRejectedProjectPaused,
 					ReasonCode:  "sync-paused",
 				}); aerr != nil {
-					log.Printf("cloudserver: audit insert failed (chunk push): %v", aerr)
+					obs.L().Info(fmt.Sprintf("cloudserver: audit insert failed (chunk push): %v", aerr))
 				}
 			} else {
-				log.Printf("cloudserver: store (%T) does not implement InsertAuditEntry; audit skipped", s.store)
+				obs.L().Info(fmt.Sprintf("cloudserver: store (%T) does not implement InsertAuditEntry; audit skipped", s.store))
 			}
 			// JW4: include project envelope fields in 409 response, consistent
 			// with the mutation push 409 envelope (REQ-414 parity for chunk path).
