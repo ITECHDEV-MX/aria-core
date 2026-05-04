@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/ITECHDEV-MX/aria-core/main/skills/schema/aria-skill-v1.schema.json",
+  "title": "ARIA Skill v1",
+  "description": "Frontmatter schema for ARIA Core SKILL.md files. Extends the agentskills.io v2026-03 spec with ARIA-specific governance fields (owner, version, dossier requirements, multi-agent chain metadata). Authority: ITECHDEV-MX/aria-core.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "description",
+    "version",
+    "owner"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Stable skill identifier. Must match the parent directory name. Lowercase letters/digits with single hyphens; no leading, trailing, or doubled hyphens."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1024,
+      "description": "One-paragraph summary used by the skill ranker."
+    },
+    "license": {
+      "type": "string",
+      "default": "Apache-2.0",
+      "description": "SPDX identifier. iTech default: Apache-2.0."
+    },
+    "compatibility": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Free-text compatibility notes (Claude Code, Codex, etc.)."
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Free key/value bag for non-schema-validated tags."
+    },
+    "allowed-tools": {
+      "type": "string",
+      "description": "EXPERIMENTAL (agentskills.io). Space-separated tool allowlist for the agent invoking this skill."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z\\-\\.]+)?$",
+      "description": "Semver. Major bumps required for breaking changes."
+    },
+    "owner": {
+      "type": "string",
+      "format": "email",
+      "description": "Skill maintainer email. F1.a: enforced by PR review convention. F1.b: must match an entry in aria_skill_maintainers."
+    },
+    "expertise_domains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9\\-]+$"
+      },
+      "description": "Hint for PR auto-routing — does NOT restrict who can approve in F1.a. Examples: ['cotizador', 'kb', 'mcp']."
+    },
+    "last_reviewed": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO date YYYY-MM-DD of the last maintainer review."
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Names of older skills this one replaces."
+    },
+    "agent": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, this skill is invoked as a sub-agent in a multi-agent chain (e.g. story-creation pipeline). When false, it's a rule set the calling agent applies in-context."
+    },
+    "position_in_chain": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0-indexed position in a multi-agent chain. Only meaningful when agent=true. The orchestrator uses this to order invocations."
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Filenames the orchestrator must provide before invoking."
+        }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "type": "string",
+          "pattern": "^\\d+-[a-z0-9\\-]+\\.md$",
+          "description": "Output filename pattern: <position>-<slug>.md"
+        },
+        "aria_page_template": {
+          "type": "string",
+          "description": "Template name in aria_pages for cloud mirroring."
+        },
+        "aria_save_type": {
+          "type": "string",
+          "enum": [
+            "general",
+            "decision",
+            "meeting",
+            "commitment",
+            "tech_debt",
+            "risk",
+            "adr",
+            "architecture",
+            "bugfix",
+            "feature",
+            "story"
+          ]
+        },
+        "aria_save_scope": {
+          "type": "string",
+          "enum": [
+            "personal",
+            "project",
+            "team",
+            "global",
+            "client_knowledge"
+          ]
+        }
+      }
+    },
+    "triggers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "context": {
+            "type": "string"
+          },
+          "tool_called": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

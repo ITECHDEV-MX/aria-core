@@ -1,5 +1,5 @@
 ---
-name: aria-core-backlog-triage
+name: backlog-triage
 description: >
   Backlog triage protocol for AriaCore: audit open issues and PRs, classify each item,
   infer maintainer ideology from comments, and produce an actionable disposition report.
@@ -9,6 +9,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

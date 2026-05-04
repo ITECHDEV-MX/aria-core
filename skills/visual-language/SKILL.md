@@ -1,5 +1,5 @@
 ---
-name: aria-core-visual-language
+name: visual-language
 description: >
   Visual language rules for AriaCore surfaces. Trigger: Any dashboard styling,
   typography, spacing, or visual identity change.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

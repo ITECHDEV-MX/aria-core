@@ -1,5 +1,5 @@
 ---
-name: aria-core-memory-protocol
+name: memory-protocol
 description: >
   Persistent memory discipline for AriaCore contributors.
   Trigger: Decisions, bugfixes, discoveries, preferences, or session closure.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

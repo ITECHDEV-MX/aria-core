@@ -1,5 +1,5 @@
 ---
-name: aria-core-cultural-norms
+name: cultural-norms
 description: >
   Cultural and collaboration norms for AriaCore contributors and agents.
   Trigger: Starting substantial work, reviewing changes, or defining team conventions.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

@@ -1,5 +1,5 @@
 ---
-name: aria-core-sdd-flow
+name: sdd-flow
 description: >
   Spec-Driven Development workflow for AriaCore.
   Trigger: When user requests SDD or multi-phase implementation planning.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

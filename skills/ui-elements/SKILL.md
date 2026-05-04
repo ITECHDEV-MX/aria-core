@@ -1,5 +1,5 @@
 ---
-name: aria-core-ui-elements
+name: ui-elements
 description: >
   Creation rules for AriaCore UI elements, pages, cards, metrics, and detail flows.
   Trigger: Adding or changing dashboard UI components or connected browsing flows.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

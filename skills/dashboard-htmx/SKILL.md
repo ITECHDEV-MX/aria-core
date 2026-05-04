@@ -1,5 +1,5 @@
 ---
-name: aria-core-dashboard-htmx
+name: dashboard-htmx
 description: >
   HTMX and templ interaction rules for the AriaCore dashboard. Trigger: Any
   change to htmx attributes, partial updates, forms, or server-rendered browser UI.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

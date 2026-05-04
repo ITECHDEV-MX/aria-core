@@ -556,6 +556,8 @@ func main() {
 		cmdMCP(cfg)
 	case "doctor":
 		cmdDoctor(cfg)
+	case "skills":
+		cmdSkills()
 	case "tui":
 		cmdTUI(cfg)
 	case "search":
