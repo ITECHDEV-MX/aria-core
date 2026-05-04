@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/ITECHDEV-MX/aria-core/internal/obs"
 )
 
 // mustNewMutationTransport is a test helper that panics on error.
@@ -255,11 +257,11 @@ func TestTransport404LogsServerUnsupportedWarning(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Capture log output — capture original writer so we restore it exactly.
-	orig := log.Writer()
+	// Production code uses obs.L() (slog) instead of stdlib log; redirect the
+	// package logger into a buffer for assertion.
 	var buf bytes.Buffer
-	log.SetOutput(&buf)
-	defer log.SetOutput(orig) // restore to original (never nil — prevents process-wide log corruption)
+	restore := obs.SetLoggerForTest(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	defer restore()
 
 	mt, err := NewMutationTransport(srv.URL, "token123")
 	if err != nil {

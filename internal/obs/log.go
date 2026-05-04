@@ -54,6 +54,16 @@ func L() *slog.Logger {
 	return logger
 }
 
+// SetLoggerForTest swaps the package logger with the supplied one and returns
+// a restore func. Test-only — production code paths use Init() / L() and never
+// touch this. Caller is responsible for invoking the returned cleanup with
+// t.Cleanup or defer to avoid bleeding state into other tests.
+func SetLoggerForTest(l *slog.Logger) (restore func()) {
+	prev := logger
+	logger = l
+	return func() { logger = prev }
+}
+
 func parseLevel(s string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "debug":
