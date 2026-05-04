@@ -947,13 +947,30 @@ func TestDashboardLayoutHTMLStructure(t *testing.T) {
 	}
 }
 
-// TestStatusRibbonAndFooterPresent asserted the status ribbon + footer surface
-// from the original cloud-shell layout. The redesign moved system status into
-// the sidebar `user-card` and dropped the dedicated ribbon/footer entirely; the
-// new layout uses `app-shell > sidebar > main` with no shell-* / status-* elements.
-// REQ-107 will be re-specified for the sidebar layout in a follow-up.
-func TestStatusRibbonAndFooterPresent(t *testing.T) {
-	t.Skip("post-redesign: status ribbon and shell footer removed; layout now uses sidebar pattern. Re-spec REQ-107 for sidebar before re-enabling.")
+// TestSidebarSurfaceIsPresent re-specs REQ-107 for the post-redesign sidebar
+// layout. The original test asserted a status-ribbon + dedicated footer that
+// were removed; the new contract is: every authed page ships the brand,
+// the user-card with its avatar, and the logout form (anchored in the sidebar
+// footer block).
+func TestSidebarSurfaceIsPresent(t *testing.T) {
+	mux := newAuthedMux(parityStoreStub{}, false)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dashboard/?auth=ok", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`class="sidebar-brand"`,
+		`class="sidebar-brand-name">ARIA CORE</span>`,
+		`class="sidebar-footer"`,
+		`class="user-card"`,
+		`action="/dashboard/logout"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("expected sidebar surface marker %q in body", marker)
+		}
+	}
 }
 
 // TestNavTabsRenderedCorrectly asserts that the nav tab hrefs are correct for
@@ -2506,17 +2523,53 @@ func TestContributorNotFoundReturns404WithContributorMessage(t *testing.T) {
 
 // ─── R5-1: Stats and Activity full-page layout uses templ Layout ─────────────
 
-// TestDashboardStatsFullPageShowsStatusRibbon (R5-1) is now obsolete: the
-// status-ribbon ("CLOUD ACTIVE" + ENGRAM CLOUD copy) was removed in the sidebar
-// redesign. Stats / activity now render via templ Layout with sidebar instead
-// of the legacy ribbon. R5-1 needs to be re-spec'd for the sidebar layout.
-func TestDashboardStatsFullPageShowsStatusRibbon(t *testing.T) {
-	t.Skip("post-redesign: status-ribbon removed (sidebar layout). Re-spec R5-1 for sidebar before re-enabling.")
+// TestDashboardStatsFullPageWrapsInSidebarLayout re-specs R5-1 for the post-
+// redesign sidebar layout. Original assertions targeted the cloud-shell
+// status-ribbon + ENGRAM banner; both were dropped. The current contract is
+// that a non-HTMX request to /dashboard/stats wraps the partial in the
+// `app-shell > sidebar > main` chrome (not just a bare partial), which is
+// the load-bearing property — it's what guarantees the user always sees
+// nav + brand on full-page navigations.
+func TestDashboardStatsFullPageWrapsInSidebarLayout(t *testing.T) {
+	mux := newAuthedMux(parityStoreStub{}, false)
+	rec := httptest.NewRecorder()
+	// No HX-Request header → full-page navigation path.
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dashboard/stats?auth=ok", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("R5-1: expected 200 for /dashboard/stats, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`<!doctype html>`,
+		`class="app-shell"`,
+		`class="sidebar"`,
+		`class="main"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("R5-1: expected %q in /dashboard/stats full-page body", marker)
+		}
+	}
 }
 
-// TestDashboardActivityFullPageShowsStatusRibbon (R5-1) — see above.
-func TestDashboardActivityFullPageShowsStatusRibbon(t *testing.T) {
-	t.Skip("post-redesign: status-ribbon removed (sidebar layout). Re-spec R5-1 for sidebar before re-enabling.")
+// TestDashboardActivityFullPageWrapsInSidebarLayout — same contract for /dashboard/activity.
+func TestDashboardActivityFullPageWrapsInSidebarLayout(t *testing.T) {
+	mux := newAuthedMux(parityStoreStub{}, false)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/dashboard/activity?auth=ok", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("R5-1: expected 200 for /dashboard/activity, got %d body=%q", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	for _, marker := range []string{
+		`<!doctype html>`,
+		`class="app-shell"`,
+		`class="sidebar"`,
+		`class="main"`,
+	} {
+		if !strings.Contains(body, marker) {
+			t.Errorf("R5-1: expected %q in /dashboard/activity full-page body", marker)
+		}
+	}
 }
 
 // ─── R5-4: Session/Observation/Prompt detail not-found handler tests ─────────
