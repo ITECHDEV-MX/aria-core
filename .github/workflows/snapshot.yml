@@ -1,0 +1,49 @@
+name: Snapshot Build
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  goreleaser-snapshot:
+    name: Snapshot Build (no publish)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install templ
+        run: go install github.com/a-h/templ/cmd/templ@latest
+
+      - name: Generate templ files
+        run: templ generate ./internal/cloud/dashboard/...
+
+      - name: GoReleaser snapshot
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean --skip=publish
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aria-core-binaries-snapshot
+          path: |
+            dist/aria-core_*_linux_amd64.tar.gz
+            dist/aria-core_*_linux_arm64.tar.gz
+            dist/aria-core_*_darwin_amd64.tar.gz
+            dist/aria-core_*_darwin_arm64.tar.gz
+            dist/aria-core_*_windows_amd64.zip
+            dist/aria-core_*_windows_arm64.zip
+            dist/checksums.txt
+          retention-days: 14
