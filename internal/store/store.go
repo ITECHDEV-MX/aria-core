@@ -764,6 +764,9 @@ func (s *Store) migrate() error {
 	if err := s.migrateSyncChunksTable(); err != nil {
 		return err
 	}
+	if err := s.migrateConflictsTable(); err != nil {
+		return err
+	}
 	if _, err := s.execHook(s.db, `
 		CREATE TABLE IF NOT EXISTS sync_enrolled_projects (
 			project     TEXT PRIMARY KEY,

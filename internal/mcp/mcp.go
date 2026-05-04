@@ -649,6 +649,14 @@ Duplicates are automatically detected and skipped — safe to call multiple time
 		registerAriaDoctor(srv, s, cfg.Version)
 	}
 
+	// aria_judge + aria_compare — memory conflict surfacing (B.2)
+	if shouldRegister("aria_judge", allowlist) {
+		registerAriaJudge(srv, s)
+	}
+	if shouldRegister("aria_compare", allowlist) {
+		registerAriaCompare(srv, s)
+	}
+
 }
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
