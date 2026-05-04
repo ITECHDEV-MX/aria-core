@@ -16,6 +16,24 @@ import (
 	nethtml "golang.org/x/net/html"
 )
 
+// fakeAdminUserService implements the AdminUserService interface for tests.
+// Only ListUsers returns meaningful data; the mutation methods are stubs that
+// no-op so test fixtures can pass the type-assertion without configuring full CRUD.
+type fakeAdminUserService struct{ users []AdminUserView }
+
+func (f fakeAdminUserService) ListUsers(_ context.Context) ([]AdminUserView, error) {
+	return f.users, nil
+}
+func (f fakeAdminUserService) CreateUser(_ context.Context, _, _ string, _ []string, _ string) error {
+	return nil
+}
+func (f fakeAdminUserService) AddRole(_ context.Context, _, _ string) error      { return nil }
+func (f fakeAdminUserService) RemoveRole(_ context.Context, _, _ string) error   { return nil }
+func (f fakeAdminUserService) SetActive(_ context.Context, _ string, _ bool) error {
+	return nil
+}
+func (f fakeAdminUserService) ChangePassword(_ context.Context, _, _ string) error { return nil }
+
 type parityStoreStub struct {
 	projects      []cloudstore.DashboardProjectRow
 	contributors  []cloudstore.DashboardContributorRow
@@ -2296,27 +2314,15 @@ func TestContributorsPaginationUsesRealTotal(t *testing.T) {
 	}
 }
 
-// R3-3b: TestAdminUsersPaginationUsesRealTotal — same but for /dashboard/admin/users/list.
-// R6-1 update: pagination is now rendered by the /list partial endpoint.
-//
-// SKIPPED post auth-refactor: this test never wires AdminUsers (a separate
-// AdminUserService now feeds /dashboard/admin/users/list — it is no longer
-// served from the contributors path). The handler short-circuits with
-// "user management is not configured" before pagination is rendered.
-// Re-enabling requires a fake AdminUserService that returns 125 paginated
-// rows; deferring to the auth-refactor follow-up that replaces parityStoreStub.
+// R3-3b post auth-refactor: /dashboard/admin/users/list now reads from
+// AdminUserService.ListUsers (not contributors). The endpoint currently
+// renders the full list without pagination — the original "real total" check
+// no longer applies. Repurposed to verify the partial wires the AdminUsers
+// service end-to-end and renders all returned rows.
 func TestAdminUsersPaginationUsesRealTotal(t *testing.T) {
-	t.Skip("auth refactor: needs fake AdminUserService instead of parityStoreStub.contributors. Out of scope for markup-drift cleanup.")
-	contributors := make([]cloudstore.DashboardContributorRow, 125)
-	for i := range contributors {
-		contributors[i] = cloudstore.DashboardContributorRow{
-			CreatedBy: "admin-user-" + strings.Repeat("x", i%5),
-			Chunks:    i + 1, Projects: 1,
-		}
-	}
-	stub := &contributorsPaginationStub{
-		allContributors: contributors,
-		total:           125,
+	users := make([]AdminUserView, 125)
+	for i := range users {
+		users[i] = AdminUserView{UID: fmt.Sprintf("uid-%03d", i), Email: fmt.Sprintf("u%d@itechdev.com.mx", i), Name: fmt.Sprintf("User %d", i), Roles: []string{"dev"}}
 	}
 	mux := http.NewServeMux()
 	_ = Mount(mux, MountConfig{
@@ -2326,25 +2332,21 @@ func TestAdminUsersPaginationUsesRealTotal(t *testing.T) {
 			}
 			return errUnauthorized
 		},
-		IsAdmin: func(_ *http.Request) bool { return true },
-		Store:   stub,
+		IsAdmin:    func(_ *http.Request) bool { return true },
+		Store:      parityStoreStub{},
+		AdminUsers: fakeAdminUserService{users: users},
 	})
 
 	rec := httptest.NewRecorder()
-	// R6-1: hit the list partial endpoint (pagination is there, not the shell).
-	req := httptest.NewRequest(http.MethodGet, "/dashboard/admin/users/list?auth=ok&page=1&pageSize=10", nil)
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/admin/users/list?auth=ok", nil)
 	req.Header.Set("HX-Request", "true")
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("R3-3b: expected 200, got %d body=%q", rec.Code, rec.Body.String())
+		t.Fatalf("expected 200, got %d body=%q", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// HtmxPaginationBar renders "1–10 de 125".
-	if strings.Contains(body, "of 100") {
-		t.Errorf("R3-3b: pagination shows 'of 100' (capped), expected 'de 125' (real total)")
-	}
-	if !strings.Contains(body, "de 125") {
-		t.Errorf("R3-3b: expected 'de 125' in admin users pagination output, got body=%q", body)
+	if !strings.Contains(body, "u0@itechdev.com.mx") || !strings.Contains(body, "u124@itechdev.com.mx") {
+		t.Errorf("expected first and last user emails in body, got truncated list")
 	}
 }
 
@@ -2625,29 +2627,37 @@ func TestContributorsPaginationHTMXSwapsContent(t *testing.T) {
 // TestAdminUsersPaginationHTMXSwapsContent (R5-2 RED) asserts that
 // GET /dashboard/admin/users/list returns the partial (no full layout wrapper).
 //
-// SKIPPED post auth-refactor: same reason as TestAdminUsersPaginationUsesRealTotal —
-// /dashboard/admin/users/list now requires AdminUserService, not contributors.
+// Updated post auth-refactor: wires AdminUserService and verifies the partial
+// renders only the table fragment (no html/body chrome).
 func TestAdminUsersPaginationHTMXSwapsContent(t *testing.T) {
-	t.Skip("auth refactor: needs fake AdminUserService instead of parityStoreStub.contributors. Out of scope for markup-drift cleanup.")
-	store := parityStoreStub{
-		contributors: []cloudstore.DashboardContributorRow{
-			{CreatedBy: "alice", Chunks: 5, Projects: 2, LastChunkAt: "2026-04-23T10:00:00Z"},
-		},
+	users := []AdminUserView{
+		{UID: "uid-1", Email: "alice@itechdev.com.mx", Name: "Alice", Roles: []string{"dev"}, IsActive: true},
 	}
-	mux := newAuthedMux(store, true) // admin=true required.
+	mux := http.NewServeMux()
+	_ = Mount(mux, MountConfig{
+		RequireSession: func(r *http.Request) error {
+			if r.URL.Query().Get("auth") == "ok" {
+				return nil
+			}
+			return errUnauthorized
+		},
+		IsAdmin:    func(_ *http.Request) bool { return true },
+		Store:      parityStoreStub{},
+		AdminUsers: fakeAdminUserService{users: users},
+	})
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/dashboard/admin/users/list?auth=ok&page=1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/dashboard/admin/users/list?auth=ok", nil)
 	req.Header.Set("HX-Request", "true")
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("R5-2: expected 200 from /dashboard/admin/users/list, got %d body=%q", rec.Code, rec.Body.String())
+		t.Fatalf("R5-2: expected 200, got %d body=%q", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "alice") {
-		t.Errorf("R5-2: expected contributor 'alice' in admin users list partial, got body=%q", body[:min(len(body), 500)])
+	if !strings.Contains(body, "alice@itechdev.com.mx") {
+		t.Errorf("R5-2: expected user email in admin users list partial, got body=%q", body[:min(len(body), 500)])
 	}
 	// Must NOT contain the full layout wrapper.
-	if strings.Contains(body, "status-ribbon") {
+	if strings.Contains(body, "<!doctype html") || strings.Contains(body, "status-ribbon") {
 		t.Errorf("R5-2: /dashboard/admin/users/list returned a full-page layout, expected a partial only")
 	}
 }
