@@ -4066,7 +4066,8 @@ func TestCreateSessionUpsertsEmptyProjectAndDirectory(t *testing.T) {
 	}
 
 	// Second call with real project/directory should fill in the blanks.
-	// Project names are normalized to lowercase, so "projectA" becomes "projecta".
+	// Project names are normalized: camelCase → kebab-case + lowercase, so
+	// "projectA" becomes "project-a".
 	if err := s.CreateSession("sess-upsert", "projectA", "/tmp/a"); err != nil {
 		t.Fatalf("upsert session: %v", err)
 	}
@@ -4075,8 +4076,8 @@ func TestCreateSessionUpsertsEmptyProjectAndDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if sess.Project != "projecta" {
-		t.Fatalf("expected project=projecta after upsert (normalized), got %q", sess.Project)
+	if sess.Project != "project-a" {
+		t.Fatalf("expected project=project-a after upsert (normalized), got %q", sess.Project)
 	}
 	if sess.Directory != "/tmp/a" {
 		t.Fatalf("expected directory=/tmp/a after upsert, got %q", sess.Directory)
@@ -4086,7 +4087,7 @@ func TestCreateSessionUpsertsEmptyProjectAndDirectory(t *testing.T) {
 func TestCreateSessionDoesNotOverwriteExistingProject(t *testing.T) {
 	s := newTestStore(t)
 
-	// Create session with project A (normalized to "projecta")
+	// Create session with project A (normalized to "project-a")
 	if err := s.CreateSession("sess-preserve", "projectA", "/tmp/a"); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -4100,9 +4101,9 @@ func TestCreateSessionDoesNotOverwriteExistingProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	// Project names are normalized to lowercase, so "projectA" is stored as "projecta"
-	if sess.Project != "projecta" {
-		t.Fatalf("expected project=projecta (preserved, normalized), got %q", sess.Project)
+	// Project names: camelSplit + lowercase, so "projectA" → "project-a"
+	if sess.Project != "project-a" {
+		t.Fatalf("expected project=project-a (preserved, normalized), got %q", sess.Project)
 	}
 	if sess.Directory != "/tmp/a" {
 		t.Fatalf("expected directory=/tmp/a (preserved), got %q", sess.Directory)
@@ -5726,8 +5727,8 @@ func TestCreateSessionNormalizesProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
-	if sess.Project != "myproject" {
-		t.Errorf("expected project=myproject (normalized), got %q", sess.Project)
+	if sess.Project != "my-project" {
+		t.Errorf("expected project=my-project (normalized via camelSplit), got %q", sess.Project)
 	}
 }
 

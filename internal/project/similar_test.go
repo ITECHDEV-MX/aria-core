@@ -15,7 +15,7 @@ func TestLevenshtein(t *testing.T) {
 		{a: "abc", b: "abc", want: 0},
 		{a: "kitten", b: "sitting", want: 3},
 		{a: "saturday", b: "sunday", want: 3},
-		{a: "aria-core", b: "engam", want: 1},  // single deletion
+		{a: "aria-core", b: "ariacore", want: 1},  // single deletion (hyphen)
 		{a: "aria-core", b: "aria-core", want: 0}, // identical
 		{a: "a", b: "b", want: 1},
 		{a: "abc", b: "ac", want: 1},   // one deletion
@@ -34,7 +34,7 @@ func TestLevenshtein(t *testing.T) {
 // TestLevenshtein_Symmetry verifies that levenshtein(a,b) == levenshtein(b,a).
 func TestLevenshtein_Symmetry(t *testing.T) {
 	pairs := [][2]string{
-		{"aria-core", "engam"},
+		{"aria-core", "ariacore"},
 		{"kitten", "sitting"},
 		{"abc", "xyz"},
 		{"", "hello"},
@@ -52,7 +52,7 @@ func TestLevenshtein_Symmetry(t *testing.T) {
 // ─── FindSimilar unit tests ──────────────────────────────────────────────────
 
 func TestFindSimilar_CaseInsensitiveAndSubstring(t *testing.T) {
-	existing := []string{"AriaCore", "aria-core-memory", "totally-different"}
+	existing := []string{"ARIA-CORE", "aria-core-memory", "totally-different"}
 	matches := FindSimilar("aria-core", existing, 3)
 
 	if len(matches) < 2 {
@@ -60,8 +60,8 @@ func TestFindSimilar_CaseInsensitiveAndSubstring(t *testing.T) {
 	}
 
 	// First match should be case-insensitive
-	if matches[0].Name != "AriaCore" || matches[0].MatchType != "case-insensitive" {
-		t.Errorf("first match = %+v; want {AriaCore, case-insensitive}", matches[0])
+	if matches[0].Name != "ARIA-CORE" || matches[0].MatchType != "case-insensitive" {
+		t.Errorf("first match = %+v; want {ARIA-CORE, case-insensitive}", matches[0])
 	}
 
 	// Second match should be substring
@@ -131,14 +131,14 @@ func TestFindSimilar_NothingSimilar(t *testing.T) {
 }
 
 func TestFindSimilar_LevenshteinHit(t *testing.T) {
-	existing := []string{"engam"} // distance 1 from "aria-core"
+	existing := []string{"ariacore"} // distance 1 from "aria-core" (drop hyphen)
 	matches := FindSimilar("aria-core", existing, 2)
 
 	if len(matches) != 1 {
 		t.Fatalf("expected 1 levenshtein match, got %d: %v", len(matches), matches)
 	}
-	if matches[0].Name != "engam" {
-		t.Errorf("match name = %q; want engam", matches[0].Name)
+	if matches[0].Name != "ariacore" {
+		t.Errorf("match name = %q; want ariacore", matches[0].Name)
 	}
 	if matches[0].MatchType != "levenshtein" {
 		t.Errorf("match type = %q; want levenshtein", matches[0].MatchType)
@@ -161,8 +161,8 @@ func TestFindSimilar_LevenshteinBeyondMaxDistance(t *testing.T) {
 func TestFindSimilar_OrderingCaseFirst(t *testing.T) {
 	// Verify ordering: case-insensitive → substring → levenshtein
 	existing := []string{
-		"engam",      // levenshtein distance 1
-		"AriaCore",     // case-insensitive
+		"ariacore",      // levenshtein distance 1 (drop hyphen)
+		"ARIA-CORE",     // case-insensitive
 		"aria-core-old", // substring
 	}
 	matches := FindSimilar("aria-core", existing, 2)
@@ -193,7 +193,7 @@ func TestFindSimilar_ZeroMaxDistance(t *testing.T) {
 	// With maxDistance=0, only exact levenshtein=0 would match — but those are
 	// caught by the case-insensitive check first. Verify levenshtein matches
 	// at distance > 0 are excluded.
-	existing := []string{"engam"} // distance 1
+	existing := []string{"ariacore"} // distance 1 (drop hyphen)
 	matches := FindSimilar("aria-core", existing, 0)
 
 	if len(matches) != 0 {

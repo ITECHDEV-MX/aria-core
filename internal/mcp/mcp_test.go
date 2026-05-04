@@ -1614,10 +1614,10 @@ func TestHandleSaveSimilarProjectWarning(t *testing.T) {
 	s := newMCPTestStore(t)
 	h := handleSave(s, MCPConfig{}, NewSessionActivity(10*time.Minute))
 
-	// Build two git repos: "aria-core" and "engam" (Levenshtein distance 1).
+	// Build two git repos: "aria-core" and "ariacore" (Levenshtein distance 1).
 	parent := t.TempDir()
 	ariaCoreDir := filepath.Join(parent, "aria-core")
-	engamDir := filepath.Join(parent, "engam")
+	engamDir := filepath.Join(parent, "ariacore")
 	for _, d := range []string{ariaCoreDir, engamDir} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
@@ -2983,21 +2983,21 @@ func TestWriteTool_AmbiguousErrorUsesCwdRepos_NotAllProjects(t *testing.T) {
 // resolveReadProject must normalize (lowercase+trim) the override before ProjectExists.
 func TestResolveReadProject_NormalizesOverride(t *testing.T) {
 	s := newMCPTestStore(t)
-	// Register a lowercase project name in the store.
-	if err := s.CreateSession("sess-norm", "myapp", "/tmp"); err != nil {
+	// Register a lowercase kebab project name in the store.
+	if err := s.CreateSession("sess-norm", "my-app", "/tmp"); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	// Pass mixed-case and padded override — must normalize to "myapp".
+	// Pass mixed-case and padded override — must normalize via camelSplit + lowercase + trim to "my-app".
 	res, err := resolveReadProject(s, "  MyApp  ")
 	if err != nil {
 		t.Fatalf("resolveReadProject with mixed-case override: %v", err)
 	}
-	if res.Project != "myapp" {
-		t.Errorf("Project = %q; want %q", res.Project, "myapp")
+	if res.Project != "my-app" {
+		t.Errorf("Project = %q; want %q", res.Project, "my-app")
 	}
 }
 
