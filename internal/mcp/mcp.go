@@ -667,6 +667,16 @@ Duplicates are automatically detected and skipped — safe to call multiple time
 		registerAriaHistorias(srv)
 	}
 
+	// aria_skills_by_historia — scope skill discovery to a chain (#1 backlog)
+	if shouldRegister("aria_skills_by_historia", allowlist) {
+		registerAriaSkillsByHistoria(srv)
+	}
+
+	// aria_artifact_sync_to_pages — F2.1 cloud mirror (#2 backlog)
+	if shouldRegister("aria_artifact_sync_to_pages", allowlist) {
+		registerAriaHistoriasSync(srv)
+	}
+
 }
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
