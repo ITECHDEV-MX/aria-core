@@ -18,10 +18,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/ITECHDEV-MX/aria-core/internal/conflicts"
 	projectpkg "github.com/ITECHDEV-MX/aria-core/internal/project"
 	"github.com/ITECHDEV-MX/aria-core/internal/store"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -821,7 +823,7 @@ func handleSave(s *store.Store, cfg MCPConfig, activity *SessionActivity) server
 
 		truncated := len(content) > s.MaxObservationLength()
 
-		_, err = s.AddObservation(store.AddObservationParams{
+		obsID, err := s.AddObservation(store.AddObservationParams{
 			SessionID: sessionID,
 			Type:      typ,
 			Title:     title,
@@ -851,8 +853,96 @@ func handleSave(s *store.Store, cfg MCPConfig, activity *SessionActivity) server
 		}
 		// Update detRes to reflect normalized project for envelope accuracy
 		detRes.Project = project
-		return respondWithProject(detRes, msg, nil), nil
+
+		// B.2.1: surface memory conflicts. Detection is fail-soft —
+		// any error is logged and the save still succeeds without a
+		// conflicts field. Hard 100ms wall-clock budget enforced via
+		// context.WithTimeout.
+		extra := detectAndPersistConflicts(ctx, s, obsID, project, scope, typ, title, topicKey)
+		return respondWithProject(detRes, msg, extra), nil
 	}
+}
+
+// detectAndPersistConflicts runs the conflict detector against the
+// just-inserted observation and persists any candidates as pending
+// rows in aria_memory_conflicts. Returns an `extra` map containing
+// a `conflicts` slice suitable for respondWithProject's extra arg.
+//
+// Fail-soft contract:
+//   - panic during detection or persistence is recovered and logged;
+//   - any error is logged and produces a nil extra (no conflicts field
+//     in the response);
+//   - hard 100ms wall-clock budget enforced;
+//   - the save is NEVER failed by this function.
+func detectAndPersistConflicts(parent context.Context, s *store.Store, obsID int64, project, scope, typ, title, topicKey string) (extra map[string]any) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("conflicts: detection panic recovered: %v", r)
+			extra = nil
+		}
+	}()
+
+	if obsID == 0 || s == nil {
+		return nil
+	}
+	db := s.DB()
+	if db == nil {
+		return nil
+	}
+
+	// Fetch the just-inserted observation's normalized_hash. The
+	// detector needs it to short-circuit no-op re-saves under the
+	// same topic_key.
+	var normHash string
+	if err := db.QueryRowContext(parent,
+		`SELECT COALESCE(normalized_hash, '') FROM observations WHERE id = ?`, obsID,
+	).Scan(&normHash); err != nil {
+		log.Printf("conflicts: fetch normalized_hash for obs %d: %v", obsID, err)
+		return nil
+	}
+
+	obs := conflicts.Observation{
+		ID:             obsID,
+		Project:        project,
+		Scope:          scope,
+		Type:           typ,
+		Title:          title,
+		TopicKey:       topicKey,
+		NormalizedHash: normHash,
+	}
+
+	ctx, cancel := context.WithTimeout(parent, 100*time.Millisecond)
+	defer cancel()
+
+	cands, err := conflicts.DetectCandidates(ctx, db, obs, 3)
+	if err != nil {
+		log.Printf("conflicts: detect for obs %d: %v", obsID, err)
+		return nil
+	}
+	if len(cands) == 0 {
+		return nil
+	}
+
+	out := make([]map[string]any, 0, len(cands))
+	for _, c := range cands {
+		id, err := conflicts.InsertPending(ctx, db, c)
+		if err != nil {
+			log.Printf("conflicts: insert pending (a=%d b=%d): %v", c.ObservationAID, c.ObservationBID, err)
+			continue
+		}
+		out = append(out, map[string]any{
+			"conflict_id":              id,
+			"candidate_observation_id": c.ObservationBID,
+			"signal":                   string(c.Signal),
+			"score":                    c.Score,
+			"prior_title":              c.PriorTitle,
+			"prior_snippet":            c.PriorContentSnippet,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return map[string]any{"conflicts": out}
 }
 
 func handleSuggestTopicKey() server.ToolHandlerFunc {
