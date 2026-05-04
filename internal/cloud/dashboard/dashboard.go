@@ -100,6 +100,10 @@ type MountConfig struct {
 	QuoteChat QuoteChatService
 	// KnowledgeBase (opcional) — habilita /dashboard/knowledge-base (wave 8).
 	KnowledgeBase KnowledgeBaseDashboardService
+	// HistoriasRoot (F5) — on-disk root for /Historias/<slug>/ chains.
+	// Typically <repo>/Historias on a self-hosted dashboard. Empty
+	// disables the /dashboard/historias surface.
+	HistoriasRoot string
 }
 
 // KnowledgeBaseDashboardService es el contrato que el adapter del knowledge-base
@@ -978,6 +982,8 @@ func Mount(mux *http.ServeMux, cfg MountConfig) {
 	mux.HandleFunc("GET /dashboard/contributors/list", h.requireSession(h.handleContributorsList))
 	mux.HandleFunc("GET /dashboard/contributors/{contributor}", h.requireSession(h.handleContributorDetail))
 	mux.HandleFunc("GET /dashboard/admin", h.requireSession(h.handleAdmin))
+	mux.HandleFunc("GET /dashboard/historias", h.requireSession(h.handleHistoriasIndex))
+	mux.HandleFunc("GET /dashboard/historias/{slug}", h.requireSession(h.handleHistoriaDetail))
 	mux.HandleFunc("GET /dashboard/admin/projects", h.requireSession(h.handleAdminProjectControls))
 	// R4-10: /dashboard/admin/contributors was a dead route (duplicate of /dashboard/contributors
 	// behind an extra admin gate). Removed to avoid confusion.

@@ -1,0 +1,159 @@
+package dashboard
+
+import (
+	"fmt"
+
+	"github.com/ITECHDEV-MX/aria-core/internal/historias"
+)
+
+// HistoriaSummary is the row data for the index page.
+type HistoriaSummary struct {
+	Slug        string
+	Status      string
+	StepCount   int
+	CreatedAt   string
+	FinalArtifact string
+}
+
+// HistoriasIndexPage renders the list of all stories.
+templ HistoriasIndexPage(rows []HistoriaSummary) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">HISTORIAS</p>
+				<h2>Pipelines multi-agente</h2>
+				<p class="muted">
+					Cada historia es una cadena de agent-skills bajo
+					<code>/Historias/&lt;slug&gt;/</code>. El status muestra si el
+					pipeline terminó o sigue en curso.
+				</p>
+			</div>
+		</div>
+
+		<div class="card">
+			if len(rows) == 0 {
+				<p class="muted" style="padding:1rem">
+					Aún no hay historias. Las historias se crean cuando un agente
+					encadena <code>aria_artifact_save</code> con un nuevo slug.
+				</p>
+			} else {
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Slug</th>
+							<th>Status</th>
+							<th>Pasos</th>
+							<th>Creada</th>
+							<th>Final artifact</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range rows {
+							<tr>
+								<td><code>{ r.Slug }</code></td>
+								<td>
+									<span class={ statusBadgeClass(r.Status) }>{ r.Status }</span>
+								</td>
+								<td>{ fmt.Sprintf("%d", r.StepCount) }</td>
+								<td><time>{ r.CreatedAt }</time></td>
+								<td>
+									if r.FinalArtifact != "" {
+										<code>{ r.FinalArtifact }</code>
+									} else {
+										<span class="muted">—</span>
+									}
+								</td>
+								<td>
+									<a href={ templ.SafeURL(fmt.Sprintf("/dashboard/historias/%s", r.Slug)) } class="shell-button">Ver</a>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</div>
+	</section>
+}
+
+// HistoriaDetailPage renders the chain view for one slug.
+templ HistoriaDetailPage(slug string, m historias.ChainManifest, bodies map[int]string) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">
+					<a href="/dashboard/historias" style="color:var(--muted-foreground)">← Historias</a> ·
+					<code>{ slug }</code>
+				</p>
+				<h2>Chain</h2>
+				<p class="muted">
+					Status: <strong>{ string(m.Status) }</strong> ·
+					Creada: { m.CreatedAt } ·
+					Por: { m.CreatedBy }
+					if m.FinalArtifact != "" {
+						· Final: <code>{ m.FinalArtifact }</code>
+					}
+				</p>
+			</div>
+		</div>
+
+		<div class="card">
+			<ol class="historia-chain">
+				for _, e := range m.Chain {
+					<li class="historia-step">
+						<header>
+							<h3>
+								<span class="historia-step-pos">{ fmt.Sprintf("%02d", e.Position) }</span>
+								{ e.Artifact }
+							</h3>
+							<p class="muted">
+								Skill: <code>{ e.Skill }</code> ·
+								Agent: <code>{ e.AgentModel }</code> ·
+								Hash: <code>{ shortHash(e.ContentSHA256) }</code>
+								if e.DurationMs > 0 {
+									· Took: { fmt.Sprintf("%dms", e.DurationMs) }
+								}
+							</p>
+							if len(e.Inputs) > 0 {
+								<p class="muted">
+									Inputs:
+									for i, in := range e.Inputs {
+										if i > 0 {
+											{ ", " }
+										}
+										<code>{ in }</code>
+									}
+								</p>
+							}
+						</header>
+						if body, ok := bodies[e.Position]; ok {
+							<pre class="historia-body">{ body }</pre>
+						}
+					</li>
+				}
+			</ol>
+		</div>
+	</section>
+}
+
+// statusBadgeClass maps ChainStatus to a CSS class for the index table.
+func statusBadgeClass(status string) string {
+	switch status {
+	case "completed":
+		return "badge badge-success"
+	case "in_progress":
+		return "badge badge-info"
+	case "abandoned":
+		return "badge badge-danger"
+	default:
+		return "badge"
+	}
+}
+
+// shortHash returns the first 12 hex chars of a content_sha256.
+func shortHash(h string) string {
+	if len(h) > 12 {
+		return h[:12]
+	}
+	return h
+}
