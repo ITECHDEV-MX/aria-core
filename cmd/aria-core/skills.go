@@ -35,6 +35,8 @@ func cmdSkills() {
 		cmdSkillsLock()
 	case "check-drift":
 		cmdSkillsCheckDrift()
+	case "versions":
+		cmdSkillsVersions()
 	case "-h", "--help":
 		printSkillsUsage()
 	default:
@@ -59,6 +61,9 @@ Subcommands:
   check-drift [path] [--json]
                     Compare working tree against MANIFEST.yaml. Exit 1 on
                     drift.
+
+  versions [path]   Auto-generate skills/VERSIONS.md from current
+                    SKILL.md frontmatter. Path defaults to ./skills.
 
 Examples:
   aria-core skills validate
@@ -214,4 +219,30 @@ func cmdSkillsCheckDrift() {
 	if report.HasErrors {
 		exitFunc(1)
 	}
+}
+
+
+// cmdSkillsVersions writes/regenerates skills/VERSIONS.md based on
+// the current per-skill frontmatter. Read-only against SKILL.md
+// files; only writes the index.
+func cmdSkillsVersions() {
+	path := "./skills"
+	for i := 3; i < len(os.Args); i++ {
+		if !startsWith(os.Args[i], "-") {
+			path = os.Args[i]
+			break
+		}
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "resolve path: %v\n", err)
+		exitFunc(2)
+		return
+	}
+	if err := skills.WriteVersionsFile(abs); err != nil {
+		fmt.Fprintf(os.Stderr, "write versions: %v\n", err)
+		exitFunc(2)
+		return
+	}
+	fmt.Printf("✓ Wrote %s/%s\n", abs, skills.VersionsFile)
 }

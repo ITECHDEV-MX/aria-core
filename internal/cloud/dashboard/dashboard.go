@@ -100,6 +100,10 @@ type MountConfig struct {
 	QuoteChat QuoteChatService
 	// KnowledgeBase (opcional) — habilita /dashboard/knowledge-base (wave 8).
 	KnowledgeBase KnowledgeBaseDashboardService
+	// SkillsRoot (sprint 3) — repository skills/ directory; enables the
+	// /dashboard/skills/health audit view. Empty disables that surface.
+	SkillsRoot string
+
 	// HistoriasRoot (F5) — on-disk root for /Historias/<slug>/ chains.
 	// Typically <repo>/Historias on a self-hosted dashboard. Empty
 	// disables the /dashboard/historias surface.
@@ -989,6 +993,7 @@ func Mount(mux *http.ServeMux, cfg MountConfig) error {
 	mux.HandleFunc("GET /dashboard/contributors/list", h.requireSession(h.handleContributorsList))
 	mux.HandleFunc("GET /dashboard/contributors/{contributor}", h.requireSession(h.handleContributorDetail))
 	mux.HandleFunc("GET /dashboard/admin", h.requireSession(h.handleAdmin))
+	mux.HandleFunc("GET /dashboard/skills/health", h.requireSession(h.handleSkillsHealth))
 	mux.HandleFunc("GET /dashboard/historias", h.requireSession(h.handleHistoriasIndex))
 	mux.HandleFunc("GET /dashboard/historias/{slug}", h.requireSession(h.handleHistoriaDetail))
 	mux.HandleFunc("GET /dashboard/admin/projects", h.requireSession(h.handleAdminProjectControls))
