@@ -26,6 +26,10 @@ const (
 	PatternIBAN       PatternType = "iban"
 	PatternAddress    PatternType = "address"
 	PatternCreditCard PatternType = "credit_card"
+	PatternIPv4       PatternType = "ipv4"
+	PatternIPv6       PatternType = "ipv6"
+	PatternSSN        PatternType = "ssn"
+	PatternAPIKey     PatternType = "api_key"
 	// Reference-by-ID lookups (resolved via aliases store):
 	PatternClient PatternType = "client"
 	PatternQuote  PatternType = "quote"
@@ -74,6 +78,25 @@ var (
 
 	// Tarjeta de crédito: 13-19 dígitos con grupos opcionales por espacios o guiones.
 	reCreditCard = regexp.MustCompile(`\b(?:\d[\s\-]?){13,19}\b`)
+
+	// IPv4: 4 octetos 0-255 separados por punto. Word-boundary defensiva.
+	// Filter ipv4LooksReal valida que cada octeto sea ≤ 255.
+	reIPv4 = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+
+	// IPv6: full y compressed forms. Aceptamos el patrón general; Filter
+	// puede refinar si vemos falsos positivos en producción.
+	reIPv6 = regexp.MustCompile(`(?i)\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\b|::(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4}\b`)
+
+	// US Social Security Number: NNN-NN-NNNN. Word boundaries para no
+	// agarrar runs de dígitos largos.
+	reSSN = regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`)
+
+	// API keys con prefijos de provider conocidos. Captura tokens largos
+	// que un dev no debería pegar en una conversación con el LLM.
+	// Cubre: OpenAI (sk-...), GitHub (ghp_/ghs_/gho_/ghu_/ghr_),
+	// Slack (xoxb-/xoxp-/xoxa-/xoxr-), AWS (AKIA...), Stripe (sk_live_/sk_test_/pk_live_/pk_test_),
+	// Anthropic (sk-ant-...), generic Bearer tokens largos.
+	reAPIKey = regexp.MustCompile(`\b(?:sk-[A-Za-z0-9_\-]{16,}|sk_(?:live|test)_[A-Za-z0-9]{16,}|pk_(?:live|test)_[A-Za-z0-9]{16,}|gh[posru]_[A-Za-z0-9_]{20,}|xox[abprso]-[A-Za-z0-9\-]{10,}|AKIA[A-Z0-9]{16})\b`)
 )
 
 // builtinPatterns returns the ordered list of generic detectors. Specific (long)
@@ -91,6 +114,10 @@ func builtinPatterns() []patternDef {
 			return len(strings.TrimSpace(m)) == 18
 		}},
 		{Type: PatternCreditCard, Re: reCreditCard, Filter: luhnValid},
+		{Type: PatternAPIKey, Re: reAPIKey},
+		{Type: PatternIPv4, Re: reIPv4, Filter: ipv4LooksReal},
+		{Type: PatternIPv6, Re: reIPv6},
+		{Type: PatternSSN, Re: reSSN},
 		{Type: PatternPhone, Re: rePhone, Filter: phoneLooksReal},
 		{Type: PatternAmount, Re: reAmount},
 		{Type: PatternLegalName, Re: reLegalName},
@@ -152,4 +179,27 @@ func stripNonDigits(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// ipv4LooksReal validates that each octet of an IPv4 match is ≤ 255.
+// Without this, the regex \b(?:\d{1,3}\.){3}\d{1,3}\b would also
+// match version strings like "999.999.999.999" or junk like "1.2.3.4567".
+func ipv4LooksReal(raw string) bool {
+	parts := strings.Split(strings.TrimSpace(raw), ".")
+	if len(parts) != 4 {
+		return false
+	}
+	for _, part := range parts {
+		if len(part) == 0 || len(part) > 3 {
+			return false
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil {
+			return false
+		}
+		if n < 0 || n > 255 {
+			return false
+		}
+	}
+	return true
 }

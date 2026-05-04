@@ -5136,12 +5136,47 @@ func normalizeScope(scope string) string {
 // lowercase + trim whitespace + collapse consecutive hyphens/underscores.
 // Returns the normalized name and a warning message if the name was changed
 // (empty string if no change was needed).
+// projectAlias is a single substitution rule applied during
+// NormalizeProject. Ordered list so the result is deterministic when
+// rules overlap.
+type projectAlias struct{ from, to string }
+
+// projectAliases is the canonical alias list. Substitution is
+// substring-level after lowercasing — so 'aria_core__core' becomes
+// 'aria-core__core' and then collapses to 'aria-core_core'.
+//
+// Extend this when a new alias becomes load-bearing. Order matters
+// only when one rule's `to` string contains another rule's `from`
+// string.
+var projectAliases = []projectAlias{
+	{from: "engram", to: "aria-core"},
+	{from: "aria_core", to: "aria-core"},
+}
+
+// camelSplitRe finds boundaries between a lowercase/digit char and an
+// uppercase char so we can split CamelCase into kebab-case before
+// lowercasing.
+var camelSplitRe = regexp.MustCompile("([a-z0-9])([A-Z])")
+
 // Exported so MCP and CLI handlers can surface the warning to users.
+//
+// Steps:
+//  1. CamelCase boundaries become hyphens (AriaCore → Aria-Core).
+//  2. Trim whitespace, lowercase.
+//  3. Apply projectAliases (engram → aria-core).
+//  4. Collapse repeated -- and __.
+//
+// Returns the normalized name plus a warning string if normalization
+// changed anything (so callers can surface "name was rewritten" UX).
 func NormalizeProject(project string) (normalized string, warning string) {
 	if project == "" {
 		return "", ""
 	}
-	n := strings.TrimSpace(strings.ToLower(project))
+	n := camelSplitRe.ReplaceAllString(project, "$1-$2")
+	n = strings.TrimSpace(strings.ToLower(n))
+	for _, a := range projectAliases {
+		n = strings.ReplaceAll(n, a.from, a.to)
+	}
 	// Collapse multiple consecutive hyphens
 	for strings.Contains(n, "--") {
 		n = strings.ReplaceAll(n, "--", "-")

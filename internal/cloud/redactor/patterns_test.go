@@ -124,3 +124,93 @@ func TestLuhnValid(t *testing.T) {
 		}
 	}
 }
+
+func TestIPv4Match(t *testing.T) {
+	good := []string{"192.168.1.1", "10.0.0.5", "255.255.255.255", "127.0.0.1"}
+	bad := []string{"256.1.1.1", "1.2.3.4567", "999.999.999.999", "not.an.ip.addr"}
+
+	for _, c := range good {
+		if !reIPv4.MatchString(c) {
+			t.Errorf("reIPv4(%q) should match", c)
+			continue
+		}
+		if !ipv4LooksReal(c) {
+			t.Errorf("ipv4LooksReal(%q) should be true", c)
+		}
+	}
+	for _, c := range bad {
+		if reIPv4.MatchString(c) && ipv4LooksReal(c) {
+			t.Errorf("reIPv4+ipv4LooksReal(%q) should reject", c)
+		}
+	}
+}
+
+func TestIPv6Match(t *testing.T) {
+	good := []string{
+		"2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+		"fe80::1ff:fe23:4567:890a",
+		"::1",
+	}
+	for _, c := range good {
+		if !reIPv6.MatchString(c) {
+			t.Errorf("reIPv6(%q) should match", c)
+		}
+	}
+}
+
+func TestSSNMatch(t *testing.T) {
+	good := []string{"123-45-6789", "987-65-4321"}
+	bad := []string{"12-34-5678", "1234567890", "abc-de-fghi"}
+	for _, c := range good {
+		if !reSSN.MatchString(c) {
+			t.Errorf("reSSN(%q) should match", c)
+		}
+	}
+	for _, c := range bad {
+		if reSSN.MatchString(c) {
+			t.Errorf("reSSN(%q) should NOT match", c)
+		}
+	}
+}
+
+func TestAPIKeyMatch(t *testing.T) {
+	good := []string{
+		"sk-abc123def456ghi789jkl0",                     // OpenAI-shape
+		"sk-ant-api03-AbCdEf1234567890XyZ",              // Anthropic-shape
+		"ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456",          // GitHub PAT
+		"ghs_aBcDeFgHiJkLmNoPqRsTuVwXyZ123456",          // GitHub server token
+		"xoxb-1234567890-AbCdEfGhIjKl",                  // Slack bot token
+		"AKIAIOSFODNN7EXAMPLE",                          // AWS access key
+		"sk_live_aBcDeFgHiJkLmNoPqRsTu",                 // Stripe live secret
+		"pk_test_aBcDeFgHiJkLmNoPqRsTu",                 // Stripe test publishable
+	}
+	bad := []string{
+		"sk-too-short",                  // < 16 chars after prefix
+		"abc123def456",                  // no recognized prefix
+		"my regular text here",
+	}
+	for _, c := range good {
+		if !reAPIKey.MatchString(c) {
+			t.Errorf("reAPIKey(%q) should match", c)
+		}
+	}
+	for _, c := range bad {
+		if reAPIKey.MatchString(c) {
+			t.Errorf("reAPIKey(%q) should NOT match", c)
+		}
+	}
+}
+
+// TestBuiltinPatternsRegistersNewTypes makes sure the new pattern
+// types appear in the master list returned by builtinPatterns().
+func TestBuiltinPatternsRegistersNewTypes(t *testing.T) {
+	have := map[PatternType]bool{}
+	for _, p := range builtinPatterns() {
+		have[p.Type] = true
+	}
+	for _, want := range []PatternType{PatternIPv4, PatternIPv6, PatternSSN, PatternAPIKey, PatternCreditCard} {
+		if !have[want] {
+			t.Errorf("builtinPatterns() missing %q", want)
+		}
+	}
+}
