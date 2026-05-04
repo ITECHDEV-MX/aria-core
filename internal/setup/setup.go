@@ -236,6 +236,16 @@ func SupportedAgents() []Agent {
 			Description: "Codex — MCP registration plus model/compaction instruction files",
 			InstallDir:  codexConfigPath(),
 		},
+		{
+			Name:        "cursor",
+			Description: "Cursor — MCP registration in ~/.cursor/mcp.json",
+			InstallDir:  cursorMCPConfigPath(),
+		},
+		{
+			Name:        "vscode",
+			Description: "VS Code — MCP via `code --add-mcp` CLI or settings.json fallback",
+			InstallDir:  vsCodeUserSettingsPath(),
+		},
 	}
 }
 
@@ -250,8 +260,12 @@ func Install(agentName string) (*Result, error) {
 		return installGeminiCLI()
 	case "codex":
 		return installCodex()
+	case "cursor":
+		return installCursor()
+	case "vscode", "vs-code", "code":
+		return installVSCode()
 	default:
-		return nil, fmt.Errorf("unknown agent: %q (supported: opencode, claude-code, gemini-cli, codex)", agentName)
+		return nil, fmt.Errorf("unknown agent: %q (supported: opencode, claude-code, gemini-cli, codex, cursor, vscode)", agentName)
 	}
 }
 
@@ -1031,6 +1045,161 @@ func upsertTopLevelTOMLString(content, key, value string) string {
 	out = append(out, cleaned[insertAt:]...)
 
 	return strings.TrimSpace(strings.Join(out, "\n")) + "\n"
+}
+
+
+// ─── Cursor ──────────────────────────────────────────────────────────────────
+// MCP config path: ~/.cursor/mcp.json (same path on Linux/Mac/Windows because
+// os.UserHomeDir resolves to $HOME on unix and %USERPROFILE% on Windows).
+
+func cursorMCPConfigPath() string {
+	home, _ := userHomeDir()
+	return filepath.Join(home, ".cursor", "mcp.json")
+}
+
+// installCursor writes/updates ~/.cursor/mcp.json adding aria-core as an MCP
+// server. Idempotent: re-running replaces the aria-core entry with the current
+// binary path (useful after a binary upgrade that changed install location).
+func installCursor() (*Result, error) {
+	path := cursorMCPConfigPath()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, fmt.Errorf("create cursor config dir: %w", err)
+	}
+
+	cmd := resolveAriaCoreCommand()
+
+	var config map[string]any
+	data, err := readFileFn(path)
+	if err == nil {
+		if jerr := json.Unmarshal(data, &config); jerr != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, jerr)
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read cursor config: %w", err)
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+
+	servers, _ := config["mcpServers"].(map[string]any)
+	if servers == nil {
+		servers = map[string]any{}
+	}
+
+	servers["aria-core"] = map[string]any{
+		"command": cmd,
+		"args":    []string{"mcp", "--tools=agent"},
+	}
+	config["mcpServers"] = servers
+
+	out, err := jsonMarshalIndentFn(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal cursor config: %w", err)
+	}
+	out = append(out, '\n')
+
+	if err := writeFileFn(path, out, 0644); err != nil {
+		return nil, fmt.Errorf("write cursor config: %w", err)
+	}
+
+	return &Result{
+		Agent:       "cursor",
+		Destination: filepath.Dir(path),
+		Files:       1,
+	}, nil
+}
+
+// ─── VS Code ─────────────────────────────────────────────────────────────────
+// VS Code 1.95+ with GitHub Copilot Chat or Claude Code extension supports MCP.
+// Preferred install path: invoke `code --add-mcp <json>` (engram pattern).
+// Fallback: write to user settings.json under "mcp.servers".
+
+func vsCodeUserSettingsPath() string {
+	home, _ := userHomeDir()
+	switch runtimeGOOS {
+	case "windows":
+		if appData := os.Getenv("APPDATA"); appData != "" {
+			return filepath.Join(appData, "Code", "User", "settings.json")
+		}
+		return filepath.Join(home, "AppData", "Roaming", "Code", "User", "settings.json")
+	case "darwin":
+		return filepath.Join(home, "Library", "Application Support", "Code", "User", "settings.json")
+	default:
+		return filepath.Join(home, ".config", "Code", "User", "settings.json")
+	}
+}
+
+func installVSCode() (*Result, error) {
+	cmd := resolveAriaCoreCommand()
+
+	mcpJSON, _ := jsonMarshalFn(map[string]any{
+		"name":    "aria-core",
+		"command": cmd,
+		"args":    []string{"mcp", "--tools=agent"},
+	})
+
+	// Prefer the official CLI: `code --add-mcp <json>`. Idempotent inside VS Code.
+	if codeBin, lookErr := lookPathFn("code"); lookErr == nil {
+		if out, runErr := runCommand(codeBin, "--add-mcp", string(mcpJSON)); runErr == nil {
+			_ = out
+			return &Result{
+				Agent:       "vscode",
+				Destination: "(via `code --add-mcp` CLI)",
+				Files:       0,
+			}, nil
+		}
+	}
+
+	// Fallback: write directly to user settings.json under mcp.servers.aria-core
+	path := vsCodeUserSettingsPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, fmt.Errorf("create vscode user dir: %w", err)
+	}
+
+	var config map[string]any
+	data, err := readFileFn(path)
+	if err == nil && len(data) > 0 {
+		if jerr := json.Unmarshal(data, &config); jerr != nil {
+			return nil, fmt.Errorf("parse %s: %w (note: VS Code allows JSON5 with comments — clean those before re-running)", path, jerr)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read vscode settings: %w", err)
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+
+	mcp, _ := config["mcp"].(map[string]any)
+	if mcp == nil {
+		mcp = map[string]any{}
+	}
+	servers, _ := mcp["servers"].(map[string]any)
+	if servers == nil {
+		servers = map[string]any{}
+	}
+	servers["aria-core"] = map[string]any{
+		"command": cmd,
+		"args":    []string{"mcp", "--tools=agent"},
+	}
+	mcp["servers"] = servers
+	config["mcp"] = mcp
+
+	out, err := jsonMarshalIndentFn(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal vscode settings: %w", err)
+	}
+	out = append(out, '\n')
+
+	if err := writeFileFn(path, out, 0644); err != nil {
+		return nil, fmt.Errorf("write vscode settings: %w", err)
+	}
+
+	return &Result{
+		Agent:       "vscode",
+		Destination: filepath.Dir(path),
+		Files:       1,
+	}, nil
 }
 
 // ─── Platform paths ──────────────────────────────────────────────────────────

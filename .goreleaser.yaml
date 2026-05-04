@@ -5,6 +5,8 @@ project_name: aria-core
 before:
   hooks:
     - go mod tidy
+    - go install github.com/a-h/templ/cmd/templ@latest
+    - templ generate ./internal/cloud/dashboard/...
 
 builds:
   - main: ./cmd/aria-core
@@ -19,7 +21,7 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
   - formats:
@@ -29,20 +31,38 @@ archives:
       - goos: windows
         formats:
           - zip
+    files:
+      - LICENSE*
+      - README*
+      - docs/INSTALLATION.md
 
 checksum:
   name_template: "checksums.txt"
 
 changelog:
   sort: asc
+  use: github
   filters:
     exclude:
       - "^docs:"
       - "^test:"
       - "^ci:"
+      - "^chore:"
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug Fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Other
+      order: 999
 
+# Homebrew tap publish — solo cuando hay HOMEBREW_TAP_TOKEN configurado
+# (en GitHub Actions secret). Snapshot/PR builds no publican.
 brews:
-  - repository:
+  - skip_upload: auto
+    repository:
       owner: ITECHDEV-MX
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
@@ -52,3 +72,21 @@ brews:
     description: "ARIA Core — motor de memoria persistente para agentes de IA. Multi-tenant, single binary."
     license: "MIT"
     commit_msg_template: "chore: update aria-core formula to {{ .Tag }}"
+    install: |
+      bin.install "aria-core"
+    test: |
+      assert_match "aria-core", shell_output("#{bin}/aria-core --version")
+
+release:
+  github:
+    owner: ITECHDEV-MX
+    name: aria-core
+  draft: false
+  prerelease: auto
+  header: |
+    ## ARIA Core {{ .Tag }}
+
+    Cross-platform binaries para Linux, macOS y Windows (amd64 + arm64).
+  footer: |
+    ---
+    Instalación: ver [docs/INSTALLATION.md](https://github.com/ITECHDEV-MX/aria-core/blob/main/docs/INSTALLATION.md)

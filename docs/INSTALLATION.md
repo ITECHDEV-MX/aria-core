@@ -2,6 +2,7 @@
 
 # Installation
 
+- [Quick Start](#quick-start)
 - [Homebrew (macOS / Linux)](#homebrew-macos--linux)
 - [Windows](#windows)
 - [Install from source (macOS / Linux)](#install-from-source-macos--linux)
@@ -12,10 +13,40 @@
 
 ---
 
+## Quick Start
+
+```bash
+# Install (macOS / Linux)
+brew install ITECHDEV-MX/homebrew-tap/aria-core
+
+# Or install via go (any platform with Go ≥ 1.25)
+go install github.com/ITECHDEV-MX/aria-core/cmd/aria-core@latest
+
+# Wire up your agent (interactive menu)
+aria-core setup
+# Or directly:
+aria-core setup cursor
+aria-core setup vscode
+aria-core setup claude-code
+
+# Start MCP server (stdio — what the agent talks to)
+aria-core mcp --tools=agent
+
+# Or use the local CLI directly
+aria-core save "decision: use Postgres" "Picked Postgres over MongoDB because..."
+aria-core search "postgres"
+aria-core tui                  # interactive terminal UI
+aria-core serve                # HTTP API on port 7437
+```
+
+That's the whole loop. Below is the full reference.
+
+---
+
 ## Homebrew (macOS / Linux)
 
 ```bash
-brew install gentleman-programming/tap/aria-core
+brew install ITECHDEV-MX/homebrew-tap/aria-core
 ```
 
 Upgrade to latest:
@@ -26,7 +57,7 @@ brew update && brew upgrade aria-core
 
 > **Migrating from Cask?** If you installed aria-core before v1.0.1, it was distributed as a Cask. Uninstall first, then reinstall:
 > ```bash
-> brew uninstall --cask aria-core 2>/dev/null; brew install gentleman-programming/tap/aria-core
+> brew uninstall --cask aria-core 2>/dev/null; brew install ITECHDEV-MX/homebrew-tap/aria-core
 > ```
 
 ---
@@ -128,7 +159,7 @@ Grab the latest release for your platform from [GitHub Releases](https://github.
 
 ## Requirements
 
-- **Go 1.24+** to build from source (not needed if installing via Homebrew or downloading a binary)
+- **Go 1.25+** to build from source (not needed if installing via Homebrew or downloading a binary)
 - That's it. No runtime dependencies.
 
 The binary includes SQLite (via [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) — pure Go, no CGO). Works natively on **macOS**, **Linux**, and **Windows** (x86_64 and ARM64).
@@ -153,7 +184,9 @@ When using `aria-core setup`, config files are written to platform-appropriate l
 | OpenCode | `~/.config/opencode/` | `%APPDATA%\opencode\` |
 | Gemini CLI | `~/.gemini/` | `%APPDATA%\gemini\` |
 | Codex | `~/.codex/` | `%APPDATA%\codex\` |
-| Claude Code | Managed by `claude` CLI | Managed by `claude` CLI |
-| VS Code | `.vscode/mcp.json` (workspace) or `~/Library/Application Support/Code/User/mcp.json` (user) | `.vscode\mcp.json` (workspace) or `%APPDATA%\Code\User\mcp.json` (user) |
-| Antigravity | `~/.gemini/antigravity/mcp_config.json` | `%USERPROFILE%\.gemini\antigravity\mcp_config.json` |
+| Claude Code | `~/.claude/settings.json` (allowlist) + marketplace plugin | `%USERPROFILE%\.claude\settings.json` + marketplace plugin |
+| Cursor | `~/.cursor/mcp.json` | `%USERPROFILE%\.cursor\mcp.json` |
+| VS Code | `code --add-mcp` CLI preferred; fallback `~/Library/Application Support/Code/User/settings.json` (macOS) / `~/.config/Code/User/settings.json` (Linux) | `code --add-mcp` CLI preferred; fallback `%APPDATA%\Code\User\settings.json` |
+| Antigravity | Manual JSON config | Manual JSON config |
+| Windsurf | Manual JSON config | Manual JSON config |
 | Data directory | `~/.aria-core/` | `%USERPROFILE%\.aria-core\` |

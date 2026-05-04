@@ -30,3 +30,7 @@ engram-dev
 .atl/
 .release-notes-beta.md
 .claude/
+
+# GoReleaser output
+/dist/
+/bin/
