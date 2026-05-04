@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -716,8 +717,8 @@ func TestMainExitPaths(t *testing.T) {
 
 			out, err := cmd.CombinedOutput()
 			if tc.expectedExitOne {
-				exitErr, ok := err.(*exec.ExitError)
-				if !ok {
+				var exitErr *exec.ExitError
+				if !errors.As(err, &exitErr) {
 					t.Fatalf("expected exit error, got %T (%v)", err, err)
 				}
 				if exitErr.ExitCode() != 1 {

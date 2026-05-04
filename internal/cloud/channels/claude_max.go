@@ -86,7 +86,7 @@ func (c *ClaudeMaxChannel) Query(ctx context.Context, req Request) (*Response, e
 
 	// Treat context-deadline / cancel as transient.
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return nil, fmt.Errorf("%w: claude timeout: %v", ErrChannelUnavailable, err)
+		return nil, fmt.Errorf("%w: claude timeout: %w", ErrChannelUnavailable, err)
 	}
 
 	if isRateLimit(stderr, code, err) {
@@ -94,7 +94,7 @@ func (c *ClaudeMaxChannel) Query(ctx context.Context, req Request) (*Response, e
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("%w: claude exec: %v: %s", ErrChannelUnavailable, err, firstLine(stderr))
+		return nil, fmt.Errorf("%w: claude exec: %w: %s", ErrChannelUnavailable, err, firstLine(stderr))
 	}
 	if code != 0 {
 		return nil, fmt.Errorf("%w: claude exit %d: %s", ErrChannelUnavailable, code, firstLine(stderr))

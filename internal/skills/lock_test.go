@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -70,7 +71,7 @@ func TestWriteAndReadLockfile_Roundtrip(t *testing.T) {
 func TestReadLockfile_MissingReturnsSentinel(t *testing.T) {
 	root := t.TempDir()
 	_, err := ReadLockfile(root)
-	if err != ErrLockfileMissing {
+	if !errors.Is(err, ErrLockfileMissing) {
 		t.Errorf("expected ErrLockfileMissing, got %v", err)
 	}
 }

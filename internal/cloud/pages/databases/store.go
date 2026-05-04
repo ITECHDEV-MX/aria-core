@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -121,7 +122,7 @@ func (s *Store) GetByPage(ctx context.Context, pageID string) (*Database, error)
 	row := s.db.QueryRowContext(ctx, q, pageID)
 	out, err := scanDatabase(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("databases: get by page: %w", err)
@@ -137,7 +138,7 @@ func (s *Store) GetByID(ctx context.Context, id string) (*Database, error) {
 	row := s.db.QueryRowContext(ctx, q, id)
 	out, err := scanDatabase(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("databases: get by id: %w", err)
@@ -169,7 +170,7 @@ func (s *Store) UpdateSchema(ctx context.Context, dbID string, newSchema []PropD
 	row := tx.QueryRowContext(ctx, q, string(schemaJSON), dbID)
 	out, err := scanDatabase(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("databases: update schema: %w", err)
@@ -327,7 +328,7 @@ func (s *Store) GetRow(ctx context.Context, rowID string) (*Row, error) {
 	row := s.db.QueryRowContext(ctx, q, rowID)
 	r, err := scanRow(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -465,7 +466,7 @@ func (s *Store) GetView(ctx context.Context, viewID string) (*View, error) {
 	row := s.db.QueryRowContext(ctx, q, viewID)
 	v, err := scanView(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
@@ -490,7 +491,7 @@ func (s *Store) UpdateView(ctx context.Context, viewID string, name, viewType st
 	row := s.db.QueryRowContext(ctx, q, name, viewType, string(configJSON), sortOrder, viewID)
 	v, err := scanView(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err

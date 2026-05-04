@@ -463,7 +463,7 @@ func (s *Store) ConsumePasswordResetToken(ctx context.Context, token, newPasswor
 		SELECT email, expires_at, used_at, type FROM cloud_invites
 		WHERE token::text = $1 FOR UPDATE
 	`, token).Scan(&email, &expires, &usedAt, &typ)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrInviteNotFound
 	}
 	if err != nil {
@@ -515,7 +515,7 @@ func (s *Store) GetProfile(ctx context.Context, uid string) (*User, error) {
 		&u.CreatedAt, &u.UpdatedAt, &u.Phone, &u.Timezone, &u.Language, &u.JobTitle, &u.Bio, &u.AvatarURL,
 		&prefs, &u.LastActiveAt)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err

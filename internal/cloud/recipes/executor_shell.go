@@ -2,6 +2,7 @@ package recipes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -79,7 +80,8 @@ func (defaultShellExecutor) Run(ctx context.Context, command, cwd string, env []
 	if err == nil {
 		return stdout, stderr, 0, nil
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		return stdout, stderr, exitErr.ExitCode(), nil
 	}
 	if stderr == "" {

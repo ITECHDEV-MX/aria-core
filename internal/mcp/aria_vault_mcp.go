@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -326,7 +327,8 @@ func runAndCapture(cmd *exec.Cmd) (stdout, stderr string, exitCode int) {
 	if err == nil {
 		return stdout, stderr, 0
 	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		return stdout, stderr, exitErr.ExitCode()
 	}
 	if stderr == "" {

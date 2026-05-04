@@ -1,6 +1,7 @@
 package historias
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 )
@@ -54,7 +55,7 @@ func TestSaveArtifact_RejectsInvalidSlug(t *testing.T) {
 		Root: t.TempDir(), Slug: "Bad Slug", Position: 0,
 		Filename: "0-x.md", Skill: "s", Content: "c",
 	})
-	if err != ErrSlugInvalid {
+	if !errors.Is(err, ErrSlugInvalid) {
 		t.Errorf("want ErrSlugInvalid, got %v", err)
 	}
 }
@@ -89,7 +90,7 @@ func TestSaveArtifact_FirstWriterWins(t *testing.T) {
 		t.Fatalf("first save: %v", err)
 	}
 	args.Content = "second"
-	if _, err := SaveArtifact(args); err != ErrPositionTaken {
+	if _, err := SaveArtifact(args); !errors.Is(err, ErrPositionTaken) {
 		t.Errorf("want ErrPositionTaken, got %v", err)
 	}
 }
@@ -169,7 +170,7 @@ func TestGetArtifact_Missing(t *testing.T) {
 		Filename: "0-a.md", Skill: "s", Content: "c",
 	})
 	_, _, err := GetArtifact(root, "h", 99)
-	if err != ErrArtifactMissing {
+	if !errors.Is(err, ErrArtifactMissing) {
 		t.Errorf("want ErrArtifactMissing, got %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -189,7 +190,7 @@ func cmdSkillsCheckDrift() {
 
 	report, err := skills.CheckDrift(abs)
 	if err != nil {
-		if err == skills.ErrLockfileMissing {
+		if errors.Is(err, skills.ErrLockfileMissing) {
 			fmt.Fprintf(os.Stderr, "no lockfile found at %s/%s — run `aria-core skills lock` first\n", abs, skills.LockfileName)
 			exitFunc(1)
 			return

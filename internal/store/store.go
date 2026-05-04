@@ -842,7 +842,7 @@ func (s *Store) migrate() error {
 		"SELECT name FROM sqlite_master WHERE type='trigger' AND name='obs_fts_insert'",
 	).Scan(&name)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		triggers := `
 			CREATE TRIGGER obs_fts_insert AFTER INSERT ON observations BEGIN
 				INSERT INTO observations_fts(rowid, title, content, tool_name, type, project, topic_key)
@@ -876,7 +876,7 @@ func (s *Store) migrate() error {
 		"SELECT name FROM sqlite_master WHERE type='trigger' AND name='prompt_fts_insert'",
 	).Scan(&promptTrigger)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		promptTriggers := `
 			CREATE TRIGGER prompt_fts_insert AFTER INSERT ON user_prompts BEGIN
 				INSERT INTO prompts_fts(rowid, content, project)
@@ -1885,7 +1885,7 @@ func (s *Store) AddObservation(p AddObservationParams) (int64, error) {
 				observationID = existingID
 				return s.enqueueSyncMutationTx(tx, SyncEntityObservation, obs.SyncID, SyncOpUpsert, observationPayloadFromObservation(obs))
 			}
-			if err != sql.ErrNoRows {
+			if !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
 		}
@@ -1923,7 +1923,7 @@ func (s *Store) AddObservation(p AddObservationParams) (int64, error) {
 			observationID = existingID
 			return s.enqueueSyncMutationTx(tx, SyncEntityObservation, obs.SyncID, SyncOpUpsert, observationPayloadFromObservation(obs))
 		}
-		if err != sql.ErrNoRows {
+		if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 
@@ -2322,7 +2322,7 @@ func (s *Store) UpdateObservation(id int64, p UpdateObservationParams) (*Observa
 func (s *Store) DeleteObservation(id int64, hardDelete bool) error {
 	return s.withTx(func(tx *sql.Tx) error {
 		obs, err := s.getObservationTx(tx, id)
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrObservationNotFound
 		}
 		if err != nil {
@@ -3619,7 +3619,7 @@ func (s *Store) IsProjectEnrolled(project string) (bool, error) {
 		`SELECT 1 FROM sync_enrolled_projects WHERE project = ? LIMIT 1`,
 		project,
 	).Scan(&exists)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
@@ -4663,7 +4663,7 @@ func (s *Store) applyObservationUpsertTx(tx *sql.Tx, payload syncObservationPayl
 	}
 
 	existing, err := s.getObservationBySyncIDTx(tx, payload.SyncID, true)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		_, err = s.execHook(tx,
 			`INSERT INTO observations (sync_id, session_id, type, title, content, tool_name, project, scope, topic_key, normalized_hash, revision_count, duplicate_count, last_seen_at, created_at, updated_at, deleted_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
@@ -4730,7 +4730,7 @@ func (s *Store) applyObservationUpsertTx(tx *sql.Tx, payload syncObservationPayl
 
 func (s *Store) applyObservationDeleteTx(tx *sql.Tx, payload syncObservationPayload) error {
 	existing, err := s.getObservationBySyncIDTx(tx, payload.SyncID, true)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
@@ -4769,7 +4769,7 @@ func (s *Store) applyPromptUpsertTx(tx *sql.Tx, payload syncPromptPayload) error
 
 	var existingID int64
 	err = tx.QueryRow(`SELECT id FROM user_prompts WHERE sync_id = ? ORDER BY id DESC LIMIT 1`, payload.SyncID).Scan(&existingID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		if strings.TrimSpace(payload.CreatedAt) == "" {
 			_, err = s.execHook(tx,
 				`INSERT INTO user_prompts (sync_id, session_id, content, project) VALUES (?, ?, ?, ?)`,

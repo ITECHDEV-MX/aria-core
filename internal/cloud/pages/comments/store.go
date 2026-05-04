@@ -3,6 +3,7 @@ package comments
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -142,7 +143,7 @@ func (s *Store) Get(ctx context.Context, id string) (*Comment, error) {
 	row := s.db.QueryRowContext(ctx, q, id)
 	c, err := scanComment(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err

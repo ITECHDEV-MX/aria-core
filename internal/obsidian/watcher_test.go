@@ -98,7 +98,7 @@ func TestWatcherRunsImmediatelyThenTicks(t *testing.T) {
 	})
 
 	err := w.Run(ctx)
-	if err != context.DeadlineExceeded && err != context.Canceled {
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 		t.Errorf("Run() returned unexpected error: %v (want context.DeadlineExceeded or Canceled)", err)
 	}
 
@@ -262,7 +262,7 @@ func TestWatcherGracefulShutdown(t *testing.T) {
 	select {
 	case err := <-done:
 		// Should return context.Canceled (or nil if impl returns nil on clean exit)
-		if err != nil && err != context.Canceled {
+		if err != nil && !errors.Is(err, context.Canceled) {
 			t.Errorf("Run() returned %v, want context.Canceled or nil", err)
 		}
 		t.Logf("Run() returned: %v", err)
