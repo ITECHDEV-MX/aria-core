@@ -554,6 +554,8 @@ func main() {
 		cmdServe(cfg)
 	case "mcp":
 		cmdMCP(cfg)
+	case "doctor":
+		cmdDoctor(cfg)
 	case "tui":
 		cmdTUI(cfg)
 	case "search":
@@ -781,7 +783,12 @@ func cmdMCP(cfg store.Config) {
 	}
 	defer s.Close()
 
-	mcpCfg := mcp.MCPConfig{}
+	mcpCfg := mcp.MCPConfig{
+		Version: version,
+		StoreConfig: mcp.StoreConfigShape{
+			DataDir: cfg.DataDir,
+		},
+	}
 	allowlist := resolveMCPTools(toolsFilter)
 	mcpSrv := newMCPServerWithConfig(s, mcpCfg, allowlist)
 

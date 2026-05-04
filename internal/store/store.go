@@ -564,6 +564,22 @@ func newWithoutRepair(cfg Config) (*Store, error) {
 func (s *Store) Close() error {
 	return s.db.Close()
 }
+// DB returns the underlying *sql.DB. Exposed for read-only consumers
+// (e.g., internal/doctor) that need to issue diagnostic queries
+// without going through Store methods.
+//
+// Callers MUST NOT call Close() on the returned handle — Store owns
+// the lifecycle.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
+// Cfg returns the Config the Store was initialized with. Read-only.
+func (s *Store) Cfg() Config {
+	return s.cfg
+}
+
+
 
 // ─── Migrations ──────────────────────────────────────────────────────────────
 
