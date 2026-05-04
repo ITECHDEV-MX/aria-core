@@ -3348,3 +3348,186 @@ func TestAllTools_ReadResponseEnvelope_WithAssertions(t *testing.T) {
 	}
 	assertEnvelope(t, "mem_context", resCtx)
 }
+
+
+// ─── B.2.1: conflict detection wired into aria_save ─────────────────────────
+
+// setupSaveTestRepo creates a temp git repo with a remote so
+// resolveWriteProject can auto-detect the project, and chdirs into it.
+// Returns the project name embedded in the remote.
+func setupSaveTestRepo(t *testing.T, repoName string) {
+	t.Helper()
+	dir := t.TempDir()
+	initTestGitRepo(t, dir)
+	cmd := exec.Command("git", "-C", dir, "remote", "add", "origin",
+		"git@github.com:user/"+repoName+".git")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git remote add: %v\n%s", err, out)
+	}
+	t.Chdir(dir)
+}
+
+// TestSave_NoConflicts_ResponseHasNoConflictsField verifies that on a
+// fresh save with nothing to conflict against, the response envelope
+// does NOT contain a `conflicts` field.
+func TestSave_NoConflicts_ResponseHasNoConflictsField(t *testing.T) {
+	setupSaveTestRepo(t, "no-conflicts-proj")
+
+	s := newMCPTestStore(t)
+	h := handleSave(s, MCPConfig{}, NewSessionActivity(10*time.Minute))
+
+	req := mcppkg.CallToolRequest{Params: mcppkg.CallToolParams{Arguments: map[string]any{
+		"title":     "First memory",
+		"content":   "Original content for first memory",
+		"type":      "decision",
+		"topic_key": "decision/db-engine",
+	}}}
+	res, err := h(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("unexpected save error: %s", callResultText(t, res))
+	}
+
+	envelope := callResultJSON(t, res)
+	if _, exists := envelope["conflicts"]; exists {
+		t.Fatalf("expected no conflicts field on first save, got %v", envelope["conflicts"])
+	}
+}
+
+// TestSave_TopicKeyHashDiverge_FlagsConflict verifies that re-saving
+// under the same topic_key with different content produces a conflict
+// row and surfaces it in the response.
+func TestSave_TopicKeyHashDiverge_FlagsConflict(t *testing.T) {
+	setupSaveTestRepo(t, "diverge-proj")
+
+	s := newMCPTestStore(t)
+	h := handleSave(s, MCPConfig{}, NewSessionActivity(10*time.Minute))
+
+	// First save establishes the prior under topic_key.
+	req1 := mcppkg.CallToolRequest{Params: mcppkg.CallToolParams{Arguments: map[string]any{
+		"title":     "DB engine choice",
+		"content":   "We will use PostgreSQL for the cloud tier.",
+		"type":      "decision",
+		"topic_key": "decision/db-engine",
+	}}}
+	res1, err := h(context.Background(), req1)
+	if err != nil || res1.IsError {
+		t.Fatalf("first save failed: err=%v body=%s", err, callResultText(t, res1))
+	}
+	env1 := callResultJSON(t, res1)
+	if _, exists := env1["conflicts"]; exists {
+		t.Fatalf("first save should have no conflicts, got %v", env1["conflicts"])
+	}
+
+	// Re-save under same topic_key, different content. The store
+	// upserts (revision_count++) but the detector flags the prior
+	// hash as divergent because the latest insertion replaced the
+	// row but normalized_hash differs from what the prior most-recent
+	// row carried before this update.
+	//
+	// Note: AddObservation under topic_key UPDATEs the existing row.
+	// To trigger topic_key_hash_diverge we need TWO distinct rows
+	// with the same (project, topic_key) — but the upsert prevents
+	// that for the same scope. We force a second row by changing
+	// the scope so the upsert lookup misses, but the detector still
+	// finds the prior under (project, topic_key, id != current).
+	//
+	// The detector query in detectTopicKeyDiverge uses (project,
+	// topic_key, id != obs.ID) — it does NOT filter by scope. So
+	// inserting under a different scope yields a second row in the
+	// same (project, topic_key) bucket and the detector flags it.
+	req2 := mcppkg.CallToolRequest{Params: mcppkg.CallToolParams{Arguments: map[string]any{
+		"title":     "DB engine choice (revised)",
+		"content":   "Actually we are switching to MySQL for licensing reasons.",
+		"type":      "decision",
+		"topic_key": "decision/db-engine",
+		"scope":     "personal", // distinct scope -> distinct row (normalizeScope only allows project|personal)
+	}}}
+	res2, err := h(context.Background(), req2)
+	if err != nil || res2.IsError {
+		t.Fatalf("second save failed: err=%v body=%s", err, callResultText(t, res2))
+	}
+	env2 := callResultJSON(t, res2)
+
+	raw, ok := env2["conflicts"]
+	if !ok {
+		t.Fatalf("expected conflicts field on diverging re-save, envelope=%v", env2)
+	}
+	cl, ok := raw.([]any)
+	if !ok || len(cl) == 0 {
+		t.Fatalf("expected non-empty conflicts slice, got %T %v", raw, raw)
+	}
+	first, _ := cl[0].(map[string]any)
+	if first == nil {
+		t.Fatalf("expected conflict entry to be a map, got %T", cl[0])
+	}
+	if _, ok := first["conflict_id"]; !ok {
+		t.Fatalf("conflict entry missing conflict_id: %v", first)
+	}
+	if sig, _ := first["signal"].(string); sig != "topic_key_hash_diverge" {
+		t.Fatalf("expected signal topic_key_hash_diverge, got %q", sig)
+	}
+	if _, ok := first["candidate_observation_id"]; !ok {
+		t.Fatalf("conflict entry missing candidate_observation_id: %v", first)
+	}
+
+	// Verify the conflict row was actually persisted.
+	var n int
+	if err := s.DB().QueryRow(
+		`SELECT COUNT(*) FROM aria_memory_conflicts WHERE status = 'pending' AND detection_signal = 'topic_key_hash_diverge'`,
+	).Scan(&n); err != nil {
+		t.Fatalf("count conflicts: %v", err)
+	}
+	if n == 0 {
+		t.Fatalf("expected at least one pending conflict row in aria_memory_conflicts")
+	}
+}
+
+// TestSave_DetectorError_StillSucceeds verifies that when conflict
+// detection cannot run (here: parent context already canceled, which
+// makes the internal db query fail under the 100ms budget), the save
+// itself still returns a success envelope without a conflicts field.
+func TestSave_DetectorError_StillSucceeds(t *testing.T) {
+	setupSaveTestRepo(t, "robust-proj")
+
+	s := newMCPTestStore(t)
+	h := handleSave(s, MCPConfig{}, NewSessionActivity(10*time.Minute))
+
+	// Pre-canceled context — the AddObservation call itself does NOT
+	// take ctx (it uses internal s.db), so it will succeed; but the
+	// downstream detectAndPersistConflicts call uses the canceled
+	// ctx as its parent, so context.WithTimeout returns an
+	// already-canceled child. db.QueryRowContext returns ErrCanceled,
+	// which the fail-soft branch logs and swallows.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	req := mcppkg.CallToolRequest{Params: mcppkg.CallToolParams{Arguments: map[string]any{
+		"title":     "Robust save",
+		"content":   "Save must survive detection errors",
+		"type":      "decision",
+		"topic_key": "decision/robust",
+	}}}
+	res, err := h(ctx, req)
+	if err != nil {
+		t.Fatalf("handler returned hard error: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("expected save to succeed even when detection fails, got error: %s", callResultText(t, res))
+	}
+
+	env := callResultJSON(t, res)
+	if _, exists := env["conflicts"]; exists {
+		t.Fatalf("expected no conflicts field when detection errors, got %v", env["conflicts"])
+	}
+	// And the observation itself was persisted.
+	obs, err := s.RecentObservations("robust-proj", "project", 5)
+	if err != nil {
+		t.Fatalf("recent observations: %v", err)
+	}
+	if len(obs) == 0 {
+		t.Fatalf("expected observation persisted despite detection failure")
+	}
+}
