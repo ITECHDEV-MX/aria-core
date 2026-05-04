@@ -1,0 +1,88 @@
+package dashboard
+
+import "fmt"
+
+// SkillHealthRow is one row in the health table.
+type SkillHealthRow struct {
+	Name         string
+	Version      string
+	Owner        string
+	LastReviewed string
+	Agent        bool
+	IsDraft      bool
+	HasDossier   bool // body contains the dossier section markers
+	BodyChars    int
+}
+
+// SkillsHealthPage renders the skills catalog with health signals.
+templ SkillsHealthPage(rows []SkillHealthRow, totals SkillsHealthTotals) {
+	<section class="frame-section">
+		<div class="section-header">
+			<div>
+				<p class="section-kicker">SKILLS HEALTH</p>
+				<h2>Catálogo + signals</h2>
+				<p class="muted">
+					{ fmt.Sprintf("Total: %d skills · agent-skills: %d · drafts: %d · sin reviewer reciente: %d", totals.Total, totals.Agent, totals.Drafts, totals.UnreviewedRecent) }
+				</p>
+			</div>
+		</div>
+
+		<div class="card">
+			if len(rows) == 0 {
+				<p class="muted" style="padding:1rem">No skills registrados todavía.</p>
+			} else {
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>Skill</th>
+							<th>Version</th>
+							<th>Owner</th>
+							<th>Last Reviewed</th>
+							<th>Tipo</th>
+							<th>Dossier</th>
+							<th>Body</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range rows {
+							<tr>
+								<td>
+									<code>{ r.Name }</code>
+									if r.IsDraft {
+										<span class="badge badge-warn" style="margin-left:0.5rem">draft</span>
+									}
+								</td>
+								<td>{ r.Version }</td>
+								<td>{ r.Owner }</td>
+								<td>{ r.LastReviewed }</td>
+								<td>
+									if r.Agent {
+										<span class="badge badge-info">agent</span>
+									} else {
+										<span class="muted">inline</span>
+									}
+								</td>
+								<td>
+									if r.HasDossier {
+										<span class="badge badge-success">✓</span>
+									} else {
+										<span class="badge badge-warn">missing</span>
+									}
+								</td>
+								<td>{ fmt.Sprintf("%d ch", r.BodyChars) }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			}
+		</div>
+	</section>
+}
+
+// SkillsHealthTotals is the summary header data.
+type SkillsHealthTotals struct {
+	Total            int
+	Agent            int
+	Drafts           int
+	UnreviewedRecent int // last_reviewed older than 6 months OR missing
+}
