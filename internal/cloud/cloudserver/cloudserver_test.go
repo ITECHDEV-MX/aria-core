@@ -436,17 +436,13 @@ func TestHandlerDashboardLoginFailsClosedWithoutSessionCodec(t *testing.T) {
 	}
 }
 
-// TestHandlerDashboardLoginBypassesInsecureModeWithoutSessionCodec tested an
-// "insecure mode" where auth=nil collapses the login flow into a redirect.
-// The current handler always renders the login form unless RequireSession
-// returns nil (which requires a valid session cookie). Implementing the
-// bypass cleanly requires an explicit WithInsecureMode() option so that
-// `srv := &CloudServer{}` (no-auth fixtures like the public pages tests)
-// don't accidentally inherit the bypass. Out of scope for the auth-refactor
-// test cleanup; tracked for a follow-up that adds the explicit toggle.
+// TestHandlerDashboardLoginBypassesInsecureModeWithoutSessionCodec verifies the
+// WithInsecureMode opt-in: when explicitly configured, login GET/POST collapse
+// into a redirect to /dashboard/, and the dashboard itself is wide open.
+// Tests the contract on top of the explicit flag so the public-pages fixtures
+// (auth=nil but NO WithInsecureMode) keep their strict-deny semantics.
 func TestHandlerDashboardLoginBypassesInsecureModeWithoutSessionCodec(t *testing.T) {
-	t.Skip("insecure-mode redirect requires an explicit WithInsecureMode() opt-in; not implemented yet (aspirational test)")
-	srv := New(&fakeStore{}, nil, 0)
+	srv := New(&fakeStore{}, nil, 0, WithInsecureMode())
 
 	loginPage := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(loginPage, httptest.NewRequest(http.MethodGet, "/dashboard/login", nil))
@@ -1496,16 +1492,9 @@ func TestAuditLogE2E_MutationPushPausedThenListRendered(t *testing.T) {
 // REQ-110 requires an explicit WithInsecureMode() opt-in, otherwise other no-auth
 // fixtures (public-pages tests) would accidentally inherit the bypass and break.
 func TestInsecureModeLoginRedirects(t *testing.T) {
-	t.Skip("REQ-110 insecure-mode redirect needs explicit WithInsecureMode() opt-in; not implemented yet")
-	// Create server with nil auth (insecure no-auth mode).
-	srv := &CloudServer{
-		store: &fakeStore{},
-		auth:  nil,
-		port:  0,
-		host:  defaultHost,
-		mux:   http.NewServeMux(),
-	}
-	srv.routes()
+	// REQ-110: when WithInsecureMode is opted-in, GET /dashboard/login returns
+	// 303 to /dashboard/ (login is a no-op in insecure mode).
+	srv := New(&fakeStore{}, nil, 0, WithInsecureMode())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/dashboard/login", nil)
