@@ -1,5 +1,5 @@
 ---
-name: aria-core-architecture-guardrails
+name: architecture-guardrails
 description: >
   Architecture guardrails for AriaCore across local store, cloud sync, dashboard,
   and plugins. Trigger: Any change that affects system boundaries, ownership,
@@ -8,6 +8,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

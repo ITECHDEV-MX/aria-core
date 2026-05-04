@@ -1,5 +1,5 @@
 ---
-name: aria-core-commit-hygiene
+name: commit-hygiene
 description: >
   Commit and branch naming standards for AriaCore contributors, enforced by GitHub rulesets.
   Trigger: Any commit creation, review, or branch cleanup.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "2.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

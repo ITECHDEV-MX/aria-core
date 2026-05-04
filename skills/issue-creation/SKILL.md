@@ -1,5 +1,5 @@
 ---
-name: aria-core-issue-creation
+name: issue-creation
 description: >
   Issue creation workflow for AriaCore following the issue-first enforcement system.
   Trigger: When creating a GitHub issue, reporting a bug, or requesting a feature.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

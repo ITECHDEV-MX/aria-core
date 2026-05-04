@@ -1,5 +1,5 @@
 ---
-name: aria-core-docs-alignment
+name: docs-alignment
 description: >
   Documentation alignment rules for AriaCore.
   Trigger: Any code or workflow change that affects user or contributor behavior.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

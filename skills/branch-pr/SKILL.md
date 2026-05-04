@@ -1,5 +1,5 @@
 ---
-name: aria-core-branch-pr
+name: branch-pr
 description: >
   PR creation workflow for AriaCore following the issue-first enforcement system.
   Trigger: When creating a pull request, opening a PR, or preparing changes for review.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "2.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

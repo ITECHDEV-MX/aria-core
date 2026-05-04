@@ -1,5 +1,5 @@
 ---
-name: aria-core-business-rules
+name: business-rules
 description: >
   Product and business-rule guardrails for AriaCore. Trigger: Any change that
   affects sync behavior, project controls, permissions, or memory semantics.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

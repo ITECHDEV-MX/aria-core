@@ -1,5 +1,5 @@
 ---
-name: aria-core-pr-review-deep
+name: pr-review-deep
 description: >
   Deep technical review protocol for AriaCore pull requests.
   Trigger: Reviewing any external or internal contribution before merge.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use

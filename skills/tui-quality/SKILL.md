@@ -1,5 +1,5 @@
 ---
-name: aria-core-tui-quality
+name: tui-quality
 description: >
   Bubbletea/Lipgloss quality rules for AriaCore TUI.
   Trigger: Changes in model, update, view, navigation, or rendering.
@@ -7,6 +7,8 @@ license: Apache-2.0
 metadata:
   author: gentleman-programming
   version: "1.0"
+version: 1.0.0
+owner: contacto@itechpymes.com.mx
 ---
 
 ## When to Use
