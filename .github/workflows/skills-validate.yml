@@ -38,6 +38,10 @@ jobs:
           echo ""
           /tmp/aria-core skills validate ./skills --strict
 
+      - name: Check skills lockfile committed and current
+        run: |
+          /tmp/aria-core skills check-drift ./skills
+
       - name: Upload validation report
         if: always()
         uses: actions/upload-artifact@v4

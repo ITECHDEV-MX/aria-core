@@ -31,6 +31,10 @@ func cmdSkills() {
 	switch os.Args[2] {
 	case "validate":
 		cmdSkillsValidate()
+	case "lock":
+		cmdSkillsLock()
+	case "check-drift":
+		cmdSkillsCheckDrift()
 	case "-h", "--help":
 		printSkillsUsage()
 	default:
@@ -49,10 +53,17 @@ Subcommands:
                       --strict    Exit 1 on errors (default: warn-only).
                       --json      Emit machine-readable JSON output.
 
+  lock [path]       Generate skills/MANIFEST.yaml with content hashes.
+                    Path defaults to ./skills.
+
+  check-drift [path] [--json]
+                    Compare working tree against MANIFEST.yaml. Exit 1 on
+                    drift.
+
 Examples:
   aria-core skills validate
-  aria-core skills validate ./skills --strict
-  aria-core skills validate /repo/skills --json | jq .findings`)
+  aria-core skills lock
+  aria-core skills check-drift --json | jq .entries`)
 }
 
 func cmdSkillsValidate() {
@@ -111,4 +122,96 @@ func cmdSkillsValidate() {
 
 func startsWith(s, prefix string) bool {
 	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+// cmdSkillsLock writes/regenerates skills/MANIFEST.yaml with current
+// SHA-256 content hashes. Caller usually commits the result.
+func cmdSkillsLock() {
+	path := "./skills"
+	for i := 3; i < len(os.Args); i++ {
+		if !startsWith(os.Args[i], "-") {
+			path = os.Args[i]
+			break
+		}
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "resolve path: %v\n", err)
+		exitFunc(2)
+		return
+	}
+
+	lf, err := skills.BuildLockfile(abs)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "build lockfile: %v\n", err)
+		exitFunc(2)
+		return
+	}
+	if err := skills.WriteLockfile(abs, lf); err != nil {
+		fmt.Fprintf(os.Stderr, "write lockfile: %v\n", err)
+		exitFunc(2)
+		return
+	}
+	fmt.Printf("✓ Wrote %s/%s with %d skill(s)\n", abs, skills.LockfileName, len(lf.Skills))
+}
+
+// cmdSkillsCheckDrift compares the working tree to MANIFEST.yaml.
+// Exits 0 if no drift, 1 if drift, 2 on I/O failure.
+func cmdSkillsCheckDrift() {
+	path := "./skills"
+	asJSON := false
+	for i := 3; i < len(os.Args); i++ {
+		switch os.Args[i] {
+		case "--json":
+			asJSON = true
+		case "-h", "--help":
+			printSkillsUsage()
+			return
+		default:
+			if !startsWith(os.Args[i], "-") {
+				path = os.Args[i]
+			}
+		}
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "resolve path: %v\n", err)
+		exitFunc(2)
+		return
+	}
+
+	report, err := skills.CheckDrift(abs)
+	if err != nil {
+		if err == skills.ErrLockfileMissing {
+			fmt.Fprintf(os.Stderr, "no lockfile found at %s/%s — run `aria-core skills lock` first\n", abs, skills.LockfileName)
+			exitFunc(1)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "drift check: %v\n", err)
+		exitFunc(2)
+		return
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(report)
+	} else {
+		if !report.HasErrors {
+			fmt.Printf("✓ No drift across %d skill(s).\n", report.Skills)
+		} else {
+			fmt.Printf("✗ Drift detected across %d skill(s):\n\n", report.Skills)
+			for _, e := range report.Entries {
+				fmt.Printf("  [%s] %s — %s\n", e.Kind, e.Name, e.Note)
+			}
+			fmt.Println()
+			fmt.Println("Run `aria-core skills lock` to regenerate the lockfile after intentional changes.")
+		}
+	}
+
+	if report.HasErrors {
+		exitFunc(1)
+	}
 }
