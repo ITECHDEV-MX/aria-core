@@ -1,15 +1,25 @@
 package main
 
 import (
+	"log"
 	"time"
 
 	"github.com/ITECHDEV-MX/aria-core/internal/cloud/cotizador"
 )
 
+// mustDate parses a hardcoded YYYY-MM-DD literal. Inputs come from
+// proposalsToImport() (also in this package) — they are constants
+// reviewed at code-time, not user input.
+//
+// On a parse failure we log and return the zero time. The downstream
+// caller already handles zero-time as "unknown date" gracefully, and
+// this avoids the leaf-module panic flagged in the 2026-05-04
+// improvement audit.
 func mustDate(s string) time.Time {
 	t, err := time.Parse("2006-01-02", s)
 	if err != nil {
-		panic(err)
+		log.Printf("import_proposals_data: bad date literal %q (returning zero time): %v", s, err)
+		return time.Time{}
 	}
 	return t
 }

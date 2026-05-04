@@ -674,7 +674,7 @@ func (s *CloudServer) routes() {
 		adminUsers = userServiceAdapter{us: s.userStore}
 	}
 
-	dashboard.Mount(s.mux, dashboard.MountConfig{
+	if err := dashboard.Mount(s.mux, dashboard.MountConfig{
 		RequireSession:      s.authorizeDashboardRequest,
 		ValidateCredentials: validateCredentials,
 		ValidateLoginToken:  validateLoginToken,
@@ -725,7 +725,9 @@ func (s *CloudServer) routes() {
 		Pages:             s.pagesDash,
 		QuoteChat:         s.quoteChat,
 		KnowledgeBase:     s.kbDash,
-	})
+	}); err != nil {
+		log.Printf("cloudserver: dashboard mount failed (degrading to API-only): %v", err)
+	}
 	s.mux.HandleFunc("GET /sync/pull", s.withAuth(s.handlePullManifest))
 	s.mux.HandleFunc("GET /sync/pull/{chunkID}", s.withAuth(s.handlePullChunk))
 	s.mux.HandleFunc("POST /sync/push", s.withAuth(s.handlePushChunk))

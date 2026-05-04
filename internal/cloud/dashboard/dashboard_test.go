@@ -407,7 +407,7 @@ type stubSyncStatusProvider struct {
 
 func TestMountHTMXAndProjectDetailParity(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -540,7 +540,7 @@ func TestMountHTMXAndProjectDetailParity(t *testing.T) {
 
 func TestMountAddsHTMXNavigationWiringForBrowserProjectsAndAdmin(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -593,7 +593,7 @@ func TestMountAddsHTMXNavigationWiringForBrowserProjectsAndAdmin(t *testing.T) {
 
 func TestMountContributorsSurfaceRendersCloudstoreBackedRows(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -642,7 +642,7 @@ func TestMountContributorsSurfaceRendersCloudstoreBackedRows(t *testing.T) {
 
 func TestMountStoreErrorsReturnDegradedNon200Responses(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -729,7 +729,7 @@ func TestMountProjectScopedErrorsMapToExplicitHTTPStatuses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mux := http.NewServeMux()
-			Mount(mux, MountConfig{
+			_ = Mount(mux, MountConfig{
 				RequireSession: func(r *http.Request) error {
 					if r.URL.Query().Get("auth") == "ok" {
 						return nil
@@ -903,7 +903,7 @@ func countElementsWithClass(body string, class string) int {
 // newAuthedMux creates a test mux with a simple auth=ok query param gate.
 func newAuthedMux(store DashboardStore, isAdmin bool) *http.ServeMux {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1010,7 +1010,7 @@ func TestLoginPageTokenFormAndCopy(t *testing.T) {
 // Principal.DisplayName() returns "OPERATOR". Satisfies REQ-103.
 func TestGetDisplayNameFallback(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1033,7 +1033,7 @@ func TestGetDisplayNameFallback(t *testing.T) {
 // from GetDisplayName is treated as absent and falls back to "OPERATOR". Satisfies REQ-113.
 func TestPrincipalBridgeNoPanicOnEmptyContext(t *testing.T) {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1084,7 +1084,7 @@ func TestHandlerWithStatusRendersUpgradePhaseAndReasonParity(t *testing.T) {
 func TestMountRouteParityAndHTTPFallbacks(t *testing.T) {
 	mux := http.NewServeMux()
 
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1265,7 +1265,7 @@ func TestMountRouteParityAndHTTPFallbacks(t *testing.T) {
 // newAuthedAdminMux creates a test mux with admin=true.
 func newAuthedAdminMux(store DashboardStore) *http.ServeMux {
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1413,7 +1413,7 @@ func TestBrowserPaginationHonorsPageParam(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -1450,7 +1450,7 @@ func TestBrowserPaginationBeyondTotalClampsToLastPage(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2096,7 +2096,7 @@ func TestBrowserPartialRendersPaginationBar(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2139,7 +2139,7 @@ func TestBrowserSessionsPartialRendersPaginationBar(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2178,7 +2178,7 @@ func TestBrowserPromptsPartialRendersPaginationBar(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2270,7 +2270,7 @@ func TestContributorsPaginationUsesRealTotal(t *testing.T) {
 		total:           75,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2314,7 +2314,7 @@ func TestAdminUsersPaginationUsesRealTotal(t *testing.T) {
 		total:           125,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2355,7 +2355,7 @@ func TestHtmxPaginationBarNoMalformedURL(t *testing.T) {
 		total:           25,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil
@@ -2426,7 +2426,7 @@ func TestProjectsListPaginationUsesRealTotal(t *testing.T) {
 		total:       75,
 	}
 	mux := http.NewServeMux()
-	Mount(mux, MountConfig{
+	_ = Mount(mux, MountConfig{
 		RequireSession: func(r *http.Request) error {
 			if r.URL.Query().Get("auth") == "ok" {
 				return nil

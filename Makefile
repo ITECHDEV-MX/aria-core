@@ -1,4 +1,4 @@
-.PHONY: templ build build-snapshot release-snapshot release-check clean tidy run-mcp run-serve
+.PHONY: templ build build-snapshot release-snapshot release-check clean tidy run-mcp run-serve test test-cover lint dev skills-validate skills-lock doctor
 
 # Generate templ files (dashboard SSR)
 templ:
@@ -44,3 +44,36 @@ run-mcp: build
 # Run local HTTP serve (port 7437)
 run-serve: build
 	./bin/aria-core serve
+
+# Run all unit tests (race-detector enabled).
+test:
+	go test ./... -race -count=1
+
+# Coverage report opens in browser.
+test-cover:
+	go test ./... -coverprofile=/tmp/aria-cover.out
+	go tool cover -html=/tmp/aria-cover.out
+
+# Lint pass via golangci-lint (must be installed locally).
+lint:
+	golangci-lint run ./...
+
+# Dev loop: watch templ files and rebuild + run.
+# Requires: go install github.com/a-h/templ/cmd/templ@latest
+# Two-process loop using a single & to background templ.
+dev:
+	@echo "Watching templ files (background) + running aria-core serve..."
+	templ generate --watch ./internal/cloud/dashboard/... &
+	go run ./cmd/aria-core serve
+
+# Validate the skills catalog locally (soft mode, errors do not fail).
+skills-validate:
+	go run ./cmd/aria-core skills validate ./skills
+
+# Re-lock the skills catalog (run after editing any SKILL.md).
+skills-lock:
+	go run ./cmd/aria-core skills lock ./skills
+
+# Doctor — run the read-only diagnostic.
+doctor:
+	go run ./cmd/aria-core doctor
