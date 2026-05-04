@@ -1055,6 +1055,18 @@ func (cs *CloudStore) migrate(ctx context.Context) error {
 			finished_at TIMESTAMPTZ,
 			UNIQUE(execution_id, step_index)
 		)`,
+		`CREATE TABLE IF NOT EXISTS aria_skill_maintainers (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			email TEXT NOT NULL UNIQUE,
+			github_username TEXT,
+			expertise_domains TEXT[] NOT NULL DEFAULT '{}',
+			added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			added_by_uid UUID,
+			revoked_at TIMESTAMPTZ
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_maintainers_active ON aria_skill_maintainers(email) WHERE revoked_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_skill_maintainers_domains ON aria_skill_maintainers USING gin(expertise_domains)`,
+
 		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_recent ON aria_recipe_executions(started_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_status ON aria_recipe_executions(status, started_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_recipe_exec_key ON aria_recipe_executions(recipe_key, started_at DESC)`,
