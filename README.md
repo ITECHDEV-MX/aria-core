@@ -50,9 +50,12 @@ aria-core cloud upgrade status --project <name>     # imprime estado del enrolme
 - [`DOCS.md`](DOCS.md) — referencia técnica completa (heredada de engram, en proceso de actualización)
 - [`AGENTS.md`](AGENTS.md) — índice de skills
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — flujo issue-first
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura interna
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura del pipeline de memoria (engram-era)
+- [`docs/ARCHITECTURE-CLOUD.md`](docs/ARCHITECTURE-CLOUD.md) — arquitectura cloud actual (v2026.04+)
 - [`docs/AGENT-SETUP.md`](docs/AGENT-SETUP.md) — configuración por agente
 - [`docs/ARIA-CORE-CLOUD.md`](docs/ARIA-CORE-CLOUD.md) — modo cloud
+- [`docs/AGENT-SKILL-AUTHORING.md`](docs/AGENT-SKILL-AUTHORING.md) — protocolo agent-skill (chains)
+- [`docs/CONTRIBUTING-SKILLS.md`](docs/CONTRIBUTING-SKILLS.md) — workflow para autorar/modificar skills
 
 ## Licencia
 
