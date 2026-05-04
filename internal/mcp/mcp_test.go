@@ -1175,6 +1175,7 @@ func TestNewServerWithToolsNilRegistersAll(t *testing.T) {
 		"mem_current_project",
 		"aria_doctor",  // B.1
 		"aria_judge", "aria_compare",  // B.2
+		"aria_artifact_save", "aria_artifact_get", "aria_artifact_list", "aria_artifact_complete",  // F2
 	}
 
 	for _, name := range allTools {
@@ -1214,8 +1215,8 @@ func TestNewServerBackwardsCompatible(t *testing.T) {
 	tools := srv.ListTools()
 
 	// 12 agent + 4 admin = 16 total
-	if len(tools) != 19 {
-		t.Errorf("NewServer should register all 19 tools, got %d", len(tools))
+	if len(tools) != 23 {
+		t.Errorf("NewServer should register all 23 tools, got %d", len(tools))
 	}
 }
 
@@ -1532,9 +1533,9 @@ func TestNewServerWithConfig(t *testing.T) {
 		t.Fatal("expected MCP server instance")
 	}
 	tools := srv.ListTools()
-	// Should have all 19 tools (15 original + mem_current_project + aria_doctor (B.1) + aria_judge + aria_compare (B.2))
-	if len(tools) != 19 {
-		t.Errorf("NewServerWithConfig should register all 19 tools, got %d", len(tools))
+	// Should have all 23 tools (15 original + mem_current_project + aria_doctor (B.1) + aria_judge + aria_compare (B.2) + aria_artifact_save/get/list/complete (F2))
+	if len(tools) != 23 {
+		t.Errorf("NewServerWithConfig should register all 23 tools, got %d", len(tools))
 	}
 }
 

@@ -659,6 +659,14 @@ Duplicates are automatically detected and skipped — safe to call multiple time
 		registerAriaCompare(srv, s)
 	}
 
+	// aria_artifact_* — multi-agent chain artifact tools (F2)
+	if shouldRegister("aria_artifact_save", allowlist) ||
+		shouldRegister("aria_artifact_get", allowlist) ||
+		shouldRegister("aria_artifact_list", allowlist) ||
+		shouldRegister("aria_artifact_complete", allowlist) {
+		registerAriaHistorias(srv)
+	}
+
 }
 
 // ─── Tool Handlers ───────────────────────────────────────────────────────────
