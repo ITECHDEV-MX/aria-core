@@ -16,11 +16,15 @@
 ## Quick Start
 
 ```bash
-# Install (macOS / Linux)
-brew install ITECHDEV-MX/homebrew-tap/aria-core
+# Pre-requisite: this repo is private. Configure git auth once:
+gh auth login                  # or: git config --global url.https://YOUR-PAT@github.com/.insteadOf https://github.com/
+export GOPRIVATE=github.com/ITECHDEV-MX
 
-# Or install via go (any platform with Go ≥ 1.25)
+# Install via go (any platform with Go ≥ 1.25)
 go install github.com/ITECHDEV-MX/aria-core/cmd/aria-core@latest
+
+# Or download a prebuilt binary from GitHub Releases (auth required while repo is private):
+# https://github.com/ITECHDEV-MX/aria-core/releases/latest
 
 # Wire up your agent (interactive menu)
 aria-core setup
