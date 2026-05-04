@@ -6,6 +6,17 @@
 >
 > Validation boundary (current): plugin scripts are validated for memory/session workflows, not as cloud bootstrap orchestrators. Use CLI for cloud config/auth/enrollment/upgrade.
 
+## Cloud upgrade — CLI flows
+
+Plugin authors should not orchestrate these; document them so users know what to run from the shell:
+
+```bash
+aria-core cloud upgrade doctor --project <name>
+aria-core cloud upgrade repair --project <name>
+aria-core cloud upgrade bootstrap --project <name>
+aria-core cloud upgrade status --project <name>
+```
+
 - [OpenCode Plugin](#opencode-plugin)
 - [Claude Code Plugin](#claude-code-plugin)
 - [Privacy](#privacy)

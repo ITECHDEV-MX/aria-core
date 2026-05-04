@@ -34,6 +34,17 @@ Servidor central productivo: **`https://ariacore.itechdev.com.mx`** (en aprovisi
 docker compose -f docker-compose.cloud.yml up
 ```
 
+ARIA Core es **local-first**: la fuente primaria es el `local SQLite` por proyecto, y la cloud
+actúa como capa de **replication/shared access** entre miembros del equipo. Los comandos
+de migración cuando alguien rota la cloud:
+
+```bash
+aria-core cloud upgrade doctor --project <name>     # diagnostica drift cloud↔local
+aria-core cloud upgrade repair --project <name>     # remedia el drift detectado
+aria-core cloud upgrade bootstrap --project <name>  # inicializa un proyecto en cloud
+aria-core cloud upgrade status --project <name>     # imprime estado del enrolment
+```
+
 ## Documentación
 
 - [`DOCS.md`](DOCS.md) — referencia técnica completa (heredada de engram, en proceso de actualización)
